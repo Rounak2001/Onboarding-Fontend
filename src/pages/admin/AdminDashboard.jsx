@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { adminUrl } from '../../utils/adminPath';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -7,11 +8,12 @@ const AdminDashboard = () => {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [deletingId, setDeletingId] = useState(null);
 
     const token = localStorage.getItem('admin_token');
 
     useEffect(() => {
-        if (!token) { navigate('/admin'); return; }
+        if (!token) { navigate(adminUrl()); return; }
         fetchConsultants();
     }, []);
 
@@ -21,11 +23,41 @@ const AdminDashboard = () => {
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
-            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate('/admin'); return; }
+            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             const data = await res.json();
             setConsultants(data.consultants || []);
-        } catch { setError('Failed to load consultants'); }
-        finally { setLoading(false); }
+        } catch {
+            setError('Failed to load consultants');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteConsultant = async (consultantId, consultantName) => {
+        if (!window.confirm(`Delete ${consultantName || 'this consultant'} permanently? This cannot be undone.`)) return;
+        setDeletingId(consultantId);
+        try {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${consultantId}/delete/`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                navigate(adminUrl());
+                return;
+            }
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Failed to delete consultant');
+                return;
+            }
+            setConsultants(prev => prev.filter(c => c.id !== consultantId));
+        } catch {
+            alert('Failed to connect to server');
+        } finally {
+            setDeletingId(null);
+        }
     };
 
     const filtered = consultants.filter(c =>
@@ -36,30 +68,19 @@ const AdminDashboard = () => {
 
     const handleLogout = () => {
         localStorage.removeItem('admin_token');
-        navigate('/admin');
+        navigate(adminUrl());
     };
-
-    const statusBadge = (value, trueLabel, falseLabel) => (
-        <span style={{
-            padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-            background: value ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)',
-            color: value ? '#34d399' : '#f87171',
-            border: `1px solid ${value ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)'}`,
-        }}>
-            {value ? trueLabel : falseLabel}
-        </span>
-    );
 
     const verificationBadge = (status) => {
         const colors = {
-            'Matched': { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
+            Matched: { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
             'All Verified': { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
             'No Match': { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.2)' },
-            'Pending': { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.2)' },
+            Pending: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.2)' },
             'Not Done': { bg: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'rgba(100,116,139,0.15)' },
             'No Docs': { bg: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'rgba(100,116,139,0.15)' },
         };
-        const c = colors[status] || colors['Pending'];
+        const c = colors[status] || colors.Pending;
         return (
             <span style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
@@ -76,7 +97,6 @@ const AdminDashboard = () => {
             background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
             fontFamily: "'Inter', system-ui, sans-serif", color: '#f1f5f9',
         }}>
-            {/* Header */}
             <header style={{
                 background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(12px)',
                 borderBottom: '1px solid rgba(148,163,184,0.1)',
@@ -117,16 +137,15 @@ const AdminDashboard = () => {
             </header>
 
             <div style={{ maxWidth: 1300, margin: '0 auto', padding: '28px 32px' }}>
-                {/* Search */}
                 <div style={{ marginBottom: 24 }}>
                     <input
                         placeholder="Search by name, email, or phone..."
-                        value={search} onChange={(e) => setSearch(e.target.value)}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
                         style={{
                             width: '100%', maxWidth: 420, padding: '11px 16px', borderRadius: 10,
                             background: 'rgba(30,41,59,0.6)', border: '1px solid rgba(148,163,184,0.15)',
-                            color: '#f1f5f9', fontSize: 13, outline: 'none',
-                            boxSizing: 'border-box',
+                            color: '#f1f5f9', fontSize: 13, outline: 'none', boxSizing: 'border-box',
                         }}
                         onFocus={(e) => e.target.style.borderColor = '#10b981'}
                         onBlur={(e) => e.target.style.borderColor = 'rgba(148,163,184,0.15)'}
@@ -137,8 +156,7 @@ const AdminDashboard = () => {
                     <div style={{ textAlign: 'center', padding: 60, color: '#64748b' }}>
                         <div style={{
                             width: 36, height: 36, border: '3px solid #334155', borderTopColor: '#10b981',
-                            borderRadius: '50%', margin: '0 auto 16px',
-                            animation: 'spin 0.8s linear infinite',
+                            borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 0.8s linear infinite',
                         }} />
                         Loading consultants...
                         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -150,68 +168,49 @@ const AdminDashboard = () => {
                 {!loading && !error && (
                     <div style={{
                         background: 'rgba(30,41,59,0.5)', borderRadius: 14,
-                        border: '1px solid rgba(148,163,184,0.1)',
-                        overflow: 'hidden',
+                        border: '1px solid rgba(148,163,184,0.1)', overflow: 'hidden',
                     }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-                                    {['Name', 'Email', 'Phone', 'Assessment', 'Score', 'Video', 'Docs', 'ID Verify', 'Doc Verify', 'Credentials', 'Joined'].map(h => (
+                                    {['Name', 'Email', 'Phone', 'Assessment', 'Score', 'Video', 'Docs', 'ID Verify', 'Doc Verify', 'Credentials', 'Joined', 'Actions'].map(h => (
                                         <th key={h} style={{
                                             padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                            fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
-                                            letterSpacing: 0.8,
+                                            fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
                                         }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map((c, i) => (
-                                    <tr key={c.id}
-                                        onClick={() => navigate(`/admin/consultant/${c.id}`)}
+                                    <tr
+                                        key={c.id}
+                                        onClick={() => navigate(adminUrl(`consultant/${c.id}`))}
                                         style={{
                                             borderBottom: '1px solid rgba(148,163,184,0.06)',
-                                            cursor: 'pointer',
-                                            transition: 'background 0.15s',
+                                            cursor: 'pointer', transition: 'background 0.15s',
                                             background: i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)',
                                         }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.05)'}
                                         onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)'}
                                     >
-                                        <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
-                                            {c.full_name || '—'}
-                                        </td>
+                                        <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{c.full_name || '-'}</td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>{c.email}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>{c.phone_number || '—'}</td>
-
+                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>{c.phone_number || '-'}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{
                                                 padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                background: c.assessment_status === 'Completed' ? 'rgba(59,130,246,0.12)' :
-                                                    c.assessment_status === 'Ongoing' ? 'rgba(245,158,11,0.12)' :
-                                                        c.assessment_status === 'Violated' || c.assessment_status === 'Flagged' ? 'rgba(239,68,68,0.12)' : 'rgba(100,116,139,0.12)',
-                                                color: c.assessment_status === 'Completed' ? '#60a5fa' :
-                                                    c.assessment_status === 'Ongoing' ? '#fbbf24' :
-                                                        c.assessment_status === 'Violated' || c.assessment_status === 'Flagged' ? '#f87171' : '#64748b',
+                                                background: c.assessment_status === 'Completed' ? 'rgba(59,130,246,0.12)' : c.assessment_status === 'Ongoing' ? 'rgba(245,158,11,0.12)' : c.assessment_status === 'Violated' || c.assessment_status === 'Flagged' ? 'rgba(239,68,68,0.12)' : 'rgba(100,116,139,0.12)',
+                                                color: c.assessment_status === 'Completed' ? '#60a5fa' : c.assessment_status === 'Ongoing' ? '#fbbf24' : c.assessment_status === 'Violated' || c.assessment_status === 'Flagged' ? '#f87171' : '#64748b',
                                             }}>
                                                 {c.assessment_status}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>
-                                            {c.assessment_score != null ? `${c.assessment_score}/50` : '—'}
-                                        </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>
-                                            {c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '—'}
-                                        </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>
-                                            {c.document_count}
-                                        </td>
-                                        <td style={{ padding: '14px 16px' }}>
-                                            {verificationBadge(c.face_verification_status)}
-                                        </td>
-                                        <td style={{ padding: '14px 16px' }}>
-                                            {verificationBadge(c.doc_verification_status)}
-                                        </td>
+                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>{c.assessment_score != null ? `${c.assessment_score}/50` : '-'}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>{c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '-'}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>{c.document_count}</td>
+                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.face_verification_status)}</td>
+                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.doc_verification_status)}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{
                                                 padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
@@ -219,17 +218,33 @@ const AdminDashboard = () => {
                                                 color: c.has_credentials ? '#34d399' : '#64748b',
                                                 border: `1px solid ${c.has_credentials ? 'rgba(16,185,129,0.25)' : 'rgba(100,116,139,0.15)'}`,
                                             }}>
-                                                {c.has_credentials ? '✓ Sent' : '—'}
+                                                {c.has_credentials ? 'Sent' : '-'}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 12, color: '#64748b' }}>
-                                            {c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}
+                                        <td style={{ padding: '14px 16px', fontSize: 12, color: '#64748b' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
+                                        <td style={{ padding: '14px 16px' }}>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteConsultant(c.id, c.full_name || c.email);
+                                                }}
+                                                disabled={deletingId === c.id}
+                                                style={{
+                                                    padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                                    border: '1px solid rgba(239,68,68,0.25)',
+                                                    background: deletingId === c.id ? 'rgba(148,163,184,0.15)' : 'rgba(239,68,68,0.12)',
+                                                    color: deletingId === c.id ? '#94a3b8' : '#f87171',
+                                                    cursor: deletingId === c.id ? 'not-allowed' : 'pointer',
+                                                }}
+                                            >
+                                                {deletingId === c.id ? 'Deleting...' : 'Delete'}
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={11} style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 14 }}>
+                                        <td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 14 }}>
                                             {search ? 'No consultants match your search.' : 'No consultants found.'}
                                         </td>
                                     </tr>

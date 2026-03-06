@@ -100,6 +100,7 @@ const Login = () => {
                 <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: 12, marginTop: 24 }}>
                     By signing in, you agree to our Terms of Service and Privacy Policy.
                 </p>
+
             </div>
         </div>
     );

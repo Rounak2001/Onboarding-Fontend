@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { adminUrl } from '../../utils/adminPath';
 
 const ConsultantDetail = () => {
     const { id } = useParams();
@@ -7,6 +8,7 @@ const ConsultantDetail = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [credentialsPopup, setCredentialsPopup] = useState(null);
     const [error, setError] = useState('');
     const [openSections, setOpenSections] = useState({
@@ -18,7 +20,7 @@ const ConsultantDetail = () => {
     const token = localStorage.getItem('admin_token');
 
     useEffect(() => {
-        if (!token) { navigate('/admin'); return; }
+        if (!token) { navigate(adminUrl()); return; }
         fetchDetail();
     }, [id]);
 
@@ -28,7 +30,7 @@ const ConsultantDetail = () => {
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
-            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate('/admin'); return; }
+            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             if (res.status === 404) { setError('Consultant not found'); setLoading(false); return; }
             const d = await res.json();
             setData(d);
@@ -61,6 +63,33 @@ const ConsultantDetail = () => {
 
     const handleRefresh = () => {
         fetchDetail();
+    };
+
+    const handleDeleteConsultant = async () => {
+        if (!window.confirm('Delete this consultant permanently? This cannot be undone.')) return;
+        setDeleting(true);
+        try {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/delete/`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            const d = await res.json();
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                navigate(adminUrl());
+                return;
+            }
+            if (!res.ok) {
+                alert(`Error: ${d.error || 'Failed to delete consultant'}`);
+                return;
+            }
+            navigate(adminUrl('dashboard'));
+        } catch {
+            alert('Failed to connect to server');
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -169,7 +198,7 @@ const ConsultantDetail = () => {
                     maxWidth: 1000, margin: '0 auto', padding: '0 32px',
                     height: 60, display: 'flex', alignItems: 'center', gap: 14,
                 }}>
-                    <button onClick={() => navigate('/admin/dashboard')} style={{
+                    <button onClick={() => navigate(adminUrl('dashboard'))} style={{
                         padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                         background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
                         border: '1px solid rgba(148,163,184,0.15)', cursor: 'pointer',
@@ -180,6 +209,14 @@ const ConsultantDetail = () => {
                         <span style={{ fontWeight: 700, fontSize: 16, color: '#f1f5f9' }}>{p.full_name || p.email}</span>
                         <span style={{ fontSize: 12, color: '#64748b', marginLeft: 10 }}>{p.email}</span>
                     </div>
+                    <button onClick={handleDeleteConsultant} disabled={deleting} style={{
+                        padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        background: deleting ? 'rgba(148,163,184,0.2)' : 'rgba(239,68,68,0.12)',
+                        color: deleting ? '#94a3b8' : '#f87171',
+                        border: '1px solid rgba(239,68,68,0.25)', cursor: deleting ? 'not-allowed' : 'pointer',
+                    }}>
+                        {deleting ? 'Deleting...' : 'Delete Consultant'}
+                    </button>
 
                 </div>
             </header>
@@ -800,6 +837,32 @@ const ConsultantDetail = () => {
                                                                         </div>
                                                                     </div>
 
+                                                                    {(() => {
+                                                                        if (String(d.document_type || '').toLowerCase() !== 'bachelors_degree') return null;
+                                                                        if (String(d.verification_status || '').toLowerCase() === 'verified') return null;
+                                                                        try {
+                                                                            const parsed = d.gemini_raw_response ? JSON.parse(d.gemini_raw_response) : {};
+                                                                            const reason = parsed?.rejection_reason || 'Not a valid degree';
+                                                                            return (
+                                                                                <div style={{ marginTop: 2 }}>
+                                                                                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Validation:</div>
+                                                                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>
+                                                                                        Not a valid degree ({reason})
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        } catch (e) {
+                                                                            return (
+                                                                                <div style={{ marginTop: 2 }}>
+                                                                                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Validation:</div>
+                                                                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>
+                                                                                        Not a valid degree
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                    })()}
+
                                                                     {d.gemini_raw_response && (
                                                                         <div style={{ marginTop: 4 }}>
                                                                             <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>AI Notes:</div>
@@ -880,7 +943,7 @@ const ConsultantDetail = () => {
                         <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%' }}>
                             <button onClick={() => setSelectedImage(null)} style={{
                                 position: 'absolute', top: -50, right: 0,
-                                background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer',
+                                border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'rgba(0,0,0,0.5)', borderRadius: 20
                             }}>
                                 ✕ Close

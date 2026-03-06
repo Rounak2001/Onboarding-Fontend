@@ -84,6 +84,13 @@ const IdentityVerification = () => {
             }
             if (backendCode === 'IDENTITY_INVALID') {
                 setError(backendError || 'Document verification failed. Please upload a valid government ID.');
+            } else if (backendCode === 'GEMINI_QUOTA_EXCEEDED' || backendCode === 'IDENTITY_VERIFICATION_UNAVAILABLE') {
+                const retryIn = verification?.retry_in_s;
+                setError(
+                    retryIn
+                        ? `Identity verification is temporarily unavailable. Please retry in ~${retryIn}s.`
+                        : 'Identity verification is temporarily unavailable. Please try again in a few minutes.'
+                );
             } else {
                 setError(backendError || 'Upload failed. Please try again.');
             }

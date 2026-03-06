@@ -101,16 +101,16 @@ const Onboarding = () => {
                 letterData.append('document_type', 'experience_letter');
                 letterData.append('title', 'Experience Letter');
                 letterData.append('file', experienceLetter);
-                try {
-                    await uploadOnboardingDocument(letterData);
-                } catch (uploadErr) {
-                    console.error('Experience letter upload/verification failed (non-blocking):', uploadErr);
-                }
+                await uploadOnboardingDocument(letterData);
             }
             updateUser(data.user);
             navigate(isDetailsEdit ? '/onboarding/identity' : '/success');
         } catch (err) {
             console.error('Onboarding failed:', err);
+            if (err.response?.data?.document_type) {
+                setErrors(prev => ({ ...prev, experience_letter: 'Failed to upload experience letter. Please try again.' }));
+                return;
+            }
             if (err.response?.data) {
                 const be = {};
                 Object.entries(err.response.data).forEach(([k, v]) => { be[k] = Array.isArray(v) ? v[0] : v; });

@@ -16,6 +16,7 @@ import Declaration from './pages/Declaration';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
+import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import './index.css';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "1051464119459-a5apk0uflgqp3le9avo2qttmmrqcsg52.apps.googleusercontent.com";
 
@@ -149,9 +150,16 @@ function AppRoutes() {
       </Route>
 
       {/* Admin Panel Routes — standalone */}
-      <Route path="/admin" element={<AdminLogin />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-      <Route path="/admin/consultant/:id" element={<ConsultantDetail />} />
+      <Route path={ADMIN_BASE} element={<AdminLogin />} />
+      <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
+      <Route path={adminUrl('consultant/:id')} element={<ConsultantDetail />} />
+      {!IS_DEFAULT_ADMIN_PATH && (
+        <>
+          <Route path="/admin" element={<Navigate to="/" replace />} />
+          <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
+          <Route path="/admin/consultant/:id" element={<Navigate to="/" replace />} />
+        </>
+      )}
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

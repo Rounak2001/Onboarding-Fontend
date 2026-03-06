@@ -202,7 +202,7 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
                     {!recording && !recordedBlob && timeLeft > 0 && (
                         <button onClick={startRecording} style={{
                             flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14,
-                            background: '#dc2626', color: '#fff', border: 'none', cursor: 'pointer',
+                            background: '#059669', color: '#fff', border: 'none', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         }}>
                             Start Recording

@@ -97,7 +97,7 @@ const OnboardingComplete = () => {
                 </button>
 
                 <p style={{ fontSize: 13, color: '#9ca3af', marginTop: 16 }}>
-                    If you have questions, contact <strong style={{ color: '#6b7280' }}>support@taxplanadvisor.com</strong>
+                    If you have questions, contact <strong style={{ color: '#6b7280' }}>support@taxplanadvisor.in</strong>
                 </p>
             </div>
         </div>

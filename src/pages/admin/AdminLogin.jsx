@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { adminUrl } from '../../utils/adminPath';
 
 const AdminLogin = () => {
     const navigate = useNavigate();
@@ -22,7 +23,7 @@ const AdminLogin = () => {
             const data = await response.json();
             if (response.ok) {
                 localStorage.setItem('admin_token', data.token);
-                navigate('/admin/dashboard');
+                navigate(adminUrl('dashboard'));
             } else {
                 setError(data.error || 'Invalid credentials');
             }

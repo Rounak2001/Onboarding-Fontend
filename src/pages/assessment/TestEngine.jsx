@@ -26,11 +26,19 @@ const MAX_QUEUED_VIDEOS = 25;
 const SNAPSHOT_MAX_RETRIES = 8;
 const SNAPSHOT_RETRY_BASE_MS = 2000;
 const SNAPSHOT_RETRY_MAX_MS = 60000;
+const MIN_SNAPSHOT_INTERVAL_MS = 6000;
 
 const computeSnapshotRetryDelayMs = (retryCount) => {
     const exponent = Math.max(0, Number(retryCount) - 1);
     const delayMs = SNAPSHOT_RETRY_BASE_MS * (2 ** exponent);
     return Math.min(delayMs, SNAPSHOT_RETRY_MAX_MS);
+};
+
+const withSnapshotJitter = (baseMs) => {
+    // Add jitter so snapshot timing is less predictable to end users.
+    const spread = Math.max(1200, Math.round(baseMs * 0.2));
+    const offset = Math.floor((Math.random() * (spread * 2 + 1)) - spread);
+    return Math.max(MIN_SNAPSHOT_INTERVAL_MS, baseMs + offset);
 };
 
 const supportsIndexedDb = () => typeof window !== 'undefined' && !!window.indexedDB;
@@ -196,6 +204,7 @@ const TestEngine = () => {
     const audioDataArrayRef = useRef(null);
     const faceDetectorRef = useRef(null);
     const lastSnapshotDurationRef = useRef(0);
+    const snapshotCaptureInFlightRef = useRef(false);
     const videoSnapshotGetterRef = useRef(null);
     const isVideoUploadWorkerRunningRef = useRef(false);
     const isSnapshotUploadWorkerRunningRef = useRef(false);
@@ -462,6 +471,11 @@ const TestEngine = () => {
         return cadenceMs;
     }, [isVideoSection]);
 
+    const setSnapshotDebugTelemetry = useCallback((updater) => {
+        if (!SHOW_PROCTORING_DEBUG && !SHOW_DETECTOR_FALLBACK_NOTICE) return;
+        setDebugTelemetry(updater);
+    }, []);
+
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const refreshVideoQueueStats = useCallback(async () => {
@@ -640,7 +654,7 @@ const TestEngine = () => {
         const res = await processProctoringSnapshot(session.id, formData);
         applyBackendViolationMeta(res);
         const responseContext = res?.context || {};
-        setDebugTelemetry(prev => ({
+        setSnapshotDebugTelemetry(prev => ({
             ...prev,
             lastSnapshotStatus: res?.status || 'unknown',
             lastSnapshotDurationMs: Date.now() - startedAt,
@@ -668,7 +682,7 @@ const TestEngine = () => {
             setShowWarningModal(true);
         }
         return res;
-    }, [session?.id, applyBackendViolationMeta]);
+    }, [session?.id, applyBackendViolationMeta, setSnapshotDebugTelemetry]);
 
     const drainSnapshotUploadQueue = useCallback(async () => {
         if (!supportsIndexedDb() || !session?.id || isSnapshotUploadWorkerRunningRef.current || navigator?.onLine === false) return;
@@ -804,8 +818,8 @@ const TestEngine = () => {
         const scheduleNext = () => {
             clearTimer();
             if (loading || submissionResult || !session?.id) return;
-            const cadenceMs = getAdaptiveSnapshotCadenceMs();
-            setDebugTelemetry(prev => ({ ...prev, snapshotCadenceMs: cadenceMs }));
+            const cadenceMs = withSnapshotJitter(getAdaptiveSnapshotCadenceMs());
+            setSnapshotDebugTelemetry(prev => ({ ...prev, snapshotCadenceMs: cadenceMs }));
             timerId = setTimeout(async () => {
                 await captureAndAnalyzeSnapshot();
                 scheduleNext();
@@ -814,15 +828,17 @@ const TestEngine = () => {
 
         scheduleNext();
         return () => clearTimer();
-    }, [isVideoSection, loading, submissionResult, session?.id, getAdaptiveSnapshotCadenceMs]);
+    }, [isVideoSection, loading, submissionResult, session?.id, getAdaptiveSnapshotCadenceMs, setSnapshotDebugTelemetry]);
 
     const captureAndAnalyzeSnapshot = async () => {
+        if (snapshotCaptureInFlightRef.current) return;
         const imageSrcFromMcq = webcamRef.current?.getScreenshot?.() || null;
         const imageSrcFromVideo = typeof videoSnapshotGetterRef.current === 'function'
             ? videoSnapshotGetterRef.current()
             : null;
         const imageSrc = imageSrcFromMcq || imageSrcFromVideo;
         if (!imageSrc) return;
+        snapshotCaptureInFlightRef.current = true;
         const startedAt = Date.now();
 
         // Convert base64 to blob
@@ -860,7 +876,7 @@ const TestEngine = () => {
             last_error: null,
         };
 
-        setDebugTelemetry(prev => ({
+        setSnapshotDebugTelemetry(prev => ({
             ...prev,
             lastClientTimestamp: clientTimestamp,
             audioDetected,
@@ -883,12 +899,13 @@ const TestEngine = () => {
                 next_attempt_at: new Date().toISOString(),
                 last_error: 'Queued while offline',
             });
-            setDebugTelemetry(prev => ({
+            setSnapshotDebugTelemetry(prev => ({
                 ...prev,
                 lastSnapshotStatus: 'queued_offline',
                 lastSnapshotDurationMs: Date.now() - startedAt,
                 lastError: 'Offline: snapshot queued for background upload.',
             }));
+            snapshotCaptureInFlightRef.current = false;
             return;
         }
 
@@ -901,7 +918,7 @@ const TestEngine = () => {
                     next_attempt_at: new Date().toISOString(),
                     last_error: err?.response?.data?.error || err?.message || 'Network retry queued',
                 });
-                setDebugTelemetry(prev => ({
+                setSnapshotDebugTelemetry(prev => ({
                     ...prev,
                     lastSnapshotStatus: 'queued',
                     lastSnapshotDurationMs: Date.now() - startedAt,
@@ -909,16 +926,19 @@ const TestEngine = () => {
                 }));
                 drainSnapshotUploadQueue();
                 lastSnapshotDurationRef.current = Date.now() - startedAt;
+                snapshotCaptureInFlightRef.current = false;
                 return;
             }
             console.error("Proctoring Error:", err);
-            setDebugTelemetry(prev => ({
+            setSnapshotDebugTelemetry(prev => ({
                 ...prev,
                 lastSnapshotStatus: 'error',
                 lastSnapshotDurationMs: Date.now() - startedAt,
                 lastError: err?.response?.data?.error || err?.message || 'Snapshot request failed',
             }));
             lastSnapshotDurationRef.current = Date.now() - startedAt;
+        } finally {
+            snapshotCaptureInFlightRef.current = false;
         }
     };
 
