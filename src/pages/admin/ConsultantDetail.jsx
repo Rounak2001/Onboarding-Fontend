@@ -20,7 +20,7 @@ const ConsultantDetail = () => {
     const token = localStorage.getItem('admin_token');
 
     useEffect(() => {
-        if (!token) { navigate(adminUrl()); return; }
+        if (!token && !import.meta.env.DEV) { navigate(adminUrl()); return; }
         fetchDetail();
     }, [id]);
 
@@ -28,7 +28,7 @@ const ConsultantDetail = () => {
         try {
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/`, {
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             if (res.status === 404) { setError('Consultant not found'); setLoading(false); return; }
@@ -45,7 +45,7 @@ const ConsultantDetail = () => {
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/generate-credentials/`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             const d = await res.json();
             if (res.ok) {
@@ -72,7 +72,7 @@ const ConsultantDetail = () => {
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/delete/`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             const d = await res.json();
             if (res.status === 401 || res.status === 403) {

@@ -69,7 +69,6 @@ const Onboarding = () => {
         if (!formData.state?.trim()) e.state = 'State required';
         if (!formData.pincode?.trim() || formData.pincode.trim().length < 6) e.pincode = 'Valid pincode required (6 digits)';
         if (!formData.years_of_experience || Number(formData.years_of_experience) < 1) e.years_of_experience = 'Years of experience is required';
-        if (!isDetailsEdit && !experienceLetter) e.experience_letter = 'Experience letter is required';
         return e;
     };
 
@@ -97,17 +96,19 @@ const Onboarding = () => {
         try {
             const data = await completeOnboarding(formData);
             if (!isDetailsEdit) {
-                const letterData = new FormData();
-                letterData.append('document_type', 'experience_letter');
-                letterData.append('title', 'Experience Letter');
-                letterData.append('file', experienceLetter);
-                await uploadOnboardingDocument(letterData);
+                if (experienceLetter) {
+                    const letterData = new FormData();
+                    letterData.append('document_type', 'experience_letter');
+                    letterData.append('title', 'Experience Letter');
+                    letterData.append('file', experienceLetter);
+                    await uploadOnboardingDocument(letterData);
+                }
             }
             updateUser(data.user);
             navigate(isDetailsEdit ? '/onboarding/identity' : '/success');
         } catch (err) {
             console.error('Onboarding failed:', err);
-            if (err.response?.data?.document_type) {
+            if (experienceLetter && err.response?.data?.document_type) {
                 setErrors(prev => ({ ...prev, experience_letter: 'Failed to upload experience letter. Please try again.' }));
                 return;
             }
@@ -261,7 +262,7 @@ const Onboarding = () => {
                         </div>
                         {!isDetailsEdit && (
                             <div style={{ marginTop: 16 }}>
-                                <label style={labelStyle}>Experience Letter <span style={{ color: '#ef4444' }}>*</span></label>
+                                <label style={labelStyle}>Experience Letter <span style={{ color: '#ef4444' }}></span></label>
                                 <div
                                     onClick={() => experienceLetterRef.current?.click()}
                                     style={{
@@ -274,7 +275,7 @@ const Onboarding = () => {
                                         color: experienceLetter ? '#047857' : '#6b7280',
                                     }}
                                 >
-                                    {experienceLetter ? experienceLetter.name : 'Upload experience letter (PDF/JPG/PNG, max 10MB)'}
+                                    {experienceLetter ? experienceLetter.name : 'Upload experience letter (optional) (PDF/JPG/PNG, max 10MB)'}
                                 </div>
                                 <input
                                     ref={experienceLetterRef}

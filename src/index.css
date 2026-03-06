@@ -86,6 +86,12 @@ html {
     }
 }
 
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 @keyframes pulse-glow {
 
     0%,

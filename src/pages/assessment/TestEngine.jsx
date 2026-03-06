@@ -182,6 +182,8 @@ const TestEngine = () => {
 
     const [currentVideoQuestionIndex, setCurrentVideoQuestionIndex] = useState(0);
     const [videoCompleted, setVideoCompleted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatusText, setSubmitStatusText] = useState('Submitting assessment…');
     const [pendingVideoUploads, setPendingVideoUploads] = useState(0);
     const [failedVideoUploads, setFailedVideoUploads] = useState(0);
     const [pendingSnapshotUploads, setPendingSnapshotUploads] = useState(0);
@@ -951,7 +953,15 @@ const TestEngine = () => {
 
     // Client-side Proctoring (Tab switch, etc.)
     useEffect(() => {
-        const onVisChange = () => { if (document.hidden) triggerViolation('Tab switch detected', 'tab'); };
+        const onVisChange = () => {
+            if (document.hidden || document.visibilityState === 'hidden') {
+                triggerViolation('Tab switch / app switch detected', 'tab');
+            }
+        };
+        const onWindowBlur = () => {
+            if (!hasStartedAssessmentRef.current || submissionResult) return;
+            triggerViolation('Window focus lost (possible Alt-Tab)', 'tab');
+        };
         const onFsChange = () => {
             const isNowFullScreen = !!document.fullscreenElement;
             setIsFullScreen(isNowFullScreen);
@@ -966,28 +976,76 @@ const TestEngine = () => {
             }
 
             if (!hasStartedAssessmentRef.current || submissionResult) return;
+
+            const graceMs = Math.max(
+                0,
+                Number(proctoringPolicy.FULLSCREEN_REENTRY_GRACE_SECONDS || 0) * 1000
+            );
+
+            if (fullscreenGraceTimerRef.current) {
+                clearTimeout(fullscreenGraceTimerRef.current);
+                fullscreenGraceTimerRef.current = null;
+            }
+
+            fullscreenGraceTimerRef.current = setTimeout(() => {
+                if (!document.fullscreenElement && !submissionResult) {
+                    triggerViolation('Exited fullscreen mode', 'fullscreen');
+                }
+            }, graceMs);
         };
         const prevent = (e) => { e.preventDefault(); return false; };
         const onKey = (e) => {
-            if (e.key === 'F12') { e.preventDefault(); return false; }
-            if (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key)) { e.preventDefault(); return false; }
-            if (e.ctrlKey && e.key === 'U') { e.preventDefault(); return false; }
+            const k = String(e.key || '');
+            const key = k.toLowerCase();
+            const isCtrlLike = e.ctrlKey || e.metaKey; // metaKey for macOS
+
+            // Block function keys (best-effort; some may be reserved by the browser/OS).
+            if (/^f([1-9]|1[0-2])$/i.test(k)) {
+                e.preventDefault();
+                return false;
+            }
+
+            // DevTools / view-source / common navigation shortcuts (best-effort).
+            const isTab = key === 'tab' || e.code === 'Tab';
+            const forbidden =
+                // DevTools
+                (isCtrlLike && e.shiftKey && ['i', 'j', 'c', 'k'].includes(key)) ||
+                // View source / save / print / open / new tab/window / close / refresh / address bar
+                (isCtrlLike && ['u', 's', 'p', 'o', 'n', 'w', 'r', 'l', 't'].includes(key)) ||
+                // Tab switching
+                (isCtrlLike && isTab) ||
+                (isCtrlLike && e.shiftKey && (isTab || key === 'r')) ||
+                // Back/forward
+                (e.altKey && (key === 'arrowleft' || key === 'arrowright' || isTab)) ||
+                // Refresh keys
+                key === 'f5' ||
+                // Print screen (not consistently capturable across browsers)
+                key === 'printscreen';
+
+            // Best-effort: browsers/OS may still override some shortcuts (e.g. Alt+Tab cannot be blocked).
+            if (forbidden) {
+                e.preventDefault();
+                triggerViolation('Forbidden shortcut attempted', 'tab');
+                return false;
+            }
         };
         document.addEventListener('visibilitychange', onVisChange);
         document.addEventListener('fullscreenchange', onFsChange);
-        document.addEventListener('contextmenu', prevent);
-        document.addEventListener('copy', prevent);
-        document.addEventListener('paste', prevent);
-        document.addEventListener('cut', prevent);
-        document.addEventListener('keydown', onKey);
+        window.addEventListener('blur', onWindowBlur);
+        document.addEventListener('contextmenu', prevent, true);
+        document.addEventListener('copy', prevent, true);
+        document.addEventListener('paste', prevent, true);
+        document.addEventListener('cut', prevent, true);
+        document.addEventListener('keydown', onKey, true);
         return () => {
             document.removeEventListener('visibilitychange', onVisChange);
             document.removeEventListener('fullscreenchange', onFsChange);
-            document.removeEventListener('contextmenu', prevent);
-            document.removeEventListener('copy', prevent);
-            document.removeEventListener('paste', prevent);
-            document.removeEventListener('cut', prevent);
-            document.removeEventListener('keydown', onKey);
+            window.removeEventListener('blur', onWindowBlur);
+            document.removeEventListener('contextmenu', prevent, true);
+            document.removeEventListener('copy', prevent, true);
+            document.removeEventListener('paste', prevent, true);
+            document.removeEventListener('cut', prevent, true);
+            document.removeEventListener('keydown', onKey, true);
             if (fullscreenGraceTimerRef.current) clearTimeout(fullscreenGraceTimerRef.current);
             if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
         };
@@ -1033,6 +1091,8 @@ const TestEngine = () => {
 
     const handleSubmitTest = async () => {
         try {
+            setIsSubmitting(true);
+            setSubmitStatusText('Finalizing uploads…');
             if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current); // Stop snapshots
 
             // Give background video uploads a chance to finish before final submission.
@@ -1050,6 +1110,7 @@ const TestEngine = () => {
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
 
+            setSubmitStatusText('Submitting answers…');
             const res = await submitTest(session.id, { answers });
             navigate('/assessment/result', {
                 state: { result: { ...res, passed: res.passed ?? (res.score >= 0) } }
@@ -1057,6 +1118,7 @@ const TestEngine = () => {
         } catch (err) {
             console.error('Failed to submit test:', err);
             alert('Submission failed. Please try again.');
+            setIsSubmitting(false);
         }
     };
 
@@ -1093,7 +1155,7 @@ const TestEngine = () => {
     }
 
     // Fullscreen prompt
-    if (!isFullScreen && !submissionResult) {
+    if (!isFullScreen && !submissionResult && !isSubmitting) {
         return (
             <div style={s.center}>
                 <div style={s.card}>
@@ -1126,6 +1188,55 @@ const TestEngine = () => {
 
     return (
         <div style={s.page} onContextMenu={e => e.preventDefault()} onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()} onPaste={e => e.preventDefault()}>
+
+            {isSubmitting && (
+                <div
+                    className="animate-fade-in"
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        background: 'rgba(15,23,42,0.55)',
+                        backdropFilter: 'blur(6px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 24,
+                    }}
+                >
+                    <div
+                        className="animate-fade-in-up"
+                        style={{
+                            width: '100%',
+                            maxWidth: 520,
+                            background: '#ffffff',
+                            borderRadius: 16,
+                            border: '1px solid #e5e7eb',
+                            padding: '28px 24px',
+                            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)',
+                            textAlign: 'center',
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                            <div style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: '50%',
+                                border: '4px solid #e5e7eb',
+                                borderTopColor: '#059669',
+                                animation: 'spin 1s linear infinite',
+                            }} />
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Submitting</div>
+                        <div style={{ marginTop: 6, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                            {submitStatusText}
+                        </div>
+                        <div style={{ marginTop: 12, fontSize: 12, color: '#94a3b8' }}>
+                            Please don’t close this tab.
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Warning Modal */}
             {showWarningModal && (
@@ -1416,6 +1527,16 @@ const TestEngine = () => {
                             registerSnapshotGetter={(getter) => { videoSnapshotGetterRef.current = getter; }}
                             onVideoUploaded={handleVideoComplete}
                         />
+                    </div>
+                )}
+
+                {isVideoSection && videoCompleted && (
+                    <div style={{ ...s.card, margin: '0 auto' }}>
+                        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+                        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>Video section completed</h2>
+                        <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 0 }}>
+                            {isSubmitting ? submitStatusText : 'Submitting your assessment…'}
+                        </p>
                     </div>
                 )}
 

@@ -13,7 +13,7 @@ const AdminDashboard = () => {
     const token = localStorage.getItem('admin_token');
 
     useEffect(() => {
-        if (!token) { navigate(adminUrl()); return; }
+        if (!token && !import.meta.env.DEV) { navigate(adminUrl()); return; }
         fetchConsultants();
     }, []);
 
@@ -21,7 +21,7 @@ const AdminDashboard = () => {
         try {
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/`, {
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             const data = await res.json();
@@ -40,7 +40,7 @@ const AdminDashboard = () => {
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
             const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${consultantId}/delete/`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             if (res.status === 401 || res.status === 403) {
                 localStorage.removeItem('admin_token');
