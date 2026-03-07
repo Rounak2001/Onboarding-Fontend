@@ -16,6 +16,13 @@ const ENABLE_DEV_DIAGNOSTICS = import.meta.env.DEV && String(
 ).toLowerCase() === 'true';
 const SHOW_PROCTORING_DEBUG = ENABLE_DEV_DIAGNOSTICS;
 const SHOW_DETECTOR_FALLBACK_NOTICE = ENABLE_DEV_DIAGNOSTICS;
+const EYE_TRACKING_ENABLED = String(import.meta.env.VITE_EYE_TRACKING || '').trim() === '1';
+const FACE_LANDMARKER_MODEL_URL =
+    String(import.meta.env.VITE_FACE_LANDMARKER_MODEL_URL || '').trim()
+    || 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const TASKS_VISION_WASM_BASE_URL =
+    String(import.meta.env.VITE_TASKS_VISION_WASM_BASE_URL || '').trim()
+    || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
 const MCQ_SNAPSHOT_BASE_MS = 10000;
 const VIDEO_SNAPSHOT_BASE_MS = 15000;
 const SNAPSHOT_QUEUE_DB_NAME = 'taxplan-proctoring';
@@ -164,7 +171,7 @@ const TestEngine = () => {
         audioDetected: false,
         audioLevel: 0,
         micStatus: 'idle',
-        gazeViolation: false,
+        gazeViolation: null,
         poseYaw: null,
         posePitch: null,
         poseRoll: null,
@@ -205,6 +212,8 @@ const TestEngine = () => {
     const analyserRef = useRef(null);
     const audioDataArrayRef = useRef(null);
     const faceDetectorRef = useRef(null);
+    const faceLandmarkerRef = useRef(null);
+    const faceLandmarkerInitPromiseRef = useRef(null);
     const lastSnapshotDurationRef = useRef(0);
     const snapshotCaptureInFlightRef = useRef(false);
     const videoSnapshotGetterRef = useRef(null);
@@ -396,9 +405,75 @@ const TestEngine = () => {
         };
     }, [submissionResult, initAudioDetector, stopAudioDetector]);
 
+    const ensureFaceLandmarker = useCallback(async () => {
+        if (faceLandmarkerRef.current) return faceLandmarkerRef.current;
+        if (faceLandmarkerInitPromiseRef.current) return faceLandmarkerInitPromiseRef.current;
+
+        faceLandmarkerInitPromiseRef.current = (async () => {
+            const mod = await import('@mediapipe/tasks-vision');
+            const FilesetResolver = mod.FilesetResolver;
+            const FaceLandmarker = mod.FaceLandmarker;
+
+            const vision = await FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE_URL);
+            const landmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: FACE_LANDMARKER_MODEL_URL },
+                runningMode: 'IMAGE',
+                numFaces: 1,
+                outputFaceBlendshapes: false,
+                outputFacialTransformationMatrixes: false,
+            });
+            faceLandmarkerRef.current = landmarker;
+            return landmarker;
+        })();
+
+        return faceLandmarkerInitPromiseRef.current;
+    }, []);
+
+    const computeIrisGazeViolation = useCallback((landmarks, imageWidth, imageHeight) => {
+        if (!Array.isArray(landmarks) || landmarks.length < 478) return null;
+        const toPx = (idx) => {
+            const p = landmarks[idx];
+            if (!p) return null;
+            return { x: p.x * imageWidth, y: p.y * imageHeight };
+        };
+
+        // MediaPipe FaceMesh / FaceLandmarker indices.
+        // Right eye corners: 33 (outer), 133 (inner). Iris: 469-472.
+        // Left eye corners: 362 (outer), 263 (inner). Iris: 474-477.
+        const rOuter = toPx(33);
+        const rInner = toPx(133);
+        const lOuter = toPx(362);
+        const lInner = toPx(263);
+        const rIris = [469, 470, 471, 472].map(toPx).filter(Boolean);
+        const lIris = [474, 475, 476, 477].map(toPx).filter(Boolean);
+        if (!rOuter || !rInner || !lOuter || !lInner || rIris.length < 2 || lIris.length < 2) return null;
+
+        const irisCenter = (pts) => {
+            const sum = pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+            return { x: sum.x / pts.length, y: sum.y / pts.length };
+        };
+
+        const rC = irisCenter(rIris);
+        const lC = irisCenter(lIris);
+
+        const ratio = (outer, inner, c) => {
+            const width = Math.max(1, Math.abs(inner.x - outer.x));
+            const minX = Math.min(outer.x, inner.x);
+            return (c.x - minX) / width; // 0..1-ish
+        };
+
+        const rRatio = ratio(rOuter, rInner, rC);
+        const lRatio = ratio(lOuter, lInner, lC);
+
+        // Rough thresholds: centered ~0.5. Too far left/right => likely looking away or face turned.
+        // Stricter gaze threshold for testing: smaller "center" window.
+        const isOffCenter = (v) => v < 0.4 || v > 0.6;
+        return isOffCenter(rRatio) || isOffCenter(lRatio);
+    }, []);
+
     const getVisualTelemetry = useCallback(async (imageBlob) => {
         const fallback = {
-            gazeViolation: false,
+            gazeViolation: null,
             poseYaw: null,
             posePitch: null,
             poseRoll: null,
@@ -408,44 +483,34 @@ const TestEngine = () => {
         };
 
         try {
-            if (typeof window === 'undefined' || typeof window.FaceDetector === 'undefined') {
-                return { ...fallback, detectorStatus: 'server_fallback' };
-            }
-
-            if (!faceDetectorRef.current) {
-                faceDetectorRef.current = new window.FaceDetector({ maxDetectedFaces: 1, fastMode: true });
-            }
-
-            const bitmap = await createImageBitmap(imageBlob);
-            try {
-                const detections = await faceDetectorRef.current.detect(bitmap);
-                if (!detections || detections.length === 0) {
-                    return { ...fallback, detectorStatus: 'no_face' };
+            if (EYE_TRACKING_ENABLED) {
+                try {
+                    const landmarker = await ensureFaceLandmarker();
+                    const bitmap = await createImageBitmap(imageBlob);
+                    try {
+                        const res = landmarker.detect(bitmap);
+                        const faceLandmarks = res?.faceLandmarks?.[0] || null;
+                        if (!faceLandmarks) {
+                            return { ...fallback, detectorStatus: 'eye_tracking_no_face' };
+                        }
+                        const irisViolation = computeIrisGazeViolation(faceLandmarks, bitmap.width, bitmap.height);
+                        return {
+                            ...fallback,
+                            gazeViolation: irisViolation == null ? null : Boolean(irisViolation),
+                            detectorStatus: irisViolation == null ? 'eye_tracking_low_confidence' : 'eye_tracking_ready',
+                        };
+                    } finally {
+                        bitmap.close();
+                    }
+                } catch (err) {
+                    console.error('Eye tracking init/detect failed:', err);
+                    return { ...fallback, detectorStatus: 'eye_tracking_error' };
                 }
-
-                const box = detections[0].boundingBox;
-                const centerX = box.x + (box.width / 2);
-                const centerY = box.y + (box.height / 2);
-                const normX = ((centerX / bitmap.width) - 0.5) * 2;
-                const normY = ((centerY / bitmap.height) - 0.5) * 2;
-
-                const poseYaw = Number((normX * 35).toFixed(2));
-                const posePitch = Number((normY * 25).toFixed(2));
-                const poseRoll = 0;
-                const gazeViolation = Math.abs(normX) > 0.35 || Math.abs(normY) > 0.35;
-
-                return {
-                    gazeViolation,
-                    poseYaw,
-                    posePitch,
-                    poseRoll,
-                    mouthState: 'unknown',
-                    labelDetectionResults: [],
-                    detectorStatus: 'ready',
-                };
-            } finally {
-                bitmap.close();
             }
+
+            // Do not fabricate gaze/head-pose values in the browser when eye tracking isn't reliable.
+            // Omitting gaze_violation/pose_* lets the backend derive conservative telemetry from Rekognition.
+            return { ...fallback, detectorStatus: 'server_fallback' };
         } catch (err) {
             console.error('Visual telemetry detector failed:', err);
             return { ...fallback, detectorStatus: 'error' };
@@ -640,7 +705,9 @@ const TestEngine = () => {
         const formData = new FormData();
         formData.append('image', snapshotItem.image_blob, 'snapshot.jpg');
         formData.append('audio_detected', String(snapshotItem.audio_detected));
-        formData.append('gaze_violation', String(snapshotItem.gaze_violation));
+        if (snapshotItem.gaze_violation !== null && snapshotItem.gaze_violation !== undefined) {
+            formData.append('gaze_violation', String(snapshotItem.gaze_violation));
+        }
         formData.append('pose_yaw', snapshotItem.pose_yaw == null ? '' : String(snapshotItem.pose_yaw));
         formData.append('pose_pitch', snapshotItem.pose_pitch == null ? '' : String(snapshotItem.pose_pitch));
         formData.append('pose_roll', snapshotItem.pose_roll == null ? '' : String(snapshotItem.pose_roll));
@@ -1184,7 +1251,17 @@ const TestEngine = () => {
     if (SHOW_DETECTOR_FALLBACK_NOTICE && debugTelemetry.detectorStatus === 'error') {
         permissionIssues.push('Face detector error: fallback active');
     }
-    const topContentOffset = 56 + (lastServerViolationReason ? 32 : 0) + (permissionIssues.length > 0 ? 38 : 0);
+
+    const showEyeTrackingFallbackNotice =
+        import.meta.env.DEV
+        && EYE_TRACKING_ENABLED
+        && String(debugTelemetry.detectorStatus || '').startsWith('eye_tracking_')
+        && debugTelemetry.detectorStatus !== 'eye_tracking_ready';
+
+    const topContentOffset = 56
+        + (lastServerViolationReason ? 32 : 0)
+        + (permissionIssues.length > 0 ? 38 : 0)
+        + (showEyeTrackingFallbackNotice ? 38 : 0);
 
     return (
         <div style={s.page} onContextMenu={e => e.preventDefault()} onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()} onPaste={e => e.preventDefault()}>
@@ -1291,6 +1368,28 @@ const TestEngine = () => {
                     >
                         {permissionRetrying ? 'Retrying...' : 'Retry permissions'}
                     </button>
+                </div>
+            )}
+
+            {showEyeTrackingFallbackNotice && !submissionResult && (
+                <div style={{
+                    position: 'fixed',
+                    top: 56 + (permissionIssues.length > 0 ? 38 : 0),
+                    left: 0,
+                    right: 0,
+                    zIndex: 44,
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    borderBottom: '1px solid #bfdbfe',
+                    padding: '8px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    fontSize: 13,
+                    fontWeight: 600,
+                }}>
+                    <span style={{ fontSize: 16 }}>🧪</span>
+                    <span>Dev: Your device/browser can’t run eye tracking; continuing with standard proctoring.</span>
                 </div>
             )}
 

@@ -15,6 +15,7 @@ const ConsultantDetail = () => {
         profile: true, identity: true, face: true, assessment: true, documents: true,
     });
     const [selectedImage, setSelectedImage] = useState(null);
+    const [selectedSnapshot, setSelectedSnapshot] = useState(null);
     const [selectedVideoCard, setSelectedVideoCard] = useState(null);
 
     const token = localStorage.getItem('admin_token');
@@ -120,14 +121,17 @@ const ConsultantDetail = () => {
         </div>
     );
 
-    const fieldRow = (label, value) => (
+    const fieldRow = (label, value) => {
+        const isEmpty = value === null || value === undefined || value === '';
+        return (
         <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
             <span style={{ width: 180, fontSize: 13, color: '#64748b', fontWeight: 500, flexShrink: 0 }}>{label}</span>
             <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 500, wordBreak: 'break-all' }}>
-                {value || <span style={{ color: '#475569' }}>—</span>}
+                {isEmpty ? <span style={{ color: '#475569' }}>—</span> : value}
             </span>
         </div>
-    );
+        );
+    };
 
     const statusTag = (val, trueText, falseText) => (
         <span style={{
@@ -545,7 +549,7 @@ const ConsultantDetail = () => {
                                                         position: 'relative', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
                                                         border: snap.is_violation ? '2px solid #ef4444' : '1px solid rgba(148,163,184,0.1)',
                                                         background: 'rgba(15,23,42,0.6)'
-                                                    }} onClick={() => setSelectedImage(snap.image_url)}>
+                                                    }} onClick={() => setSelectedSnapshot(snap)}>
                                                         <img src={snap.image_url} alt="Snapshot" style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }}
                                                             onError={(e) => { e.target.src = 'https://via.placeholder.com/150?text=Error'; }} />
 
@@ -562,6 +566,11 @@ const ConsultantDetail = () => {
                                                             <div style={{ color: '#e2e8f0' }}>Faces: {snap.face_count}</div>
                                                             {snap.match_score > 0 && (
                                                                 <div style={{ color: snap.match_score > 80 ? '#34d399' : '#f87171' }}>match: {Math.round(snap.match_score)}%</div>
+                                                            )}
+                                                            {'gaze_violation' in snap && (
+                                                                <div style={{ color: snap.gaze_violation ? '#f87171' : '#94a3b8' }}>
+                                                                    gaze: {String(snap.gaze_violation)}
+                                                                </div>
                                                             )}
                                                             {snap.is_violation && (
                                                                 <div style={{ color: '#fca5a5', fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>
@@ -932,6 +941,161 @@ const ConsultantDetail = () => {
                     </div>
                 </div>
             )}
+
+            {/* Snapshot Modal */}
+            {
+                selectedSnapshot && (
+                    <div style={{
+                        position: 'fixed', inset: 0, zIndex: 110,
+                        background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                    }} onClick={() => setSelectedSnapshot(null)}>
+                        <div style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: 980,
+                            maxHeight: '90vh',
+                            background: '#1e293b',
+                            borderRadius: 16,
+                            border: '1px solid rgba(148,163,184,0.1)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{
+                                padding: '14px 18px',
+                                borderBottom: '1px solid rgba(148,163,184,0.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                background: 'rgba(15,23,42,0.5)',
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>
+                                        Proctoring Snapshot
+                                        {selectedSnapshot.is_violation && (
+                                            <span style={{
+                                                marginLeft: 10, fontSize: 11, fontWeight: 800,
+                                                background: 'rgba(239,68,68,0.15)', color: '#f87171',
+                                                border: '1px solid rgba(239,68,68,0.25)', padding: '2px 8px', borderRadius: 999,
+                                            }}>
+                                                VIOLATION
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                                        {selectedSnapshot.timestamp ? new Date(selectedSnapshot.timestamp).toLocaleString() : '—'}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await navigator.clipboard.writeText(JSON.stringify(selectedSnapshot, null, 2));
+                                            } catch {
+                                                // ignore clipboard failures
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '8px 12px',
+                                            borderRadius: 10,
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            background: 'rgba(148,163,184,0.1)',
+                                            color: '#94a3b8',
+                                            border: '1px solid rgba(148,163,184,0.15)',
+                                            cursor: 'pointer',
+                                        }}
+                                        title="Copy snapshot JSON"
+                                    >
+                                        Copy JSON
+                                    </button>
+                                    <button onClick={() => setSelectedSnapshot(null)} style={{
+                                        background: 'none', border: 'none', color: '#94a3b8', fontSize: 22, cursor: 'pointer',
+                                        padding: 0, display: 'flex', alignItems: 'center'
+                                    }}>
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ padding: 18, overflowY: 'auto' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 16 }}>
+                                    <div style={{
+                                        borderRadius: 14,
+                                        overflow: 'hidden',
+                                        background: 'rgba(15,23,42,0.6)',
+                                        border: '1px solid rgba(148,163,184,0.1)',
+                                    }}>
+                                        <img
+                                            src={selectedSnapshot.image_url}
+                                            alt="Snapshot"
+                                            style={{ width: '100%', display: 'block', maxHeight: 460, objectFit: 'contain', background: '#0b1220' }}
+                                        />
+                                    </div>
+
+                                    <div style={{
+                                        borderRadius: 14,
+                                        background: 'rgba(15,23,42,0.6)',
+                                        border: '1px solid rgba(148,163,184,0.1)',
+                                        padding: 14,
+                                    }}>
+                                        <div style={{ fontSize: 12, fontWeight: 800, color: '#e2e8f0', marginBottom: 10 }}>Telemetry</div>
+                                        {fieldRow('snapshot_id', selectedSnapshot.snapshot_id || '—')}
+                                        {fieldRow('faces', String(selectedSnapshot.face_count ?? '—'))}
+                                        {fieldRow('match_score', selectedSnapshot.match_score != null ? `${Math.round(selectedSnapshot.match_score)}%` : '—')}
+                                        {fieldRow('pose_yaw', selectedSnapshot.pose_yaw ?? '—')}
+                                        {fieldRow('pose_pitch', selectedSnapshot.pose_pitch ?? '—')}
+                                        {fieldRow('pose_roll', selectedSnapshot.pose_roll ?? '—')}
+                                        {fieldRow('mouth_state', selectedSnapshot.mouth_state ?? '—')}
+                                        {fieldRow('audio_detected', String(selectedSnapshot.audio_detected ?? '—'))}
+                                        {fieldRow('gaze_violation', String(selectedSnapshot.gaze_violation ?? '—'))}
+                                        {selectedSnapshot.violation_reason && (
+                                            <div style={{ marginTop: 10, fontSize: 12, color: '#fca5a5', fontWeight: 700 }}>
+                                                Reason: <span style={{ color: '#fecaca', fontWeight: 600 }}>{selectedSnapshot.violation_reason}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div style={{
+                                        borderRadius: 14,
+                                        background: 'rgba(15,23,42,0.6)',
+                                        border: '1px solid rgba(148,163,184,0.1)',
+                                        padding: 14,
+                                    }}>
+                                        <details>
+                                            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#e2e8f0' }}>
+                                                label_detection_results ({Array.isArray(selectedSnapshot.label_detection_results) ? selectedSnapshot.label_detection_results.length : 0})
+                                            </summary>
+                                            <pre style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 11, color: '#94a3b8' }}>
+                                                {JSON.stringify(selectedSnapshot.label_detection_results || [], null, 2)}
+                                            </pre>
+                                        </details>
+                                    </div>
+                                    <div style={{
+                                        borderRadius: 14,
+                                        background: 'rgba(15,23,42,0.6)',
+                                        border: '1px solid rgba(148,163,184,0.1)',
+                                        padding: 14,
+                                    }}>
+                                        <details open>
+                                            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#e2e8f0' }}>
+                                                rule_outcomes
+                                            </summary>
+                                            <pre style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 11, color: '#94a3b8' }}>
+                                                {JSON.stringify(selectedSnapshot.rule_outcomes || {}, null, 2)}
+                                            </pre>
+                                        </details>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
             {/* Image Modal */}
             {

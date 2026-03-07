@@ -12,6 +12,7 @@ const DocumentUpload = () => {
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState('');
     const [error, setError] = useState('');
+    const [bachelorsFixPrompt, setBachelorsFixPrompt] = useState(null); // { title, message }
 
     const bachelorRef = useRef(null);
     const masterRef = useRef(null);
@@ -56,6 +57,7 @@ const DocumentUpload = () => {
     const handleUpload = async () => {
         if (!bachelors) { setError("Please upload your Bachelor's degree."); return; }
         setUploading(true); setError('');
+        setBachelorsFixPrompt(null);
 
         const allFiles = [];
         allFiles.push({ file: bachelors, type: 'bachelors_degree' });
@@ -65,12 +67,24 @@ const DocumentUpload = () => {
         try {
             for (let i = 0; i < allFiles.length; i++) {
                 setUploadProgress(`Uploading ${i + 1} of ${allFiles.length}...`);
-                await uploadDocument('Education', allFiles[i].type, allFiles[i].file);
+                try {
+                    await uploadDocument('Education', allFiles[i].type, allFiles[i].file);
+                } catch (err) {
+                    const docType = allFiles[i].type;
+                    const serverMessage = err?.response?.data?.error;
+                    if (docType === 'bachelors_degree') {
+                        setBachelors(null);
+                        setBachelorsFixPrompt({
+                            title: "Bachelor's degree verification failed",
+                            message: serverMessage || "Please upload the correct Bachelor's degree certificate.",
+                        });
+                        return;
+                    }
+                    setError(serverMessage || 'Upload failed. Please try again.');
+                    return;
+                }
             }
             navigate('/onboarding/complete');
-        } catch (err) {
-            setError('Upload failed. Please try again.');
-            console.error(err);
         } finally {
             setUploading(false);
             setUploadProgress('');
@@ -94,6 +108,37 @@ const DocumentUpload = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
+            {bachelorsFixPrompt && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
+                    <div className="animate-fade-in-up" style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e7eb', padding: 24, maxWidth: 520, width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fecaca' }}>
+                                <span style={{ color: '#dc2626', fontWeight: 900 }}>!</span>
+                            </div>
+                            <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>{bachelorsFixPrompt.title}</div>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5, marginBottom: 16 }}>
+                            {bachelorsFixPrompt.message}
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                            <button
+                                type="button"
+                                onClick={() => setBachelorsFixPrompt(null)}
+                                style={{ padding: '10px 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}
+                            >
+                                Close
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setBachelorsFixPrompt(null); bachelorRef.current?.click(); }}
+                                style={{ padding: '10px 14px', borderRadius: 10, fontWeight: 800, fontSize: 13, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' }}
+                            >
+                                Upload correct file
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 32px 60px' }}>
                 <div style={{ marginBottom: 28 }}>
