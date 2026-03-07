@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getLatestResult } from '../services/api';
+import AccountControls from '../components/AccountControls';
 
 const Success = () => {
     const { user, stepFlags, logout, checkAuth } = useAuth();
@@ -24,7 +25,7 @@ const Success = () => {
 
     const handleLogout = async () => {
         await logout();
-        navigate('/');
+        navigate('/login');
     };
 
     const hasIdentity = stepFlags?.has_identity_doc;
@@ -76,13 +77,7 @@ const Success = () => {
                         </div>
                         <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <span style={{ fontSize: 13, color: '#9ca3af' }}>{user?.email}</span>
-                        <button onClick={handleLogout} style={{ fontSize: 13, color: '#6b7280', fontWeight: 500, cursor: 'pointer', background: 'none', border: 'none', padding: '6px 12px', borderRadius: 6 }}
-                            onMouseEnter={e => e.target.style.color = '#dc2626'} onMouseLeave={e => e.target.style.color = '#6b7280'}>
-                            Sign Out
-                        </button>
-                    </div>
+                    <AccountControls email={user?.email} onSignOut={handleLogout} />
                 </div>
             </header>
 

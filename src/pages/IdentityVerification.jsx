@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { uploadIdentityDocument } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import FileDropzone from '../components/FileDropzone';
+import AccountControls from '../components/AccountControls';
 
 const IdentityVerification = () => {
     const navigate = useNavigate();
-    const { updateStepFlags } = useAuth();
+    const { updateStepFlags, user, logout } = useAuth();
     const [file, setFile] = useState(null);
     const [preview, setPreview] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -108,6 +109,11 @@ const IdentityVerification = () => {
     const containerStyle = { maxWidth: 700, margin: '0 auto', padding: '32px 32px 60px' };
     const cardStyle = { background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24 };
 
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
+
     return (
         <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
@@ -116,6 +122,9 @@ const IdentityVerification = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact />
+                    </div>
                 </div>
             </header>
 

@@ -2,9 +2,12 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { uploadDocument } from '../services/api';
 import FileDropzone from '../components/FileDropzone';
+import { useAuth } from '../context/AuthContext';
+import AccountControls from '../components/AccountControls';
 
 const DocumentUpload = () => {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
     // Individual file states
     const [bachelors, setBachelors] = useState(null);
@@ -93,8 +96,24 @@ const DocumentUpload = () => {
 
     const totalFiles = (bachelors ? 1 : 0) + (masters ? 1 : 0) + certificates.length;
 
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
+
     return (
         <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
+                <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
+                    </div>
+                    <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} />
+                    </div>
+                </div>
+            </header>
 
             {bachelorsFixPrompt && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>

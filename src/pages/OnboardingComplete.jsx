@@ -1,4 +1,5 @@
 import { useAuth } from '../context/AuthContext';
+import AccountControls from '../components/AccountControls';
 
 const OnboardingComplete = () => {
     const { user, logout } = useAuth();
@@ -11,6 +12,9 @@ const OnboardingComplete = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
             <div style={{ maxWidth: 520, width: '100%', textAlign: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                    <AccountControls email={user?.email} compact />
+                </div>
 
                 {/* Success icon */}
                 <div style={{
@@ -89,9 +93,9 @@ const OnboardingComplete = () => {
                     </div>
                 </div>
 
-                <button onClick={handleLogout} style={{
-                    padding: '14px 32px', borderRadius: 10, fontWeight: 600, fontSize: 14,
-                    background: '#059669', color: '#fff', border: 'none', cursor: 'pointer',
+                <button className="tp-btn tp-signout" onClick={handleLogout} style={{
+                    padding: '12px 18px', borderRadius: 12, fontWeight: 900, fontSize: 13,
+                    cursor: 'pointer',
                 }}>
                     Done — Sign Out
                 </button>

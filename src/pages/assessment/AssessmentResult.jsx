@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getLatestResult } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import AccountControls from '../../components/AccountControls';
 
 const AssessmentResult = () => {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -31,6 +34,11 @@ const AssessmentResult = () => {
 
         return () => { isPolling = false; };
     }, []);
+
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
 
     if (loading) {
         return (
@@ -68,6 +76,9 @@ const AssessmentResult = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact confirmText="Sign out now? You may need to sign in again to continue." />
+                    </div>
                 </div>
             </header>
 

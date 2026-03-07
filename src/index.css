@@ -147,6 +147,25 @@ html {
     filter: none !important;
 }
 
+/* Sign-out button variant (subtle destructive hover shift) */
+.tp-signout {
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.tp-signout:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+.tp-signout:active {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #7f1d1d;
+}
+
 /* Optional icon nudge if the button contains an element with this class */
 .tp-btn .tp-btn-icon {
     display: inline-block;

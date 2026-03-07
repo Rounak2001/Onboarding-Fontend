@@ -3,10 +3,11 @@ import Webcam from 'react-webcam';
 import { useNavigate } from 'react-router-dom';
 import { verifyFace } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import AccountControls from '../components/AccountControls';
 
 const FaceVerification = () => {
     const navigate = useNavigate();
-    const { user, updateUser, updateStepFlags } = useAuth();
+    const { user, updateUser, updateStepFlags, logout } = useAuth();
     const webcamRef = useRef(null);
 
     // State
@@ -50,6 +51,11 @@ const FaceVerification = () => {
         border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer',
     };
 
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
+
     return (
         <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
@@ -58,6 +64,9 @@ const FaceVerification = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact />
+                    </div>
                 </div>
             </header>
 

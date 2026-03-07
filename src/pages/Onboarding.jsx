@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { completeOnboarding, sendOnboardingPhoneOtp, uploadOnboardingDocument, verifyOnboardingPhoneOtp } from '../services/api';
 import FileDropzone from '../components/FileDropzone';
+import AccountControls from '../components/AccountControls';
 
 const Onboarding = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, logout } = useAuth();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [formError, setFormError] = useState('');
@@ -415,6 +416,11 @@ const Onboarding = () => {
     const labelStyle = { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 };
     const errorStyle = { fontSize: 12, color: '#ef4444', marginTop: 4 };
 
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
+
     return (
         <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             {/* Header */}
@@ -424,7 +430,9 @@ const Onboarding = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 13, color: '#9ca3af' }}>{user?.email}</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} />
+                    </div>
                 </div>
             </header>
 

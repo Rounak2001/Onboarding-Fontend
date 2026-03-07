@@ -1,10 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createSession, getProctoringPolicy } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import AccountControls from '../../components/AccountControls';
 
 const Instructions = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user, logout } = useAuth();
     const selectedTests = location.state?.selectedTests || [];
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -69,6 +72,11 @@ const Instructions = () => {
     useEffect(() => {
         return () => stopDeviceTest();
     }, [stopDeviceTest]);
+
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
 
     const handleDeviceTest = useCallback(async () => {
         stopDeviceTest();
@@ -182,6 +190,9 @@ const Instructions = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact confirmText="Sign out now? You may need to sign in again to continue your assessment." />
+                    </div>
                 </div>
             </header>
 

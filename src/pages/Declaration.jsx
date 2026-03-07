@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { acceptDeclaration, getProctoringPolicy } from '../services/api';
+import AccountControls from '../components/AccountControls';
 
 const DEFAULT_PROCTORING_DECLARATION_POLICY = {
     TAB_WARNINGS_LIMIT: 3,
@@ -11,7 +12,7 @@ const DEFAULT_PROCTORING_DECLARATION_POLICY = {
 
 const Declaration = () => {
     const navigate = useNavigate();
-    const { checkAuth, user } = useAuth();
+    const { checkAuth, user, logout } = useAuth();
 
     const [agreements, setAgreements] = useState({
         accuracy: null,
@@ -76,6 +77,11 @@ const Declaration = () => {
     const titleStyle = { fontWeight: 600, color: '#111827', marginBottom: 4, fontSize: 15 };
     const descStyle = { fontSize: 13, color: '#6b7280', lineHeight: 1.5 };
 
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
+
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             {/* Header matching Onboarding */}
@@ -85,7 +91,9 @@ const Declaration = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 13, color: '#9ca3af' }}>{user?.email}</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact />
+                    </div>
                 </div>
             </header>
 

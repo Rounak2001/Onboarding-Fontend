@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTestTypes, getLatestResult } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import AccountControls from '../../components/AccountControls';
 
 const domainIcons = { 'Income Tax': '💰', 'GST': '📊', 'TDS': '📋', 'Professional Tax': '🏢' };
 
 const TestList = () => {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
     const [testTypes, setTestTypes] = useState([]);
     const [selected, setSelected] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -46,6 +49,11 @@ const TestList = () => {
         navigate('/assessment/instructions', { state: { selectedTests: selected } });
     };
 
+    const handleSignOut = async () => {
+        await logout();
+        navigate('/login');
+    };
+
     if (loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
@@ -62,6 +70,9 @@ const TestList = () => {
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
                     </div>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <div style={{ marginLeft: 'auto' }}>
+                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact confirmText="Sign out now? You may need to sign in again to continue your assessment." />
+                    </div>
                 </div>
             </header>
 
