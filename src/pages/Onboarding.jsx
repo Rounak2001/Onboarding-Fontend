@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { completeOnboarding, uploadOnboardingDocument } from '../services/api';
+import FileDropzone from '../components/FileDropzone';
 
 const Onboarding = () => {
     const navigate = useNavigate();
@@ -72,8 +73,7 @@ const Onboarding = () => {
         return e;
     };
 
-    const handleExperienceLetter = (e) => {
-        const file = e.target.files[0];
+    const setExperienceLetterFromFile = (file) => {
         if (!file) return;
         const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
         if (!allowed.includes(file.type)) {
@@ -86,6 +86,11 @@ const Onboarding = () => {
         }
         setExperienceLetter(file);
         setErrors(prev => ({ ...prev, experience_letter: null }));
+    };
+
+    const handleExperienceLetter = (e) => {
+        const file = e.target.files[0];
+        setExperienceLetterFromFile(file);
     };
 
     const handleSubmit = async (e) => {
@@ -263,28 +268,18 @@ const Onboarding = () => {
                         {!isDetailsEdit && (
                             <div style={{ marginTop: 16 }}>
                                 <label style={labelStyle}>Experience Letter <span style={{ color: '#ef4444' }}></span></label>
-                                <div
-                                    onClick={() => experienceLetterRef.current?.click()}
-                                    style={{
-                                        border: errors.experience_letter ? '1px solid #fca5a5' : '1px dashed #d1d5db',
-                                        background: errors.experience_letter ? '#fef2f2' : '#fff',
-                                        borderRadius: 8,
-                                        padding: '12px 14px',
-                                        cursor: 'pointer',
-                                        fontSize: 13,
-                                        color: experienceLetter ? '#047857' : '#6b7280',
-                                    }}
-                                >
-                                    {experienceLetter ? experienceLetter.name : 'Upload experience letter (optional) (PDF/JPG/PNG, max 10MB)'}
-                                </div>
-                                <input
-                                    ref={experienceLetterRef}
-                                    type="file"
+                                <FileDropzone
+                                    title="Experience letter"
+                                    subtitle="Optional • PDF, JPG, PNG • Max 10MB"
+                                    helperText={experienceLetter ? '' : 'Drag & drop or click to upload.'}
                                     accept=".pdf,.jpg,.jpeg,.png"
-                                    onChange={handleExperienceLetter}
-                                    style={{ display: 'none' }}
+                                    files={experienceLetter ? [experienceLetter] : []}
+                                    pickerRef={experienceLetterRef}
+                                    onFilesSelected={(picked) => setExperienceLetterFromFile(picked?.[0] || null)}
+                                    onRemoveAt={() => setExperienceLetter(null)}
+                                    error={errors.experience_letter || ''}
+                                    disabled={loading}
                                 />
-                                {errors.experience_letter && <p style={errorStyle}>{errors.experience_letter}</p>}
                             </div>
                         )}
                     </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { uploadIdentityDocument } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import FileDropzone from '../components/FileDropzone';
 
 const IdentityVerification = () => {
     const navigate = useNavigate();
@@ -19,8 +20,7 @@ const IdentityVerification = () => {
         };
     }, [preview]);
 
-    const handleFileChange = (e) => {
-        const selected = e.target.files[0];
+    const setIdentityFileFromFile = (selected) => {
         if (!selected) return;
         if (!['image/jpeg', 'image/png', 'image/jpg'].includes(selected.type)) {
             setError('Only JPG/PNG files accepted.');
@@ -35,6 +35,11 @@ const IdentityVerification = () => {
         setFile(selected);
         if (preview) URL.revokeObjectURL(preview);
         setPreview(URL.createObjectURL(selected));
+    };
+
+    const handleFileChange = (e) => {
+        const selected = e.target.files[0];
+        setIdentityFileFromFile(selected);
     };
 
     const handleUpload = async () => {
@@ -128,14 +133,24 @@ const IdentityVerification = () => {
 
                 <div style={cardStyle}>
                     {!preview ? (
-                        <div onClick={() => fileInputRef.current?.click()} style={{
-                            border: '2px dashed #d1d5db', borderRadius: 12, padding: '60px 24px',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', transition: 'border 0.2s'
-                        }}>
-                            <div style={{ fontSize: 30, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Government ID</div>
-                            <p style={{ fontWeight: 500, color: '#374151', marginBottom: 4 }}>Click to upload your ID</p>
-                            <p style={{ fontSize: 13, color: '#9ca3af' }}>JPG, JPEG or PNG - Max 5MB</p>
-                        </div>
+                        <FileDropzone
+                            title="Government ID"
+                            subtitle="JPG, JPEG or PNG • Max 5MB"
+                            helperText="Drag & drop or click to upload."
+                            accept="image/jpeg,image/jpg,image/png"
+                            files={file ? [file] : []}
+                            pickerRef={fileInputRef}
+                            onFilesSelected={(picked) => setIdentityFileFromFile(picked?.[0] || null)}
+                            onRemoveAt={() => {
+                                setFile(null);
+                                if (preview) URL.revokeObjectURL(preview);
+                                setPreview(null);
+                                setMismatchDetails(null);
+                                setError('');
+                            }}
+                            disabled={uploading}
+                            error={error}
+                        />
                     ) : (
                         <div>
                             <div style={{ background: '#f9fafb', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', marginBottom: 16 }}>
@@ -174,7 +189,6 @@ const IdentityVerification = () => {
                             </div>
                         </div>
                     )}
-                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png" onChange={handleFileChange} style={{ display: 'none' }} />
                 </div>
 
                 {error && (

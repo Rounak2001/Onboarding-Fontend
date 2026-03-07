@@ -486,8 +486,15 @@ const ConsultantDetail = () => {
                                     {/* Score cards */}
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 14 }}>
                                         <div style={{ padding: 12, borderRadius: 8, background: 'rgba(30,41,59,0.6)', border: '1px solid rgba(148,163,184,0.06)', textAlign: 'center' }}>
-                                            <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>{s.score}/50</div>
+                                            <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>
+                                                {(s.mcq_score ?? s.score ?? 0)}/{s.mcq_total ?? (s.question_set?.length || 50)}
+                                            </div>
                                             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>MCQ Score</div>
+                                            {'mcq_answered' in s && (
+                                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                                    Answered: {s.mcq_answered}/{s.mcq_total ?? (s.question_set?.length || 50)}
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={{ padding: 12, borderRadius: 8, background: 'rgba(30,41,59,0.6)', border: '1px solid rgba(148,163,184,0.06)', textAlign: 'center' }}>
                                             <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>
@@ -513,6 +520,24 @@ const ConsultantDetail = () => {
                                         <span>Started: <span style={{ color: '#94a3b8' }}>{s.start_time ? new Date(s.start_time).toLocaleString() : '—'}</span></span>
                                         <span>Ended: <span style={{ color: '#94a3b8' }}>{s.end_time ? new Date(s.end_time).toLocaleString() : '—'}</span></span>
                                     </div>
+
+                                    {s.mcq_answers && typeof s.mcq_answers === 'object' && Object.keys(s.mcq_answers).length > 0 && (
+                                        <div style={{ marginBottom: 12 }}>
+                                            <details style={{
+                                                background: 'rgba(30,41,59,0.35)',
+                                                border: '1px solid rgba(148,163,184,0.08)',
+                                                borderRadius: 10,
+                                                padding: '10px 12px',
+                                            }}>
+                                                <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#e2e8f0' }}>
+                                                    MCQ answers (autosaved)
+                                                </summary>
+                                                <pre style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 11, color: '#94a3b8' }}>
+                                                    {JSON.stringify(s.mcq_answers, null, 2)}
+                                                </pre>
+                                            </details>
+                                        </div>
+                                    )}
 
                                     {/* Violations detail */}
                                     {s.violations?.length > 0 && (

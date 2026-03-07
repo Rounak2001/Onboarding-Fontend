@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { uploadDocument } from '../services/api';
+import FileDropzone from '../components/FileDropzone';
 
 const DocumentUpload = () => {
     const navigate = useNavigate();
@@ -25,24 +26,23 @@ const DocumentUpload = () => {
         return null;
     };
 
-    const handleBachelors = (e) => {
-        const file = e.target.files[0];
+    const setBachelorsFromFile = (file) => {
         if (!file) return;
         const err = validateFile(file);
         if (err) { setError(err); return; }
         setError(''); setBachelors(file);
     };
 
-    const handleMasters = (e) => {
-        const file = e.target.files[0];
+    const setMastersFromFile = (file) => {
         if (!file) return;
         const err = validateFile(file);
         if (err) { setError(err); return; }
         setError(''); setMasters(file);
     };
 
-    const handleCertificates = (e) => {
-        const newFiles = Array.from(e.target.files);
+    const addCertificatesFromFiles = (incomingFiles) => {
+        const newFiles = Array.from(incomingFiles || []).filter(Boolean);
+        if (newFiles.length === 0) return;
         if (certificates.length + newFiles.length > 5) { setError('Maximum 5 certificates allowed.'); return; }
         for (const f of newFiles) {
             const err = validateFile(f);
@@ -92,18 +92,6 @@ const DocumentUpload = () => {
     };
 
     const totalFiles = (bachelors ? 1 : 0) + (masters ? 1 : 0) + certificates.length;
-
-    // Styles
-    const uploadZone = (hasFile) => ({
-        border: hasFile ? '2px solid #059669' : '2px dashed #d1d5db',
-        borderRadius: 10, padding: hasFile ? '14px 18px' : '32px 20px',
-        display: 'flex', flexDirection: hasFile ? 'row' : 'column',
-        alignItems: 'center', justifyContent: hasFile ? 'space-between' : 'center',
-        cursor: 'pointer', background: hasFile ? '#f0fdf4' : '#fff',
-        gap: hasFile ? 8 : 0,
-    });
-
-    const fileTag = { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 };
 
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -156,25 +144,16 @@ const DocumentUpload = () => {
                         </div>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#dc2626', background: '#fef2f2', padding: '3px 10px', borderRadius: 12 }}>Required</span>
                     </div>
-                    <div onClick={() => bachelorRef.current?.click()} style={uploadZone(!!bachelors)}>
-                        {bachelors ? (
-                            <>
-                                <div style={fileTag}>
-                                    <span>📎</span>
-                                    <span style={{ fontSize: 14, fontWeight: 500, color: '#047857', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bachelors.name}</span>
-                                    <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>({(bachelors.size / 1024).toFixed(0)} KB)</span>
-                                </div>
-                                <button onClick={(e) => { e.stopPropagation(); setBachelors(null); }} style={{ color: '#ef4444', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-                            </>
-                        ) : (
-                            <>
-                                <span style={{ fontSize: 28, marginBottom: 6 }}>📂</span>
-                                <p style={{ fontWeight: 500, color: '#374151', margin: '0 0 2px', fontSize: 14 }}>Click to upload bachelor's degree</p>
-                                <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>PDF, JPG, PNG • Max 10MB</p>
-                            </>
-                        )}
-                    </div>
-                    <input ref={bachelorRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleBachelors} style={{ display: 'none' }} />
+                    <FileDropzone
+                        title="Bachelor's degree"
+                        subtitle="PDF, JPG, PNG • Max 10MB"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        files={bachelors ? [bachelors] : []}
+                        pickerRef={bachelorRef}
+                        onFilesSelected={(picked) => setBachelorsFromFile(picked?.[0] || null)}
+                        onRemoveAt={() => setBachelors(null)}
+                        disabled={uploading}
+                    />
                 </div>
 
                 {/* 2. Master's Degree (Optional) */}
@@ -186,25 +165,16 @@ const DocumentUpload = () => {
                         </div>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', padding: '3px 10px', borderRadius: 12 }}>Optional</span>
                     </div>
-                    <div onClick={() => masterRef.current?.click()} style={uploadZone(!!masters)}>
-                        {masters ? (
-                            <>
-                                <div style={fileTag}>
-                                    <span>📎</span>
-                                    <span style={{ fontSize: 14, fontWeight: 500, color: '#047857', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{masters.name}</span>
-                                    <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>({(masters.size / 1024).toFixed(0)} KB)</span>
-                                </div>
-                                <button onClick={(e) => { e.stopPropagation(); setMasters(null); }} style={{ color: '#ef4444', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-                            </>
-                        ) : (
-                            <>
-                                <span style={{ fontSize: 28, marginBottom: 6 }}>📂</span>
-                                <p style={{ fontWeight: 500, color: '#374151', margin: '0 0 2px', fontSize: 14 }}>Click to upload master's degree</p>
-                                <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>PDF, JPG, PNG • Max 10MB</p>
-                            </>
-                        )}
-                    </div>
-                    <input ref={masterRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleMasters} style={{ display: 'none' }} />
+                    <FileDropzone
+                        title="Master's degree"
+                        subtitle="Optional • PDF, JPG, PNG • Max 10MB"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        files={masters ? [masters] : []}
+                        pickerRef={masterRef}
+                        onFilesSelected={(picked) => setMastersFromFile(picked?.[0] || null)}
+                        onRemoveAt={() => setMasters(null)}
+                        disabled={uploading}
+                    />
                 </div>
 
                 {/* 3. Certificates (up to 5) */}
@@ -219,39 +189,35 @@ const DocumentUpload = () => {
                         </span>
                     </div>
 
-                    {certificates.length < 5 && (
-                        <div onClick={() => certRef.current?.click()} style={{ ...uploadZone(false), padding: '24px 20px', marginBottom: certificates.length > 0 ? 12 : 0 }}>
-                            <span style={{ fontSize: 24, marginBottom: 4 }}>➕</span>
-                            <p style={{ fontWeight: 500, color: '#374151', margin: '0 0 2px', fontSize: 14 }}>Add certificate</p>
-                            <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>PDF, JPG, PNG • Max 10MB each</p>
-                        </div>
-                    )}
-                    <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={handleCertificates} style={{ display: 'none' }} />
-
-                    {certificates.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: certificates.length < 5 ? 0 : 0 }}>
-                            {certificates.map((f, i) => (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', background: '#e5e7eb', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
-                                        <span style={{ fontSize: 14, color: '#374151', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                                        <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>({(f.size / 1024).toFixed(0)} KB)</span>
-                                    </div>
-                                    <button onClick={() => removeCert(i)} style={{ color: '#ef4444', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 }}>✕</button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <FileDropzone
+                        title="Certificates"
+                        subtitle="Optional • PDF, JPG, PNG • Max 10MB each"
+                        helperText="You can upload up to 5 certificates."
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        multiple
+                        maxFiles={5}
+                        files={certificates}
+                        pickerRef={certRef}
+                        onFilesSelected={(picked) => addCertificatesFromFiles(picked)}
+                        onRemoveAt={(idx) => removeCert(idx)}
+                        disabled={uploading}
+                    />
                 </div>
 
                 {error && <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 14, color: '#dc2626' }}>{error}</div>}
 
-                <button onClick={handleUpload} disabled={uploading || !bachelors}
+                <button
+                    onClick={handleUpload}
+                    disabled={uploading || !bachelors}
+                    onMouseDown={(e) => { if (!uploading && bachelors) e.currentTarget.style.transform = 'scale(0.99)'; }}
+                    onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                     style={{
                         width: '100%', padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14, border: 'none',
                         background: (uploading || !bachelors) ? '#e5e7eb' : '#059669',
                         color: (uploading || !bachelors) ? '#9ca3af' : '#fff',
                         cursor: (uploading || !bachelors) ? 'not-allowed' : 'pointer',
+                        transition: 'background 160ms ease, transform 120ms ease, box-shadow 160ms ease',
+                        boxShadow: (uploading || !bachelors) ? 'none' : '0 10px 18px rgba(5,150,105,0.15)',
                     }}>
                     {uploading ? uploadProgress : `Upload ${totalFiles} Document${totalFiles !== 1 ? 's' : ''} & Complete →`}
                 </button>

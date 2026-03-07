@@ -203,6 +203,8 @@ const TestEngine = () => {
     const lastViolationTime = useRef(0);
     const hasStartedAssessmentRef = useRef(false);
     const fullscreenGraceTimerRef = useRef(null);
+    const mcqAutosaveTimerRef = useRef(null);
+    const mcqAutosaveLastPayloadRef = useRef('');
 
     // Proctoring Refs
     const webcamRef = useRef(null);
@@ -1015,8 +1017,33 @@ const TestEngine = () => {
         setShowWarningModal(false);
         if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
         if (fullscreenGraceTimerRef.current) clearTimeout(fullscreenGraceTimerRef.current);
+        if (session?.id) {
+            saveMcqProgress(session.id, { answers }).catch(() => { });
+        }
         handleSubmitTest();
     };
+
+    // MCQ autosave: persist score/answers after each answer change (debounced).
+    useEffect(() => {
+        if (!session?.id) return;
+        if (loading || isVideoSection || submissionResult) return;
+        if (!questions || questions.length === 0) return;
+
+        const payload = JSON.stringify(answers || {});
+        if (payload === mcqAutosaveLastPayloadRef.current) return;
+
+        if (mcqAutosaveTimerRef.current) clearTimeout(mcqAutosaveTimerRef.current);
+        mcqAutosaveTimerRef.current = setTimeout(() => {
+            mcqAutosaveLastPayloadRef.current = payload;
+            saveMcqProgress(session.id, { answers }).catch(err => {
+                console.error('MCQ autosave failed:', err);
+            });
+        }, 600);
+
+        return () => {
+            if (mcqAutosaveTimerRef.current) clearTimeout(mcqAutosaveTimerRef.current);
+        };
+    }, [answers, session?.id, loading, isVideoSection, submissionResult, questions?.length]);
 
     // Client-side Proctoring (Tab switch, etc.)
     useEffect(() => {
