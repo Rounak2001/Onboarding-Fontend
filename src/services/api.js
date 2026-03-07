@@ -60,6 +60,17 @@ export const completeOnboarding = async (data) => {
     return response.data;
 };
 
+// Applicant Phone OTP (Onboarding portal)
+export const sendOnboardingPhoneOtp = async (phone_number) => {
+    const response = await api.post('/auth/onboarding/send-otp/', { phone_number });
+    return response.data;
+};
+
+export const verifyOnboardingPhoneOtp = async (phone_number, otp) => {
+    const response = await api.post('/auth/onboarding/verify-otp/', { phone_number, otp });
+    return response.data;
+};
+
 // Accept declaration
 export const acceptDeclaration = async () => {
     const response = await api.post('/auth/accept-declaration/');
