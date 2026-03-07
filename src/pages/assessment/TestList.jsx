@@ -55,7 +55,7 @@ const TestList = () => {
     }
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -91,7 +91,7 @@ const TestList = () => {
                     {testTypes.map(tt => {
                         const isSelected = selected.find(s => s.id === tt.id);
                         return (
-                            <button key={tt.id} onClick={() => toggleSelect(tt)}
+                            <button className="tp-btn" key={tt.id} onClick={() => toggleSelect(tt)}
                                 disabled={disqualified}
                                 style={{
                                     background: isSelected ? '#ecfdf5' : '#fff',
@@ -123,7 +123,7 @@ const TestList = () => {
                     <span style={{ fontSize: 14, color: '#6b7280' }}>
                         {selected.length === 0 ? 'No domains selected' : `${selected.length} domain${selected.length > 1 ? 's' : ''} selected`}
                     </span>
-                    <button onClick={handleContinue} disabled={selected.length === 0 || disqualified}
+                    <button className="tp-btn" onClick={handleContinue} disabled={selected.length === 0 || disqualified}
                         style={{
                             padding: '12px 32px', borderRadius: 8, fontWeight: 600, fontSize: 14, border: 'none',
                             background: (selected.length === 0 || disqualified) ? '#e5e7eb' : '#059669',

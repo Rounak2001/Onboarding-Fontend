@@ -94,7 +94,7 @@ const DocumentUpload = () => {
     const totalFiles = (bachelors ? 1 : 0) + (masters ? 1 : 0) + certificates.length;
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
             {bachelorsFixPrompt && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
@@ -207,6 +207,7 @@ const DocumentUpload = () => {
                 {error && <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 14, color: '#dc2626' }}>{error}</div>}
 
                 <button
+                    className="tp-btn"
                     onClick={handleUpload}
                     disabled={uploading || !bachelors}
                     onMouseDown={(e) => { if (!uploading && bachelors) e.currentTarget.style.transform = 'scale(0.99)'; }}

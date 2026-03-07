@@ -28,6 +28,12 @@ body {
     color: #0f172a;
 }
 
+/* Consistent focus ring (lightweight accessibility + polish) */
+:focus-visible {
+    outline: 3px solid rgba(59, 130, 246, 0.55);
+    outline-offset: 2px;
+}
+
 /* Smooth scrolling */
 html {
     scroll-behavior: smooth;
@@ -114,4 +120,54 @@ html {
 
 .animate-slide-in {
     animation: slideIn 0.4s ease-out forwards;
+}
+
+/* Lightweight page transition helper */
+.tp-page {
+    animation: fadeInUp 0.28s ease-out both;
+}
+
+/* Lightweight press/hover helper for buttons */
+.tp-btn {
+    transition: transform 120ms ease, box-shadow 160ms ease, filter 160ms ease, background 160ms ease;
+}
+.tp-btn:hover {
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+}
+.tp-btn:active {
+    transform: translateY(0) scale(0.99);
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.1);
+}
+.tp-btn:disabled,
+.tp-btn[disabled] {
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+}
+
+/* Optional icon nudge if the button contains an element with this class */
+.tp-btn .tp-btn-icon {
+    display: inline-block;
+    transition: transform 140ms ease;
+}
+.tp-btn:hover .tp-btn-icon {
+    transform: translateX(2px);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+    .tp-page,
+    .animate-fade-in-up,
+    .animate-fade-in,
+    .animate-slide-in {
+        animation: none !important;
+    }
+    .tp-btn {
+        transition: none !important;
+    }
 }

@@ -92,7 +92,7 @@ const AdminDashboard = () => {
     };
 
     return (
-        <div style={{
+        <div className="tp-page" style={{
             minHeight: '100vh',
             background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
             fontFamily: "'Inter', system-ui, sans-serif", color: '#f1f5f9',
@@ -124,7 +124,7 @@ const AdminDashboard = () => {
                         }}>
                             {consultants.length} Consultants
                         </span>
-                        <button onClick={handleLogout} style={{
+                        <button className="tp-btn" onClick={handleLogout} style={{
                             padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                             background: 'rgba(239,68,68,0.1)', color: '#f87171',
                             border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer',

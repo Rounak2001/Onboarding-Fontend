@@ -175,7 +175,7 @@ const Instructions = () => {
     });
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -226,6 +226,7 @@ const Instructions = () => {
                             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>Test your camera and microphone before starting.</p>
                         </div>
                         <button
+                            className="tp-btn"
                             onClick={handleDeviceTest}
                             disabled={deviceChecking}
                             style={{ ...btnStyle(true, deviceChecking), flex: 'none', padding: '10px 14px' }}
@@ -267,8 +268,8 @@ const Instructions = () => {
                 {error && <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 14, color: '#dc2626' }}>{error}</div>}
 
                 <div style={{ display: 'flex', gap: 12 }}>
-                    <button onClick={() => navigate('/assessment/select')} style={btnStyle(false, false)}>← Back</button>
-                    <button onClick={handleStart} disabled={loading} style={btnStyle(true, loading)}>
+                    <button className="tp-btn" onClick={() => navigate('/assessment/select')} style={btnStyle(false, false)}>← Back</button>
+                    <button className="tp-btn" onClick={handleStart} disabled={loading} style={btnStyle(true, loading)}>
                         {loading ? 'Starting...' : 'Start Assessment →'}
                     </button>
                 </div>

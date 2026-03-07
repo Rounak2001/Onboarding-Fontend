@@ -187,7 +187,7 @@ const ConsultantDetail = () => {
     const consultDocs = data?.documents?.consultant_documents || [];
 
     return (
-        <div style={{
+        <div className="tp-page" style={{
             minHeight: '100vh',
             background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
             fontFamily: "'Inter', system-ui, sans-serif", color: '#f1f5f9',
@@ -1015,6 +1015,7 @@ const ConsultantDetail = () => {
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     <button
+                                        className="tp-btn"
                                         onClick={async () => {
                                             try {
                                                 await navigator.clipboard.writeText(JSON.stringify(selectedSnapshot, null, 2));
@@ -1036,6 +1037,29 @@ const ConsultantDetail = () => {
                                     >
                                         Copy JSON
                                     </button>
+                                    <button
+                                        className="tp-btn"
+                                        onClick={() => {
+                                            try {
+                                                window.open(selectedSnapshot.image_url, '_blank', 'noopener,noreferrer');
+                                            } catch {
+                                                // ignore popup failures
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '8px 12px',
+                                            borderRadius: 10,
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            background: 'rgba(59,130,246,0.12)',
+                                            color: '#60a5fa',
+                                            border: '1px solid rgba(59,130,246,0.18)',
+                                            cursor: 'pointer',
+                                        }}
+                                        title="Open original snapshot in a new tab"
+                                    >
+                                        Open Original
+                                    </button>
                                     <button onClick={() => setSelectedSnapshot(null)} style={{
                                         background: 'none', border: 'none', color: '#94a3b8', fontSize: 22, cursor: 'pointer',
                                         padding: 0, display: 'flex', alignItems: 'center'
@@ -1056,7 +1080,7 @@ const ConsultantDetail = () => {
                                         <img
                                             src={selectedSnapshot.image_url}
                                             alt="Snapshot"
-                                            style={{ width: '100%', display: 'block', maxHeight: 460, objectFit: 'contain', background: '#0b1220' }}
+                                            style={{ width: '100%', display: 'block', maxHeight: '70vh', objectFit: 'contain', background: '#0b1220' }}
                                         />
                                     </div>
 

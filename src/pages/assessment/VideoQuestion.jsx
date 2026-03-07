@@ -200,7 +200,7 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
             {!uploaded && (
                 <div style={{ display: 'flex', gap: 12 }}>
                     {!recording && !recordedBlob && timeLeft > 0 && (
-                        <button onClick={startRecording} style={{
+                        <button className="tp-btn" onClick={startRecording} style={{
                             flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14,
                             background: '#059669', color: '#fff', border: 'none', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -210,7 +210,7 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
                     )}
 
                     {recording && (
-                        <button onClick={stopRecording} style={{
+                        <button className="tp-btn" onClick={stopRecording} style={{
                             flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14,
                             background: '#dc2626', color: '#fff', border: 'none', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -222,14 +222,14 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
                     {recordedBlob && !recording && (
                         <>
                             {timeLeft > 0 && (
-                                <button onClick={() => { setRecordedBlob(null); if (preview) URL.revokeObjectURL(preview); setPreview(null); }} style={{
+                                <button className="tp-btn" onClick={() => { setRecordedBlob(null); if (preview) URL.revokeObjectURL(preview); setPreview(null); }} style={{
                                     flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 500, fontSize: 14,
                                     background: '#fff', color: '#374151', border: '1px solid #d1d5db', cursor: 'pointer',
                                 }}>
                                     Re-record
                                 </button>
                             )}
-                            <button onClick={() => handleQueueAndAdvance()} style={{
+                            <button className="tp-btn" onClick={() => handleQueueAndAdvance()} style={{
                                 flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14,
                                 background: '#059669', color: '#fff', border: 'none', cursor: 'pointer',
                             }}>

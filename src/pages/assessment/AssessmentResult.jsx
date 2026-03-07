@@ -42,10 +42,10 @@ const AssessmentResult = () => {
 
     if (error) {
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', padding: 24 }}>
+            <div className="tp-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', padding: 24 }}>
                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 32, textAlign: 'center', maxWidth: 400, width: '100%' }}>
                     <p style={{ color: '#dc2626', marginBottom: 16 }}>{error}</p>
-                    <button onClick={() => navigate('/success')}
+                    <button className="tp-btn" onClick={() => navigate('/success')}
                         style={{ padding: '10px 24px', borderRadius: 8, background: '#059669', color: '#fff', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer' }}>
                         Back to Dashboard
                     </button>
@@ -61,7 +61,7 @@ const AssessmentResult = () => {
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -109,7 +109,7 @@ const AssessmentResult = () => {
                         </>
                     )}
 
-                    <button onClick={() => navigate('/success')}
+                    <button className="tp-btn" onClick={() => navigate('/success')}
                         style={{ width: '100%', padding: '14px 0', borderRadius: 8, fontWeight: 600, fontSize: 14, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' }}>
                         Back to Dashboard →
                     </button>

@@ -148,7 +148,7 @@ const Onboarding = () => {
     const errorStyle = { fontSize: 12, color: '#ef4444', marginTop: 4 };
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             {/* Header */}
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -285,7 +285,7 @@ const Onboarding = () => {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button type="submit" disabled={loading} style={{
+                        <button className="tp-btn" type="submit" disabled={loading} style={{
                             padding: '12px 32px', borderRadius: 8, fontWeight: 600, fontSize: 14,
                             border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
                             background: loading ? '#e5e7eb' : '#059669', color: loading ? '#9ca3af' : '#fff',

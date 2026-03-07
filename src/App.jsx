@@ -13,6 +13,7 @@ import TestEngine from './pages/assessment/TestEngine';
 import AssessmentResult from './pages/assessment/AssessmentResult';
 import OnboardingComplete from './pages/OnboardingComplete';
 import Declaration from './pages/Declaration';
+import PartnerInfo from './pages/PartnerInfo';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
@@ -43,7 +44,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return children;
 };
@@ -116,7 +117,8 @@ const StepGuard = ({ step, children }) => {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/" element={<PublicRoute><PartnerInfo /></PublicRoute>} />
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
       {/* Protected Onboarding Routes with Layout */}
       <Route element={<ProtectedRoute><OnboardingLayout /></ProtectedRoute>}>

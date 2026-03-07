@@ -33,6 +33,7 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
                     const isSelected = selectedAnswer === key;
                     return (
                         <button
+                            className="tp-btn"
                             key={key}
                             onClick={() => onSelectAnswer(key)}
                             style={{

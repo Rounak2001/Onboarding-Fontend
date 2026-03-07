@@ -1258,7 +1258,7 @@ const TestEngine = () => {
                     <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, marginBottom: 24 }}>
                         This assessment must be taken in fullscreen mode.
                     </p>
-                    <button onClick={enterFullScreen} style={s.btnPrimary}>🖥️ Enter Fullscreen & Begin</button>
+                    <button className="tp-btn" onClick={enterFullScreen} style={s.btnPrimary}>🖥️ Enter Fullscreen & Begin</button>
                 </div>
             </div>
         );
@@ -1291,7 +1291,7 @@ const TestEngine = () => {
         + (showEyeTrackingFallbackNotice ? 38 : 0);
 
     return (
-        <div style={s.page} onContextMenu={e => e.preventDefault()} onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()} onPaste={e => e.preventDefault()}>
+        <div className="tp-page" style={s.page} onContextMenu={e => e.preventDefault()} onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()} onPaste={e => e.preventDefault()}>
 
             {isSubmitting && (
                 <div
@@ -1354,7 +1354,7 @@ const TestEngine = () => {
                                 ? `${violationTypeLabel(lastViolationType)} violations: ${lastViolationTypeCount}`
                                 : `Total violations: ${serverViolationCount}`}
                         </div>
-                        <button onClick={() => setShowWarningModal(false)} style={s.btnDanger}>I Understand & Resume</button>
+                        <button className="tp-btn" onClick={() => setShowWarningModal(false)} style={s.btnDanger}>I Understand & Resume</button>
                     </div>
                 </div>
             )}
@@ -1380,6 +1380,7 @@ const TestEngine = () => {
                         {permissionIssues.join(' | ')}
                     </div>
                     <button
+                        className="tp-btn"
                         onClick={handleRetryMediaPermissions}
                         disabled={permissionRetrying}
                         style={{
@@ -1427,6 +1428,8 @@ const TestEngine = () => {
                         ref={webcamRef}
                         audio={false}
                         screenshotFormat="image/jpeg"
+                        screenshotQuality={1}
+                        screenshotWidth={1280}
                         videoConstraints={{ width: 1280, height: 720, facingMode: "user" }}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onUserMedia={() => {
@@ -1495,6 +1498,7 @@ const TestEngine = () => {
                         </div>
                     )}
                     <button
+                        className="tp-btn"
                         onClick={captureAndAnalyzeSnapshot}
                         style={{
                             marginTop: 10,
@@ -1635,7 +1639,7 @@ const TestEngine = () => {
                             selectedAnswer={answers[questions[currentQuestionIndex]?.id]}
                         />
                         <div style={{ marginTop: 28, display: 'flex', justifyContent: 'flex-end' }}>
-                            <button onClick={handleNext} style={s.btnPrimary}>
+                            <button className="tp-btn" onClick={handleNext} style={s.btnPrimary}>
                                 {currentQuestionIndex === questions.length - 1 ? 'Proceed to Video →' : 'Next Question →'}
                             </button>
                         </div>
@@ -1672,7 +1676,7 @@ const TestEngine = () => {
                         <div style={{ fontSize: 48, marginBottom: 12 }}>📤</div>
                         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Review & Submit</h2>
                         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>All questions completed. Ready to submit.</p>
-                        <button onClick={handleSubmitTest} style={s.btnPrimary}>Submit Assessment</button>
+                        <button className="tp-btn" onClick={handleSubmitTest} style={s.btnPrimary}>Submit Assessment</button>
                     </div>
                 )}
 
@@ -1683,7 +1687,7 @@ const TestEngine = () => {
                         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No Questions Available</h2>
                         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>No MCQ questions for the selected domains.</p>
                         {videoQuestions.length > 0 && (
-                            <button onClick={() => { setIsVideoSection(true); setCurrentVideoQuestionIndex(0); }} style={s.btnPrimary}>
+                            <button className="tp-btn" onClick={() => { setIsVideoSection(true); setCurrentVideoQuestionIndex(0); }} style={s.btnPrimary}>
                                 Proceed to Video Questions
                             </button>
                         )}

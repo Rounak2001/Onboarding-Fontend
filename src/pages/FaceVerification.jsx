@@ -51,7 +51,7 @@ const FaceVerification = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -74,6 +74,7 @@ const FaceVerification = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                         <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>📸 Live Capture</h2>
                         <button
+                            className="tp-btn"
                             onClick={() => navigate('/onboarding/identity')}
                             style={{ fontSize: 13, color: '#059669', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
                         >
@@ -95,14 +96,14 @@ const FaceVerification = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#6b7280', background: '#f9fafb', borderRadius: 8, padding: '10px 14px', border: '1px solid #e5e7eb', marginBottom: 16 }}>
                                 <span>💡</span><span>Position your face clearly in the frame with good lighting.</span>
                             </div>
-                            <button onClick={capture} style={{ ...btnPrimary(false), width: '100%', flex: 'none' }}>
+                            <button className="tp-btn" onClick={capture} style={{ ...btnPrimary(false), width: '100%', flex: 'none' }}>
                                 📸 Capture Photo
                             </button>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', gap: 12 }}>
-                            <button onClick={() => setCapturedImage(null)} style={btnSecondary}>Retake</button>
-                            <button onClick={handleVerify} disabled={verifying} style={btnPrimary(verifying)}>
+                            <button className="tp-btn" onClick={() => setCapturedImage(null)} style={btnSecondary}>Retake</button>
+                            <button className="tp-btn" onClick={handleVerify} disabled={verifying} style={btnPrimary(verifying)}>
                                 {verifying ? 'Verifying...' : 'Verify Face →'}
                             </button>
                         </div>

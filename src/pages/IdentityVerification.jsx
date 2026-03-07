@@ -109,7 +109,7 @@ const IdentityVerification = () => {
     const cardStyle = { background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24 };
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -158,6 +158,7 @@ const IdentityVerification = () => {
                             </div>
                             <div style={{ display: 'flex', gap: 12 }}>
                                 <button
+                                    className="tp-btn"
                                     onClick={() => {
                                         setFile(null);
                                         if (preview) URL.revokeObjectURL(preview);
@@ -170,6 +171,7 @@ const IdentityVerification = () => {
                                     Choose Different
                                 </button>
                                 <button
+                                    className="tp-btn"
                                     onClick={handleUpload}
                                     disabled={uploading}
                                     style={{
