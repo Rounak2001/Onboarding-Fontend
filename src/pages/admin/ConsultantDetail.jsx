@@ -575,7 +575,7 @@ const ConsultantDetail = () => {
                                                         position: 'relative', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
                                                         border: snap.is_violation ? '2px solid #ef4444' : '1px solid rgba(148,163,184,0.1)',
                                                         background: 'rgba(15,23,42,0.6)'
-                                                    }} onClick={() => setSelectedSnapshot(snap)}>
+                                                    }} onClick={() => setSelectedSnapshot({ ...snap, _session_audio_clips: s.proctoring_audio_clips || [] })}>
                                                         <img src={snap.image_url} alt="Snapshot" style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }}
                                                             onError={(e) => { e.target.src = 'https://via.placeholder.com/150?text=Error'; }} />
 
@@ -593,6 +593,11 @@ const ConsultantDetail = () => {
                                                             {snap.match_score > 0 && (
                                                                 <div style={{ color: snap.match_score > 80 ? '#34d399' : '#f87171' }}>match: {Math.round(snap.match_score)}%</div>
                                                             )}
+                                                            {'audio_detected' in snap && (
+                                                                <div style={{ color: snap.audio_detected ? '#f87171' : '#94a3b8' }}>
+                                                                    audio: {String(!!snap.audio_detected)}
+                                                                </div>
+                                                            )}
                                                             {'gaze_violation' in snap && (
                                                                 <div style={{ color: snap.gaze_violation ? '#f87171' : '#94a3b8' }}>
                                                                     gaze: {String(snap.gaze_violation)}
@@ -606,6 +611,173 @@ const ConsultantDetail = () => {
                                                         </div>
                                                     </div>
                                                 ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Proctoring Audio Clips */}
+                                    {s.proctoring_audio_clips?.length > 0 && (
+                                        <div style={{ marginBottom: 20 }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', marginBottom: 8 }}>
+                                                Proctoring Audio Clips ({s.proctoring_audio_clips.length})
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                                                {s.proctoring_audio_clips.map((clip) => (
+                                                    <div key={clip.id} style={{
+                                                        padding: 12,
+                                                        borderRadius: 12,
+                                                        background: 'rgba(30,41,59,0.45)',
+                                                        border: '1px solid rgba(148,163,184,0.1)',
+                                                    }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                                                            <div style={{ fontSize: 11, fontWeight: 800, color: '#e2e8f0', wordBreak: 'break-all' }}>
+                                                                {clip.snapshot_id ? `snapshot: ${clip.snapshot_id}` : `clip #${clip.id}`}
+                                                            </div>
+                                                            <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                                                                {clip.created_at ? new Date(clip.created_at).toLocaleTimeString() : '—'}
+                                                            </div>
+                                                        </div>
+                                                        {clip.file_url ? (
+                                                            <audio controls preload="none" style={{ width: '100%' }} src={clip.file_url} />
+                                                        ) : (
+                                                            <div style={{ fontSize: 12, color: '#fca5a5' }}>Audio URL missing</div>
+                                                        )}
+                                                        <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                            <span style={{
+                                                                padding: '2px 8px',
+                                                                borderRadius: 999,
+                                                                fontSize: 10,
+                                                                fontWeight: 800,
+                                                                background: clip.stt_status === 'completed'
+                                                                    ? 'rgba(16,185,129,0.12)'
+                                                                    : clip.stt_status === 'failed'
+                                                                        ? 'rgba(239,68,68,0.12)'
+                                                                        : 'rgba(148,163,184,0.12)',
+                                                                color: clip.stt_status === 'completed'
+                                                                    ? '#34d399'
+                                                                    : clip.stt_status === 'failed'
+                                                                        ? '#f87171'
+                                                                        : '#94a3b8',
+                                                                border: '1px solid rgba(148,163,184,0.14)',
+                                                            }}>
+                                                                STT: {clip.stt_status || '—'}
+                                                            </span>
+                                                            {clip.stt_provider && (
+                                                                <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                                                                    {clip.stt_provider}{clip.stt_language ? ` (${clip.stt_language})` : ''}
+                                                                </span>
+                                                            )}
+                                                            {clip.cheat_flag && (
+                                                                <span style={{
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: 999,
+                                                                    fontSize: 10,
+                                                                    fontWeight: 900,
+                                                                    background: 'rgba(239,68,68,0.16)',
+                                                                    color: '#fecaca',
+                                                                    border: '1px solid rgba(239,68,68,0.28)',
+                                                                }}>
+                                                                    CHEAT PROMPT
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {clip.transcript && (
+                                                            <div style={{
+                                                                marginTop: 8,
+                                                                fontSize: 11,
+                                                                color: '#e2e8f0',
+                                                                lineHeight: 1.35,
+                                                                background: 'rgba(15,23,42,0.5)',
+                                                                border: '1px solid rgba(148,163,184,0.12)',
+                                                                borderRadius: 10,
+                                                                padding: '8px 10px',
+                                                                maxHeight: 90,
+                                                                overflow: 'auto',
+                                                            }}>
+                                                                {clip.transcript}
+                                                            </div>
+                                                        )}
+                                                        {Array.isArray(clip.cheat_matches) && clip.cheat_matches.length > 0 && (
+                                                            <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8' }}>
+                                                                matches: <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{clip.cheat_matches.join(', ')}</span>
+                                                            </div>
+                                                        )}
+                                                        <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: '#94a3b8' }}>
+                                                            <span>level: <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{clip.audio_level ?? '—'}</span></span>
+                                                            <span>duration: <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{clip.duration_ms ?? '—'}ms</span></span>
+                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>mime: {clip.mime_type || '—'}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Continuous Audio Telemetry */}
+                                    {((s.proctoring_audio_telemetry_summary?.events || 0) > 0 || (s.proctoring_audio_telemetry?.length || 0) > 0) && (
+                                        <div style={{ marginBottom: 20 }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', marginBottom: 8 }}>
+                                                Audio Telemetry
+                                            </div>
+                                            <div style={{
+                                                background: 'rgba(2,132,199,0.06)',
+                                                border: '1px solid rgba(2,132,199,0.18)',
+                                                borderRadius: 12,
+                                                padding: 12,
+                                            }}>
+                                                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#94a3b8' }}>
+                                                    <span>events: <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{s.proctoring_audio_telemetry_summary?.events ?? (s.proctoring_audio_telemetry?.length || 0)}</span></span>
+                                                    <span>speech: <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{Math.round((s.proctoring_audio_telemetry_summary?.total_speech_ms || 0) / 1000)}s</span></span>
+                                                    <span>max level: <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{s.proctoring_audio_telemetry_summary?.max_level ?? '—'}</span></span>
+                                                </div>
+
+                                                {Array.isArray(s.proctoring_audio_telemetry) && s.proctoring_audio_telemetry.length > 0 && (
+                                                    <details style={{ marginTop: 10 }}>
+                                                        <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#e2e8f0' }}>
+                                                            View recent telemetry ({s.proctoring_audio_telemetry.length})
+                                                        </summary>
+                                                        <div style={{ marginTop: 10, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                                <thead>
+                                                                    <tr style={{ background: 'rgba(148,163,184,0.06)' }}>
+                                                                        <th style={{ padding: '8px 10px', fontSize: 11, color: '#64748b', textAlign: 'left', fontWeight: 700 }}>Window</th>
+                                                                        <th style={{ padding: '8px 10px', fontSize: 11, color: '#64748b', textAlign: 'left', fontWeight: 700 }}>Speech</th>
+                                                                        <th style={{ padding: '8px 10px', fontSize: 11, color: '#64748b', textAlign: 'left', fontWeight: 700 }}>Bursts</th>
+                                                                        <th style={{ padding: '8px 10px', fontSize: 11, color: '#64748b', textAlign: 'left', fontWeight: 700 }}>Avg</th>
+                                                                        <th style={{ padding: '8px 10px', fontSize: 11, color: '#64748b', textAlign: 'left', fontWeight: 700 }}>Max</th>
+                                                                        <th style={{ padding: '8px 10px', fontSize: 11, color: '#64748b', textAlign: 'left', fontWeight: 700 }}>Mic</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {s.proctoring_audio_telemetry.slice(0, 40).map((t) => (
+                                                                        <tr key={t.id} style={{ borderTop: '1px solid rgba(148,163,184,0.06)' }}>
+                                                                            <td style={{ padding: '8px 10px', fontSize: 11, color: '#94a3b8' }}>
+                                                                                {t.window_start && t.window_end
+                                                                                    ? `${new Date(t.window_start).toLocaleTimeString()} → ${new Date(t.window_end).toLocaleTimeString()}`
+                                                                                    : (t.created_at ? new Date(t.created_at).toLocaleTimeString() : '—')}
+                                                                            </td>
+                                                                            <td style={{ padding: '8px 10px', fontSize: 11, color: '#e2e8f0', fontWeight: 700 }}>
+                                                                                {Math.round((t.speech_ms || 0) / 1000)}s
+                                                                            </td>
+                                                                            <td style={{ padding: '8px 10px', fontSize: 11, color: '#e2e8f0', fontWeight: 700 }}>
+                                                                                {t.bursts ?? 0}
+                                                                            </td>
+                                                                            <td style={{ padding: '8px 10px', fontSize: 11, color: '#94a3b8' }}>
+                                                                                {t.avg_level ?? '—'}
+                                                                            </td>
+                                                                            <td style={{ padding: '8px 10px', fontSize: 11, color: '#94a3b8' }}>
+                                                                                {t.max_level ?? '—'}
+                                                                            </td>
+                                                                            <td style={{ padding: '8px 10px', fontSize: 11, color: '#94a3b8' }}>
+                                                                                {t.mic_status || '—'}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </details>
+                                                )}
                                             </div>
                                         </div>
                                     )}
@@ -1100,7 +1272,29 @@ const ConsultantDetail = () => {
                                         {fieldRow('pose_roll', selectedSnapshot.pose_roll ?? '—')}
                                         {fieldRow('mouth_state', selectedSnapshot.mouth_state ?? '—')}
                                         {fieldRow('audio_detected', String(selectedSnapshot.audio_detected ?? '—'))}
+                                        {fieldRow('audio_level', selectedSnapshot?.rule_outcomes?.audio_signal?.audio_level ?? '—')}
+                                        {fieldRow('audio_threshold', selectedSnapshot?.rule_outcomes?.audio_signal?.audio_threshold ?? '—')}
                                         {fieldRow('gaze_violation', String(selectedSnapshot.gaze_violation ?? '—'))}
+                                        {(() => {
+                                            const clips = Array.isArray(selectedSnapshot?._session_audio_clips) ? selectedSnapshot._session_audio_clips : [];
+                                            const match = clips.find(c => c?.snapshot_id && String(c.snapshot_id) === String(selectedSnapshot.snapshot_id));
+                                            if (!match?.file_url) return null;
+                                            return (
+                                                <div style={{ marginTop: 10 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 800, color: '#e2e8f0', marginBottom: 6 }}>
+                                                        Audio Clip
+                                                    </div>
+                                                    <audio controls preload="none" style={{ width: '100%' }} src={match.file_url} />
+                                                    <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+                                                        level: <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{match.audio_level ?? '—'}</span>
+                                                        {' · '}
+                                                        duration: <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{match.duration_ms ?? '—'}ms</span>
+                                                        {' · '}
+                                                        mime: <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{match.mime_type || '—'}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                         {selectedSnapshot.violation_reason && (
                                             <div style={{ marginTop: 10, fontSize: 12, color: '#fca5a5', fontWeight: 700 }}>
                                                 Reason: <span style={{ color: '#fecaca', fontWeight: 600 }}>{selectedSnapshot.violation_reason}</span>

@@ -234,6 +234,20 @@ export const processProctoringSnapshot = async (sessionId, formData) => {
     return response.data;
 };
 
+export const uploadProctoringAudioClip = async (sessionId, formData) => {
+    const response = await api.post(`/assessment/sessions/${sessionId}/upload_audio_clip/`, formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
+
+export const logProctoringAudioTelemetry = async (sessionId, payload) => {
+    const response = await api.post(`/assessment/sessions/${sessionId}/log_audio_telemetry/`, payload);
+    return response.data;
+};
+
 export const getProctoringPolicy = async () => {
     const response = await api.get('/assessment/sessions/proctoring_policy/');
     return response.data;

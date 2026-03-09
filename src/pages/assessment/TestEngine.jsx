@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import TestQuestion from './TestQuestion';
 import VideoQuestion from './VideoQuestion';
-import { submitTest, submitVideo, logViolation, processProctoringSnapshot, getProctoringPolicy, saveMcqProgress } from '../../services/api';
+import { submitTest, submitVideo, logViolation, processProctoringSnapshot, uploadProctoringAudioClip, logProctoringAudioTelemetry, getProctoringPolicy, saveMcqProgress } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import AccountControls from '../../components/AccountControls';
 
@@ -27,6 +27,9 @@ const TASKS_VISION_WASM_BASE_URL =
     || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
 const MCQ_SNAPSHOT_BASE_MS = 10000;
 const VIDEO_SNAPSHOT_BASE_MS = 15000;
+const AUDIO_RMS_THRESHOLD = 0.035;
+const AUDIO_TELEMETRY_SAMPLE_MS = 200;
+const AUDIO_TELEMETRY_POST_MS = 5000;
 const SNAPSHOT_QUEUE_DB_NAME = 'taxplan-proctoring';
 const SNAPSHOT_QUEUE_STORE_NAME = 'snapshot-upload-queue';
 const VIDEO_QUEUE_STORE_NAME = 'video-upload-queue';
@@ -229,6 +232,18 @@ const TestEngine = () => {
     const videoSnapshotGetterRef = useRef(null);
     const isVideoUploadWorkerRunningRef = useRef(false);
     const isSnapshotUploadWorkerRunningRef = useRef(false);
+    const audioTelemetryRef = useRef({
+        windowStartMs: 0,
+        lastSampleMs: 0,
+        lastDetected: false,
+        speechMs: 0,
+        bursts: 0,
+        sampleCount: 0,
+        sumLevel: 0,
+        maxLevel: 0,
+        lastPostMs: 0,
+    });
+    const lastBurstClipAtRef = useRef(0);
     const violationTypeLabel = useCallback((rawType) => {
         const v = String(rawType || '').toLowerCase();
         const map = {
@@ -393,7 +408,7 @@ const TestEngine = () => {
 
     const getAudioSignal = useCallback(() => {
         if (!analyserRef.current || !audioDataArrayRef.current) {
-            return { detected: false, level: 0 };
+            return { detected: false, level: 0, threshold: AUDIO_RMS_THRESHOLD };
         }
         analyserRef.current.getByteTimeDomainData(audioDataArrayRef.current);
         let sumSquares = 0;
@@ -402,8 +417,8 @@ const TestEngine = () => {
             sumSquares += normalized * normalized;
         }
         const rms = Math.sqrt(sumSquares / audioDataArrayRef.current.length);
-        const detected = rms > 0.035;
-        return { detected, level: Number(rms.toFixed(4)) };
+        const detected = rms > AUDIO_RMS_THRESHOLD;
+        return { detected, level: Number(rms.toFixed(4)), threshold: AUDIO_RMS_THRESHOLD };
     }, []);
 
     useEffect(() => {
@@ -414,6 +429,128 @@ const TestEngine = () => {
             stopAudioDetector();
         };
     }, [submissionResult, initAudioDetector, stopAudioDetector]);
+
+    // Continuous audio telemetry: lightweight client-side VAD sampling (works across browsers via WebAudio).
+    useEffect(() => {
+        if (!session?.id) return;
+        if (loading || submissionResult) return;
+        if (!navigator?.mediaDevices?.getUserMedia) return;
+
+        let timer = null;
+        const tick = async () => {
+            const now = Date.now();
+            const state = audioTelemetryRef.current;
+            if (!state.windowStartMs) {
+                state.windowStartMs = now;
+                state.lastSampleMs = now;
+                state.lastPostMs = now;
+            }
+
+            const { detected, level, threshold } = getAudioSignal();
+            const dt = Math.max(0, now - (state.lastSampleMs || now));
+            state.lastSampleMs = now;
+
+            // DEV-only: capture short clips on speech bursts so STT can detect "mark B/option 2" prompts.
+            if (import.meta.env.DEV && detected && !state.lastDetected) {
+                if (typeof MediaRecorder !== 'undefined' && now - lastBurstClipAtRef.current >= 8000) {
+                    lastBurstClipAtRef.current = now;
+                    (async () => {
+                        try {
+                            if (!micStreamRef.current) await initAudioDetector();
+                            const stream = micStreamRef.current;
+                            if (!stream) return;
+
+                            const chunks = [];
+                            const recorder = new MediaRecorder(stream);
+                            const startedAt = Date.now();
+                            const done = new Promise((resolve) => {
+                                recorder.ondataavailable = (e) => {
+                                    if (e.data && e.data.size > 0) chunks.push(e.data);
+                                };
+                                recorder.onstop = () => resolve();
+                            });
+                            recorder.start();
+                            setTimeout(() => {
+                                try { recorder.stop(); } catch { /* ignore */ }
+                            }, 2500);
+                            await done;
+                            if (chunks.length === 0) return;
+
+                            const mime = chunks[0]?.type || recorder.mimeType || '';
+                            const blob = new Blob(chunks, { type: mime || undefined });
+                            const ext = (mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm');
+
+                            const formData = new FormData();
+                            formData.append('audio', blob, `burst_${startedAt}.${ext}`);
+                            formData.append('snapshot_id', '');
+                            formData.append('client_timestamp', new Date().toISOString());
+                            formData.append('duration_ms', String(Date.now() - startedAt));
+                            formData.append('audio_level', level == null ? '' : String(level));
+                            formData.append('mime_type', mime);
+                            await uploadProctoringAudioClip(session.id, formData);
+                        } catch {
+                            // ignore clip capture failures
+                        }
+                    })();
+                }
+            }
+
+            state.sampleCount += 1;
+            state.sumLevel += Number(level || 0);
+            state.maxLevel = Math.max(state.maxLevel || 0, Number(level || 0));
+
+            if (detected) {
+                state.speechMs += dt;
+                if (!state.lastDetected) state.bursts += 1;
+            }
+            state.lastDetected = detected;
+
+            // Post windowed telemetry periodically; best-effort and never blocks candidate flow.
+            if (now - (state.lastPostMs || now) >= AUDIO_TELEMETRY_POST_MS) {
+                const windowStart = new Date(state.windowStartMs).toISOString();
+                const windowEnd = new Date(now).toISOString();
+                const avgLevel = state.sampleCount > 0 ? Number((state.sumLevel / state.sampleCount).toFixed(4)) : null;
+
+                const payload = {
+                    window_start: windowStart,
+                    window_end: windowEnd,
+                    speech_ms: Math.round(state.speechMs || 0),
+                    bursts: Math.round(state.bursts || 0),
+                    sample_count: Math.round(state.sampleCount || 0),
+                    avg_level: avgLevel,
+                    max_level: Number((state.maxLevel || 0).toFixed(4)),
+                    threshold,
+                    mic_status: debugTelemetry.micStatus,
+                };
+
+                // Reset window immediately (even if the network fails).
+                state.windowStartMs = now;
+                state.lastPostMs = now;
+                state.speechMs = 0;
+                state.bursts = 0;
+                state.sampleCount = 0;
+                state.sumLevel = 0;
+                state.maxLevel = 0;
+
+                try {
+                    if (navigator?.onLine !== false) {
+                        await logProctoringAudioTelemetry(session.id, payload);
+                        setDebugTelemetry(prev => ({ ...prev, lastAudioTelemetrySentAt: new Date().toISOString() }));
+                    }
+                } catch {
+                    // swallow network errors
+                }
+            }
+        };
+
+        timer = setInterval(() => {
+            tick().catch(() => { });
+        }, AUDIO_TELEMETRY_SAMPLE_MS);
+
+        return () => {
+            if (timer) clearInterval(timer);
+        };
+    }, [debugTelemetry.micStatus, getAudioSignal, initAudioDetector, loading, session?.id, submissionResult]);
 
     const ensureFaceLandmarker = useCallback(async () => {
         if (faceLandmarkerRef.current) return faceLandmarkerRef.current;
@@ -715,6 +852,8 @@ const TestEngine = () => {
         const formData = new FormData();
         formData.append('image', snapshotItem.image_blob, 'snapshot.jpg');
         formData.append('audio_detected', String(snapshotItem.audio_detected));
+        formData.append('audio_level', snapshotItem.audio_level == null ? '' : String(snapshotItem.audio_level));
+        formData.append('audio_threshold', snapshotItem.audio_threshold == null ? '' : String(snapshotItem.audio_threshold));
         if (snapshotItem.gaze_violation !== null && snapshotItem.gaze_violation !== undefined) {
             formData.append('gaze_violation', String(snapshotItem.gaze_violation));
         }
@@ -762,6 +901,76 @@ const TestEngine = () => {
         }
         return res;
     }, [session?.id, applyBackendViolationMeta, setSnapshotDebugTelemetry]);
+
+    const lastAudioClipUploadAtRef = useRef(0);
+    const maybeCaptureAndUploadAudioClip = useCallback(async ({
+        snapshotId,
+        audioLevel,
+        audioDetected,
+        clientTimestamp,
+    }) => {
+        if (!import.meta.env.DEV) return;
+        if (!audioDetected) return;
+        if (navigator?.onLine === false) return;
+        if (!session?.id) return;
+
+        const now = Date.now();
+        if (now - lastAudioClipUploadAtRef.current < 8000) return;
+        lastAudioClipUploadAtRef.current = now;
+
+        if (typeof MediaRecorder === 'undefined') {
+            setSnapshotDebugTelemetry(prev => ({ ...prev, lastError: prev.lastError || 'MediaRecorder unsupported: audio clip upload skipped.' }));
+            return;
+        }
+
+        try {
+            if (!micStreamRef.current) {
+                await initAudioDetector();
+            }
+            const stream = micStreamRef.current;
+            if (!stream) return;
+
+            const chunks = [];
+            const recorder = new MediaRecorder(stream);
+            const startedAt = Date.now();
+
+            const done = new Promise((resolve) => {
+                recorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) chunks.push(e.data);
+                };
+                recorder.onstop = () => resolve();
+            });
+
+            recorder.start();
+            setTimeout(() => {
+                try { recorder.stop(); } catch { /* ignore */ }
+            }, 1600);
+
+            await done;
+            const durationMs = Date.now() - startedAt;
+            if (chunks.length === 0) return;
+
+            const mime = chunks[0]?.type || recorder.mimeType || '';
+            const blob = new Blob(chunks, { type: mime || undefined });
+            const ext = (mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm');
+
+            const formData = new FormData();
+            formData.append('audio', blob, `clip_${snapshotId}.${ext}`);
+            formData.append('snapshot_id', snapshotId);
+            formData.append('client_timestamp', clientTimestamp || new Date().toISOString());
+            formData.append('duration_ms', String(durationMs));
+            formData.append('audio_level', audioLevel == null ? '' : String(audioLevel));
+            formData.append('mime_type', mime);
+
+            await uploadProctoringAudioClip(session.id, formData);
+            setSnapshotDebugTelemetry(prev => ({ ...prev, lastAudioClipUploadAt: new Date().toISOString() }));
+        } catch (err) {
+            setSnapshotDebugTelemetry(prev => ({
+                ...prev,
+                lastError: err?.response?.data?.error || err?.message || 'Audio clip upload failed',
+            }));
+        }
+    }, [initAudioDetector, session?.id, setSnapshotDebugTelemetry]);
 
     const drainSnapshotUploadQueue = useCallback(async () => {
         if (!supportsIndexedDb() || !session?.id || isSnapshotUploadWorkerRunningRef.current || navigator?.onLine === false) return;
@@ -940,6 +1149,8 @@ const TestEngine = () => {
             next_attempt_at: clientTimestamp,
             image_blob: blob,
             audio_detected: audioDetected,
+            audio_level: audioSignal.level,
+            audio_threshold: audioSignal.threshold,
             gaze_violation: gazeViolation,
             pose_yaw: visualSignal.poseYaw,
             pose_pitch: visualSignal.posePitch,
@@ -972,6 +1183,15 @@ const TestEngine = () => {
             lastReason: null,
             lastError: null,
         }));
+
+        // DEV-only: upload short audio clips when audio is detected so admin can review proctoring telemetry.
+        // This is best-effort and should never block snapshot uploads or the candidate flow.
+        maybeCaptureAndUploadAudioClip({
+            snapshotId,
+            audioLevel: audioSignal.level,
+            audioDetected,
+            clientTimestamp,
+        });
 
         if (navigator?.onLine === false) {
             await enqueueSnapshotUpload(snapshotItem, {
