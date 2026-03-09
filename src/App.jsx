@@ -85,8 +85,9 @@ const StepGuard = ({ step, children }) => {
   let allowed = false;
   switch (step) {
     case 'onboarding':
-      // Allow them to edit their details until their identity is successfully verified
-      allowed = !hasIdentity;
+      // Allow profile completion, and allow edits until face verification is completed.
+      // This prevents redirect loops when identity docs exist but profile is not marked onboarded yet.
+      allowed = !onboarded || !verified;
       break;
     case 'identity':
       allowed = onboarded && !hasIdentity;

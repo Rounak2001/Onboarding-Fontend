@@ -78,7 +78,7 @@ const AdminDashboard = () => {
             completed: byStatus.Completed || 0,
             ongoing: byStatus.Ongoing || 0,
             flagged: (byStatus.Flagged || 0) + (byStatus.Violated || 0),
-            pending: (byStatus.Pending || 0) + (byStatus['Not Started'] || 0) + (byStatus.Unknown || 0),
+            working: all.filter((c) => !!c?.has_credentials).length,
         };
     }, [consultants]);
 
@@ -279,7 +279,7 @@ const AdminDashboard = () => {
                     {metricCard('Completed', stats.completed, 'blue')}
                     {metricCard('Ongoing', stats.ongoing, 'amber')}
                     {metricCard('Flagged', stats.flagged, 'red')}
-                    {metricCard('Pending', stats.pending, 'emerald')}
+                    {metricCard('Consultants', stats.working, 'emerald')}
                 </div>
 
                 <div style={{
