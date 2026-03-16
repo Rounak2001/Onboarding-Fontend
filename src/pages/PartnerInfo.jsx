@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import taxplanAdvisorLogo from '../assets/TAXPLAN.png';
 
 const PartnerInfo = () => {
     const navigate = useNavigate();
@@ -52,7 +53,7 @@ const PartnerInfo = () => {
             fontFamily: "'Inter', system-ui, sans-serif",
         }}>
             <header style={{
-                background: 'rgba(255,255,255,0.85)',
+                background: '#0C141D',
                 borderBottom: '1px solid rgba(148,163,184,0.22)',
                 position: 'sticky',
                 top: 0,
@@ -63,28 +64,23 @@ const PartnerInfo = () => {
                     maxWidth: 1020,
                     margin: '0 auto',
                     padding: '0 24px',
-                    height: 60,
+                    minHeight: 72,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 12,
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 38,
-                            height: 38,
-                            background: 'linear-gradient(135deg, #10b981, #059669)',
-                            borderRadius: 12,
-                        }}>
-                            <span style={{ color: '#fff', fontWeight: 900, fontSize: 16 }}>T</span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                            <span style={{ fontWeight: 800, color: '#111827', fontSize: 14 }}>Taxplan Advisor</span>
-                            <span style={{ fontSize: 12, color: '#6b7280' }}>Consultant Partner Program</span>
-                        </div>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <img
+                            src={taxplanAdvisorLogo}
+                            alt="Taxplan Advisor"
+                            style={{
+                                height: 46,
+                                width: 'auto',
+                                display: 'block',
+                                objectFit: 'contain',
+                            }}
+                        />
                     </div>
 
                     <div />
@@ -145,7 +141,7 @@ const PartnerInfo = () => {
                                 background: 'rgba(15,23,42,0.03)', border: '1px solid rgba(15,23,42,0.08)',
                                 borderRadius: 999, padding: '6px 10px',
                             }}>
-                                <span>⏱</span><span>~10–15 min to complete</span>
+                                <span>⏱</span><span>~30 mins to complete</span>
                             </div>
                             <div style={{
                                 display: 'flex', alignItems: 'center', gap: 8,
