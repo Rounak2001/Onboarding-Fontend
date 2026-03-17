@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { googleAuth } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import taxplanAdvisorDarkLogo from '../assets/TAXPLANDARK.png';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -59,13 +60,13 @@ const Login = () => {
             <div style={{ width: '100%', maxWidth: 420 }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 52, height: 52, background: '#059669', borderRadius: 14, marginBottom: 16,
-                    }}>
-                        <span style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>T</span>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                        <img
+                            src={taxplanAdvisorDarkLogo}
+                            alt="Taxplan Advisor"
+                            style={{ height: 56, width: 'auto', display: 'block', objectFit: 'contain' }}
+                        />
                     </div>
-                    <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>Taxplan Advisor</h1>
                     <p style={{ fontSize: 14, color: '#9ca3af', marginTop: 4 }}>Consultant Onboarding Portal</p>
                 </div>
 
