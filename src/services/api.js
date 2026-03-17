@@ -1,12 +1,11 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../utils/apiBase';
 
 // In production: requests go to /api/* on the SAME Vercel domain.
 // Vercel rewrites those to https://main.taxplanadvisor.co/api/* (reverse proxy).
 // This means cookies are SAME-SITE → Safari ITP / cross-site blocking is bypassed entirely.
 //
 // In local dev: VITE_API_BASE_URL points to your local Django server directly.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
 const api = axios.create({
     baseURL: API_BASE_URL,
     withCredentials: true, // keep so cookies still work in local dev

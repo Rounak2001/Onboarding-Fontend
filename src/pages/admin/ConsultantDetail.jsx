@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
+import { apiUrl } from '../../utils/apiBase';
 
 const ConsultantDetail = () => {
     const { id } = useParams();
@@ -27,8 +28,7 @@ const ConsultantDetail = () => {
 
     const fetchDetail = async () => {
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/`, {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/`), {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
@@ -43,8 +43,7 @@ const ConsultantDetail = () => {
         if (!window.confirm("Are you sure you want to generate and email credentials to this consultant?")) return;
         setGenerating(true);
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/generate-credentials/`, {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/generate-credentials/`), {
                 method: 'POST',
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
@@ -70,8 +69,7 @@ const ConsultantDetail = () => {
         if (!window.confirm('Delete this consultant permanently? This cannot be undone.')) return;
         setDeleting(true);
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${id}/delete/`, {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/delete/`), {
                 method: 'DELETE',
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });

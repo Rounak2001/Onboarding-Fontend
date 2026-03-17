@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
+import { apiUrl } from '../../utils/apiBase';
 
 const AdminLogin = () => {
     const navigate = useNavigate();
@@ -14,8 +15,7 @@ const AdminLogin = () => {
         setError('');
         setLoading(true);
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-            const response = await fetch(`${API_BASE_URL}/admin-panel/login/`, {
+            const response = await fetch(apiUrl('/admin-panel/login/'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),

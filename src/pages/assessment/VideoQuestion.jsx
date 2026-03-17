@@ -129,6 +129,21 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
     const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     const pct = ((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100;
     const isLow = timeLeft < 15;
+    const recordingButtonStyle = {
+        width: 'clamp(120px, 24%, 170px)',
+        maxWidth: '100%',
+        padding: '10px 12px',
+        borderRadius: 10,
+        fontWeight: 600,
+        fontSize: 13,
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        flexShrink: 0,
+    };
 
     return (
         <div>
@@ -198,25 +213,29 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
             {error && <div style={{ marginBottom: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#dc2626' }}>{error}</div>}
 
             {!uploaded && (
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, width: '100%' }}>
                     {!recording && !recordedBlob && timeLeft > 0 && (
-                        <button className="tp-btn" onClick={startRecording} style={{
-                            flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14,
-                            background: '#059669', color: '#fff', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        }}>
-                            Start Recording
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="tp-btn" onClick={startRecording} style={{
+                                ...recordingButtonStyle,
+                                background: '#059669',
+                                color: '#fff',
+                            }}>
+                                Start Recording
+                            </button>
+                        </div>
                     )}
 
                     {recording && (
-                        <button className="tp-btn" onClick={stopRecording} style={{
-                            flex: 1, padding: '14px 0', borderRadius: 10, fontWeight: 600, fontSize: 14,
-                            background: '#dc2626', color: '#fff', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        }}>
-                            Stop Recording
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%' }}>
+                            <button className="tp-btn" onClick={stopRecording} style={{
+                                ...recordingButtonStyle,
+                                background: '#dc2626',
+                                color: '#fff',
+                            }}>
+                                Stop Recording
+                            </button>
+                        </div>
                     )}
 
                     {recordedBlob && !recording && (

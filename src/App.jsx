@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
@@ -30,6 +31,16 @@ export const OnboardingLayout = () => {
       </main>
     </div>
   );
+};
+
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
 };
 
 // Protected Route — requires authentication
@@ -79,6 +90,8 @@ const StepGuard = ({ step, children }) => {
   const onboarded = user?.is_onboarded;
   const hasAcceptedDeclaration = stepFlags?.has_accepted_declaration;
   const hasIdentity = stepFlags?.has_identity_doc;
+  const hasPassedAssessment = stepFlags?.has_passed_assessment;
+  const assessmentReviewPending = stepFlags?.assessment_review_pending;
   const verified = user?.is_verified;
   const passedAssessment = stepFlags?.has_passed_assessment;
 
@@ -96,7 +109,7 @@ const StepGuard = ({ step, children }) => {
       allowed = onboarded && hasIdentity && !verified;
       break;
     case 'assessment':
-      allowed = onboarded && verified;
+      allowed = onboarded && verified && !hasPassedAssessment && !assessmentReviewPending;
       break;
     case 'documents':
       allowed = onboarded && passedAssessment;
@@ -117,7 +130,9 @@ const StepGuard = ({ step, children }) => {
 
 function AppRoutes() {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       <Route path="/" element={<PublicRoute><PartnerInfo /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
@@ -164,8 +179,9 @@ function AppRoutes() {
         </>
       )}
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

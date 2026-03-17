@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
+import { apiUrl } from '../../utils/apiBase';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -25,8 +26,7 @@ const AdminDashboard = () => {
         setLoading(true);
         setError('');
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/`, {
+            const res = await fetch(apiUrl('/admin-panel/consultants/'), {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
@@ -43,8 +43,7 @@ const AdminDashboard = () => {
         if (!window.confirm(`Delete ${consultantName || 'this consultant'} permanently? This cannot be undone.`)) return;
         setDeletingId(consultantId);
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-            const res = await fetch(`${API_BASE_URL}/admin-panel/consultants/${consultantId}/delete/`, {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${consultantId}/delete/`), {
                 method: 'DELETE',
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });

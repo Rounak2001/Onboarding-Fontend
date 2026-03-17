@@ -36,6 +36,8 @@ const Login = () => {
                 nextRoute = '/onboarding/identity';
             } else if (!targetUser?.is_verified) {
                 nextRoute = '/onboarding/face-verification';
+            } else if (data.assessment_review_pending) {
+                nextRoute = '/assessment/result';
             } else if (!data.has_passed_assessment) {
                 nextRoute = '/assessment/select';
             } else if (!data.has_documents) {

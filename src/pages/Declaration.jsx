@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { acceptDeclaration, getProctoringPolicy } from '../services/api';
 import AccountControls from '../components/AccountControls';
+import BrandLogo from '../components/BrandLogo';
 
 const DEFAULT_PROCTORING_DECLARATION_POLICY = {
     TAB_WARNINGS_LIMIT: 3,
@@ -85,12 +86,9 @@ const Declaration = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             {/* Header matching Onboarding */}
-            <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 30 }}>
+            <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
-                    </div>
-                    <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <BrandLogo />
                     <div style={{ marginLeft: 'auto' }}>
                         <AccountControls email={user?.email} onSignOut={handleSignOut} compact />
                     </div>

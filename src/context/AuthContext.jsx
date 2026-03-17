@@ -28,6 +28,7 @@ export const AuthProvider = ({ children }) => {
             setStepFlags({
                 has_identity_doc: data.has_identity_doc || false,
                 has_passed_assessment: data.has_passed_assessment || false,
+                assessment_review_pending: data.assessment_review_pending || false,
                 has_documents: data.has_documents || false,
                 has_accepted_declaration: data.has_accepted_declaration || false,
             });
@@ -51,6 +52,7 @@ export const AuthProvider = ({ children }) => {
         setStepFlags({
             has_identity_doc: data.has_identity_doc || false,
             has_passed_assessment: data.has_passed_assessment || false,
+            assessment_review_pending: data.assessment_review_pending || false,
             has_documents: data.has_documents || false,
             has_accepted_declaration: data.has_accepted_declaration || false,
         });
@@ -89,6 +91,7 @@ export const AuthProvider = ({ children }) => {
         const targetFlags = freshData ? {
             has_identity_doc: freshData.has_identity_doc,
             has_passed_assessment: freshData.has_passed_assessment,
+            assessment_review_pending: freshData.assessment_review_pending,
             has_documents: freshData.has_documents,
             has_accepted_declaration: freshData.has_accepted_declaration
         } : stepFlags;
@@ -117,6 +120,10 @@ export const AuthProvider = ({ children }) => {
         if (!targetUser?.is_verified) {
             console.log("    -> Decision: Redirect to /onboarding/face-verification (Face not verified)");
             return '/onboarding/face-verification';
+        }
+        if (targetFlags.assessment_review_pending) {
+            console.log("    -> Decision: Redirect to /assessment/result (Assessment under review)");
+            return '/assessment/result';
         }
         if (!targetFlags.has_passed_assessment) {
             console.log("    -> Decision: Redirect to /assessment/select (Assessment pending)");

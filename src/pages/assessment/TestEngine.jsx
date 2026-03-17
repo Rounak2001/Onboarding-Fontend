@@ -6,6 +6,7 @@ import VideoQuestion from './VideoQuestion';
 import { submitTest, submitVideo, logViolation, processProctoringSnapshot, uploadProctoringAudioClip, logProctoringAudioTelemetry, getProctoringPolicy, saveMcqProgress } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import AccountControls from '../../components/AccountControls';
+import BrandLogo from '../../components/BrandLogo';
 
 const DEFAULT_PROCTORING_POLICY = {
     MAX_SESSION_VIOLATIONS: 9,
@@ -1462,7 +1463,7 @@ const TestEngine = () => {
         page: { minHeight: '100vh', background: '#f9fafb', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif", userSelect: 'none' },
         center: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif", padding: 32 },
         card: { background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: '48px 40px', maxWidth: 500, width: '100%', textAlign: 'center' },
-        header: { position: 'fixed', top: 0, left: 0, right: 0, height: 56, background: '#fff', borderBottom: '1px solid #e5e7eb', zIndex: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' },
+        header: { position: 'fixed', top: 0, left: 0, right: 0, height: 56, background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', color: '#f8fafc', zIndex: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' },
         btnPrimary: { padding: '14px 32px', borderRadius: 10, fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer', background: '#059669', color: '#fff' },
         btnDanger: { padding: '14px 32px', borderRadius: 10, fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer', background: '#dc2626', color: '#fff', width: '100%' },
         webcamContainer: { position: 'fixed', bottom: 20, right: 20, width: 140, height: 105, background: '#000', borderRadius: 8, overflow: 'hidden', zIndex: 50, border: '2px solid #fff', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }
@@ -1748,10 +1749,7 @@ const TestEngine = () => {
             {/* Header */}
             <header style={s.header}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, background: '#059669', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>T</span>
-                    </div>
-                    <span style={{ fontWeight: 600, color: '#111827', fontSize: 15 }}>Taxplan Advisor</span>
+                    <BrandLogo />
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -1761,7 +1759,7 @@ const TestEngine = () => {
                             <span style={{ fontSize: 13 }}>⏱</span>
                             <span style={{
                                 fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
-                                color: questionTimeLeft < 10 ? '#dc2626' : '#111827',
+                                color: questionTimeLeft < 10 ? '#f87171' : '#f8fafc',
                             }}>
                                 {String(questionTimeLeft).padStart(2, '0')}s
                             </span>
