@@ -1,18 +1,34 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { googleAuth } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import taxplanAdvisorDarkLogo from '../assets/TAXPLANDARK.png';
+import EmailConflictDialog from '../components/EmailConflictDialog';
 
 const Login = () => {
     const navigate = useNavigate();
     const { syncAuthData } = useAuth();
     const [error, setError] = useState('');
+    const [conflictMessage, setConflictMessage] = useState('');
+    const [showConflictDialog, setShowConflictDialog] = useState(false);
+    const googleButtonRef = useRef(null);
+
+    const moveFocusBackToGoogleLogin = () => {
+        setShowConflictDialog(false);
+
+        requestAnimationFrame(() => {
+            googleButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            googleButtonRef.current?.focus?.();
+        });
+    };
 
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
             const data = await googleAuth(credentialResponse.credential);
+            setError('');
+            setConflictMessage('');
+            setShowConflictDialog(false);
 
             // Store the applicant JWT so the axios interceptor sends it as Bearer on all future requests
             if (data.applicant_token) {
@@ -48,9 +64,16 @@ const Login = () => {
             }
             navigate(nextRoute);
         } catch (err) {
-            // Show the actual server error message if available (e.g. "email already registered as Client")
-            const serverMessage = err?.response?.data?.error;
-            setError(serverMessage || 'Authentication failed. Please try again.');
+            const errorData = err?.response?.data;
+            if (errorData?.code === 'EMAIL_CONFLICT') {
+                setError('');
+                setConflictMessage(errorData.error);
+                setShowConflictDialog(true);
+            } else {
+                setShowConflictDialog(false);
+                setConflictMessage('');
+                setError(errorData?.error || 'Authentication failed. Please try again.');
+            }
             console.error('Login error:', err);
         }
     };
@@ -75,10 +98,18 @@ const Login = () => {
                     <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', textAlign: 'center', margin: '0 0 4px' }}>Welcome</h2>
                     <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', marginBottom: 28 }}>Sign in with your Google account to get started</p>
 
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+                    <div
+                        ref={googleButtonRef}
+                        tabIndex={-1}
+                        style={{ display: 'flex', justifyContent: 'center', marginBottom: 20, outline: 'none' }}
+                    >
                         <GoogleLogin
                             onSuccess={handleGoogleSuccess}
-                            onError={() => setError('Login failed')}
+                            onError={() => {
+                                setShowConflictDialog(false);
+                                setConflictMessage('');
+                                setError('Login failed');
+                            }}
                             theme="outline"
                             shape="rectangular"
                             size="large"
@@ -105,6 +136,13 @@ const Login = () => {
                 </p>
 
             </div>
+
+            <EmailConflictDialog
+                open={showConflictDialog}
+                message={conflictMessage}
+                onClose={() => setShowConflictDialog(false)}
+                onTryAnotherAccount={moveFocusBackToGoogleLogin}
+            />
         </div>
     );
 };
