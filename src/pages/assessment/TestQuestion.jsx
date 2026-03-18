@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { normalizeAssessmentDomainLabel } from './domainLabels';
 
 const hashSeed = (str) => {
     let h = 1779033703 ^ str.length;
@@ -47,6 +48,11 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
         return entries;
     }, [question?.id, question?.question, question?.options]);
 
+    const domainLabel = useMemo(
+        () => normalizeAssessmentDomainLabel(question?.domain),
+        [question?.domain]
+    );
+
     return (
         <div>
             {/* Question header */}
@@ -57,12 +63,12 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
                 }}>
                     Q{questionIndex + 1} / {totalQuestions}
                 </span>
-                {question.domain && (
+                {domainLabel && (
                     <span style={{
                         fontSize: 12, fontWeight: 600, color: '#6366f1', background: '#eef2ff',
                         padding: '5px 14px', borderRadius: 20,
                     }}>
-                        {question.domain}
+                        {domainLabel}
                     </span>
                 )}
             </div>

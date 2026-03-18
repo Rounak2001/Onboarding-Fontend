@@ -203,11 +203,14 @@ export const getVideoUploadUrl = async (sessionId, data) => {
 };
 
 // Direct multipart video upload
-export const submitVideo = async (sessionId, questionId, blob) => {
+export const submitVideo = async (sessionId, questionId, blob, questionText = '') => {
     const formData = new FormData();
     const fileName = `video_${questionId}.webm`;
     formData.append('video', blob, fileName);
-    formData.append('question_id', questionId);
+    formData.append('question_id', String(questionId ?? ''));
+    if (questionText) {
+        formData.append('question_text', questionText);
+    }
     const response = await api.post(`/assessment/sessions/${sessionId}/submit_video/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     });

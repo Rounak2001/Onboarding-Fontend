@@ -29,6 +29,10 @@ export const AuthProvider = ({ children }) => {
                 has_identity_doc: data.has_identity_doc || false,
                 has_passed_assessment: data.has_passed_assessment || false,
                 assessment_review_pending: data.assessment_review_pending || false,
+                assessment_retry_locked: data.assessment_retry_locked || false,
+                assessment_retry_available_at: data.assessment_retry_available_at || null,
+                assessment_retry_in_seconds: data.assessment_retry_in_seconds || 0,
+                assessment_can_retry_now: data.assessment_can_retry_now || false,
                 has_documents: data.has_documents || false,
                 has_accepted_declaration: data.has_accepted_declaration || false,
             });
@@ -53,6 +57,10 @@ export const AuthProvider = ({ children }) => {
             has_identity_doc: data.has_identity_doc || false,
             has_passed_assessment: data.has_passed_assessment || false,
             assessment_review_pending: data.assessment_review_pending || false,
+            assessment_retry_locked: data.assessment_retry_locked || false,
+            assessment_retry_available_at: data.assessment_retry_available_at || null,
+            assessment_retry_in_seconds: data.assessment_retry_in_seconds || 0,
+            assessment_can_retry_now: data.assessment_can_retry_now || false,
             has_documents: data.has_documents || false,
             has_accepted_declaration: data.has_accepted_declaration || false,
         });
@@ -92,6 +100,10 @@ export const AuthProvider = ({ children }) => {
             has_identity_doc: freshData.has_identity_doc,
             has_passed_assessment: freshData.has_passed_assessment,
             assessment_review_pending: freshData.assessment_review_pending,
+            assessment_retry_locked: freshData.assessment_retry_locked,
+            assessment_retry_available_at: freshData.assessment_retry_available_at,
+            assessment_retry_in_seconds: freshData.assessment_retry_in_seconds,
+            assessment_can_retry_now: freshData.assessment_can_retry_now,
             has_documents: freshData.has_documents,
             has_accepted_declaration: freshData.has_accepted_declaration
         } : stepFlags;
@@ -123,6 +135,10 @@ export const AuthProvider = ({ children }) => {
         }
         if (targetFlags.assessment_review_pending) {
             console.log("    -> Decision: Redirect to /assessment/result (Assessment under review)");
+            return '/assessment/result';
+        }
+        if (targetFlags.assessment_retry_locked) {
+            console.log("    -> Decision: Redirect to /assessment/result (Assessment retry locked)");
             return '/assessment/result';
         }
         if (!targetFlags.has_passed_assessment) {

@@ -5,6 +5,33 @@ import { useAuth } from '../../context/AuthContext';
 import AccountControls from '../../components/AccountControls';
 import BrandLogo from '../../components/BrandLogo';
 
+const formatRetryUnlockAt = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleString([], {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
+};
+
+const formatRetryCountdown = (seconds) => {
+    const totalSeconds = Math.max(0, Number(seconds) || 0);
+    if (!totalSeconds) return '';
+
+    const totalMinutes = Math.ceil(totalSeconds / 60);
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+    const parts = [];
+
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0 && days === 0) parts.push(`${minutes}m`);
+
+    return parts.join(' ');
+};
+
 const AssessmentResult = () => {
     const navigate = useNavigate();
     const { user, logout, checkAuth } = useAuth();
@@ -15,22 +42,53 @@ const AssessmentResult = () => {
     useEffect(() => {
         let isActive = true;
         let timeoutId;
+        let hasSuccessfulFetch = false;
+        let initialFailureCount = 0;
+
+        const scheduleRetry = (delayMs) => {
+            if (!isActive) return;
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(fetchData, delayMs);
+        };
 
         const fetchData = async () => {
             try {
                 const data = await getLatestResult();
                 if (!isActive) return;
+                hasSuccessfulFetch = true;
+                initialFailureCount = 0;
                 setResult(data);
+                setError('');
                 setLoading(false);
 
                 if (data?.review_pending) {
-                    timeoutId = setTimeout(fetchData, 4000);
+                    scheduleRetry(4000);
+                    return;
+                }
+
+                if (data?.retry_locked) {
+                    scheduleRetry(60000);
                     return;
                 }
 
                 checkAuth().catch(() => { });
             } catch (err) {
                 if (!isActive) return;
+                console.error('Failed to load assessment results:', err);
+
+                if (hasSuccessfulFetch) {
+                    setError('');
+                    setLoading(false);
+                    scheduleRetry(5000);
+                    return;
+                }
+
+                initialFailureCount += 1;
+                if (initialFailureCount < 3) {
+                    scheduleRetry(2000);
+                    return;
+                }
+
                 setError('Failed to load results.');
                 setLoading(false);
             }
@@ -98,6 +156,7 @@ const AssessmentResult = () => {
     const reviewPending = Boolean(result?.review_pending);
     const passed = Boolean(result?.passed);
     const disqualified = Boolean(result?.status === 'flagged' || result?.disqualified || result?.hide_marks);
+    const retryLocked = Boolean(result?.retry_locked) && !reviewPending && !passed && !disqualified;
     const failed = Boolean(result?.failed) && !disqualified;
     const attemptsRemaining = Number(result?.attempts_remaining || 0);
     const failureReasons = Array.isArray(result?.failure_reasons) ? result.failure_reasons : [];
@@ -107,6 +166,8 @@ const AssessmentResult = () => {
     const videoTotal = Number(result?.video_total_possible || 0);
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
     const videoPercentage = videoTotal > 0 ? Math.round((videoScore / videoTotal) * 100) : 0;
+    const retryUnlockAtText = formatRetryUnlockAt(result?.retry_available_at);
+    const retryCountdownText = formatRetryCountdown(result?.retry_in_seconds);
 
     const accent = reviewPending
         ? { primary: '#b45309', soft: '#fff7ed', border: '#fdba74' }
@@ -254,18 +315,34 @@ const AssessmentResult = () => {
                                 </div>
 
                                 <h1 style={{ fontSize: 30, fontWeight: 800, color: passed ? '#15803d' : disqualified ? '#b91c1c' : '#b45309', margin: 0 }}>
-                                    {passed ? 'Assessment cleared' : disqualified ? 'Assessment disqualified' : 'Assessment not cleared'}
+                                    {passed ? 'Assessment cleared' : disqualified ? 'Assessment disqualified' : retryLocked ? 'Retry unlock scheduled' : 'Assessment not cleared'}
                                 </h1>
                                 <p style={{ maxWidth: 560, fontSize: 15, lineHeight: 1.7, color: '#6b7280', margin: '12px 0 0' }}>
                                     {passed
                                         ? 'Both your MCQ and video thresholds are complete. You can continue to the qualification document step.'
                                         : disqualified
                                             ? 'Your assessment access is locked because of violations or the maximum number of failed attempts.'
-                                            : attemptsRemaining > 0
-                                                ? `This attempt did not clear all thresholds. You still have ${attemptsRemaining} ${attemptsRemaining === 1 ? 'attempt' : 'attempts'} remaining.`
-                                                : 'This attempt did not clear all thresholds.'}
+                                            : retryLocked
+                                                ? `This attempt did not clear all thresholds. You still have ${attemptsRemaining} ${attemptsRemaining === 1 ? 'attempt' : 'attempts'} remaining, and your next retry unlocks 24 hours after this result.`
+                                                : attemptsRemaining > 0
+                                                    ? `This attempt did not clear all thresholds. You still have ${attemptsRemaining} ${attemptsRemaining === 1 ? 'attempt' : 'attempts'} remaining.`
+                                                    : 'This attempt did not clear all thresholds.'}
                                 </p>
                             </div>
+
+                            {retryLocked && (
+                                <div style={{ marginTop: 24, background: '#fffaf0', border: '1px solid #fdba74', borderRadius: 16, padding: 18 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 8 }}>Next retry unlock</div>
+                                    <div style={{ fontSize: 18, fontWeight: 800, color: '#7c2d12' }}>
+                                        {retryUnlockAtText || '24 hours after your last failed attempt'}
+                                    </div>
+                                    {retryCountdownText && (
+                                        <div style={{ fontSize: 13, color: '#9a3412', marginTop: 6 }}>
+                                            Time remaining: {retryCountdownText}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {!disqualified && (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginTop: 28 }}>
@@ -313,7 +390,7 @@ const AssessmentResult = () => {
                                     >
                                         Continue to Qualification Documents →
                                     </button>
-                                ) : !disqualified && attemptsRemaining > 0 ? (
+                                ) : !disqualified && !retryLocked && attemptsRemaining > 0 ? (
                                     <button
                                         className="tp-btn"
                                         onClick={handleRetry}

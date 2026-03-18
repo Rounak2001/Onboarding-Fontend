@@ -47,11 +47,12 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
         setTimeout(() => {
             onVideoUploaded && onVideoUploaded({
                 questionId: question.id,
+                questionText: question.question || question.text || '',
                 blob: uploadBlob,
                 fileName: `video_${question.id}.webm`,
             });
         }, 250);
-    }, [recordedBlob, onVideoUploaded, question.id]);
+    }, [recordedBlob, onVideoUploaded, question.id, question.question, question.text]);
 
     useEffect(() => {
         if (timeLeft > 0) return;

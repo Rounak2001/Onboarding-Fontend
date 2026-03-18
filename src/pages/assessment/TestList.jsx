@@ -4,8 +4,9 @@ import { getTestTypes, getLatestResult } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import AccountControls from '../../components/AccountControls';
 import BrandLogo from '../../components/BrandLogo';
+import { normalizeAssessmentDomainLabel } from './domainLabels';
 
-const domainIcons = { 'Income Tax': '💰', 'GST': '📊', 'TDS': '📋', 'Professional Tax': '🏢' };
+const domainIcons = { 'Income Tax': '💰', 'GST': '📊', 'TDS': '📋', 'Scrutiny': '🔎' };
 
 const TestList = () => {
     const navigate = useNavigate();
@@ -107,6 +108,7 @@ const TestList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, opacity: disqualified ? 0.6 : 1, pointerEvents: disqualified ? 'none' : 'auto' }}>
                     {testTypes.map(tt => {
                         const isSelected = selected.find(s => s.id === tt.id);
+                        const displayName = normalizeAssessmentDomainLabel(tt.name);
                         return (
                             <button className="tp-btn" key={tt.id} onClick={() => toggleSelect(tt)}
                                 disabled={disqualified}
@@ -127,8 +129,8 @@ const TestList = () => {
                                 }}>
                                     {isSelected && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>✓</span>}
                                 </div>
-                                <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>{domainIcons[tt.name] || '📝'}</span>
-                                <h3 style={{ fontSize: 16, fontWeight: 600, color: isSelected ? '#047857' : '#111827', margin: 0 }}>{tt.name}</h3>
+                                <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>{domainIcons[displayName] || '📝'}</span>
+                                <h3 style={{ fontSize: 16, fontWeight: 600, color: isSelected ? '#047857' : '#111827', margin: 0 }}>{displayName}</h3>
                                 <p style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>{tt.total_questions || 50} questions available</p>
                             </button>
                         );

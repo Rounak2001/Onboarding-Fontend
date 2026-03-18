@@ -92,6 +92,7 @@ const StepGuard = ({ step, children }) => {
   const hasIdentity = stepFlags?.has_identity_doc;
   const hasPassedAssessment = stepFlags?.has_passed_assessment;
   const assessmentReviewPending = stepFlags?.assessment_review_pending;
+  const assessmentRetryLocked = stepFlags?.assessment_retry_locked;
   const verified = user?.is_verified;
   const passedAssessment = stepFlags?.has_passed_assessment;
 
@@ -109,7 +110,7 @@ const StepGuard = ({ step, children }) => {
       allowed = onboarded && hasIdentity && !verified;
       break;
     case 'assessment':
-      allowed = onboarded && verified && !hasPassedAssessment && !assessmentReviewPending;
+      allowed = onboarded && verified && !hasPassedAssessment && !assessmentReviewPending && !assessmentRetryLocked;
       break;
     case 'documents':
       allowed = onboarded && passedAssessment;

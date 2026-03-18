@@ -1,30 +1,103 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getLatestResult } from '../services/api';
 import AccountControls from '../components/AccountControls';
 import BrandLogo from '../components/BrandLogo';
 
+const formatRetryUnlockAt = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleString([], {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
+};
+
+const getRetrySecondsRemaining = (value) => {
+    if (!value) return 0;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 0;
+    return Math.max(0, Math.ceil((parsed.getTime() - Date.now()) / 1000));
+};
+
+const formatRetryCountdown = (totalSeconds) => {
+    const seconds = Math.max(0, Number(totalSeconds) || 0);
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    const parts = [];
+
+    if (days > 0) parts.push(`${days}d`);
+    if (days > 0 || hours > 0) parts.push(`${hours}h`);
+    parts.push(`${minutes}m`);
+    parts.push(`${String(remainingSeconds).padStart(2, '0')}s`);
+
+    return parts.join(' ');
+};
+
 const Success = () => {
-    const { user, stepFlags, logout, checkAuth } = useAuth();
+    const { user, stepFlags, logout, checkAuth, updateStepFlags } = useAuth();
     const navigate = useNavigate();
     const [assessmentPassed, setAssessmentPassed] = useState(stepFlags?.has_passed_assessment || false);
     const [assessmentStatus, setAssessmentStatus] = useState(null);
     const [assessmentReviewPending, setAssessmentReviewPending] = useState(stepFlags?.assessment_review_pending || false);
     const [isDisqualified, setIsDisqualified] = useState(false);
+    const [retryLocked, setRetryLocked] = useState(stepFlags?.assessment_retry_locked || false);
+    const [retryAvailableAt, setRetryAvailableAt] = useState(stepFlags?.assessment_retry_available_at || null);
+    const [retrySecondsRemaining, setRetrySecondsRemaining] = useState(() => getRetrySecondsRemaining(stepFlags?.assessment_retry_available_at));
     const [loading, setLoading] = useState(true);
+
+    const refreshAssessmentState = useCallback(() => {
+        getLatestResult()
+            .then((data) => {
+                setAssessmentPassed(Boolean(data?.passed));
+                if (data?.status) setAssessmentStatus(data.status);
+                setAssessmentReviewPending(Boolean(data?.review_pending));
+                setRetryLocked(Boolean(data?.retry_locked));
+                setRetryAvailableAt(data?.retry_available_at || null);
+                setRetrySecondsRemaining(getRetrySecondsRemaining(data?.retry_available_at));
+                setIsDisqualified(Boolean(data?.disqualified));
+                updateStepFlags({
+                    has_passed_assessment: Boolean(data?.passed),
+                    assessment_review_pending: Boolean(data?.review_pending),
+                    assessment_retry_locked: Boolean(data?.retry_locked),
+                    assessment_retry_available_at: data?.retry_available_at || null,
+                    assessment_retry_in_seconds: getRetrySecondsRemaining(data?.retry_available_at),
+                    assessment_can_retry_now: Boolean(data?.can_retry_now),
+                });
+            })
+            .catch(() => { });
+    }, [updateStepFlags]);
 
     useEffect(() => {
         checkAuth().then(() => setLoading(false)).catch(() => setLoading(false));
-        getLatestResult()
-            .then((data) => {
-                setAssessmentPassed(Boolean(data?.passed || stepFlags?.has_passed_assessment));
-                if (data?.status) setAssessmentStatus(data.status);
-                setAssessmentReviewPending(Boolean(data?.review_pending || stepFlags?.assessment_review_pending));
-                if (data?.disqualified) setIsDisqualified(true);
-            })
-            .catch(() => { });
-    }, []);
+        refreshAssessmentState();
+    }, [checkAuth, refreshAssessmentState]);
+
+    useEffect(() => {
+        if (!retryLocked || !retryAvailableAt) {
+            setRetrySecondsRemaining(0);
+            return undefined;
+        }
+
+        setRetrySecondsRemaining(getRetrySecondsRemaining(retryAvailableAt));
+
+        const intervalId = window.setInterval(() => {
+            const nextValue = getRetrySecondsRemaining(retryAvailableAt);
+            setRetrySecondsRemaining(nextValue);
+
+            if (nextValue <= 0) {
+                window.clearInterval(intervalId);
+                checkAuth().catch(() => { });
+                refreshAssessmentState();
+            }
+        }, 1000);
+
+        return () => window.clearInterval(intervalId);
+    }, [retryLocked, retryAvailableAt, checkAuth, refreshAssessmentState]);
 
     const handleLogout = async () => {
         await logout();
@@ -36,26 +109,32 @@ const Success = () => {
     const isFlagged = assessmentStatus === 'flagged';
     const underReview = assessmentReviewPending || assessmentStatus === 'review_pending';
     const disqualified = isFlagged || isDisqualified;
+    const retryUnlockText = formatRetryUnlockAt(retryAvailableAt);
+    const retryCountdownText = formatRetryCountdown(retrySecondsRemaining);
 
     const steps = [
         { label: 'Profile Details', desc: 'Personal and practice information', done: user?.is_onboarded, icon: '👤' },
         { label: 'Identity Verification', desc: 'Upload government-issued ID', done: hasIdentity, action: () => navigate('/onboarding/identity'), icon: '🪪' },
         { label: 'Face Verification', desc: 'Verify your identity via camera', done: isVerified, requires: hasIdentity, action: () => navigate('/onboarding/face-verification'), icon: '📸' },
         {
-            label: disqualified ? 'Assessment Disqualified' : underReview ? 'Assessment Under Review' : 'Domain Assessment',
+            label: disqualified ? 'Assessment Disqualified' : underReview ? 'Assessment Under Review' : retryLocked ? 'Assessment Retry Locked' : 'Domain Assessment',
             desc: disqualified
                 ? 'Maximum attempts exceeded or violations detected.'
                 : underReview
                     ? 'We are reviewing your video responses before unlocking the next step.'
-                    : '50 MCQs plus video questions',
+                    : retryLocked
+                        ? `Your next assessment attempt unlocks on ${retryUnlockText || 'the next available slot'}. Time remaining: ${retryCountdownText}.`
+                        : '50 MCQs plus video questions',
             done: assessmentPassed || stepFlags?.has_passed_assessment,
             requires: isVerified && !disqualified,
-            action: disqualified || underReview ? null : () => navigate('/assessment/select'),
+            action: disqualified || underReview || retryLocked ? null : () => navigate('/assessment/select'),
             icon: disqualified ? '🚫' : underReview ? '⏳' : '📝',
             customStatus: disqualified
                 ? <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '6px 14px', borderRadius: 20, border: '1px solid #fecaca' }}>Disqualified</span>
                 : underReview
                     ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>Under Review</span>
+                : retryLocked
+                        ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>{retryCountdownText}</span>
                     : null,
         },
         {

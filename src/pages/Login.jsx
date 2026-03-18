@@ -55,6 +55,8 @@ const Login = () => {
                 nextRoute = '/onboarding/face-verification';
             } else if (data.assessment_review_pending) {
                 nextRoute = '/assessment/result';
+            } else if (data.assessment_retry_locked) {
+                nextRoute = '/assessment/result';
             } else if (!data.has_passed_assessment) {
                 nextRoute = '/assessment/select';
             } else if (!data.has_documents) {

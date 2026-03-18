@@ -4,6 +4,7 @@ import { createSession, getProctoringPolicy } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import AccountControls from '../../components/AccountControls';
 import BrandLogo from '../../components/BrandLogo';
+import { normalizeAssessmentDomainLabel } from './domainLabels';
 
 const Instructions = () => {
     const navigate = useNavigate();
@@ -174,7 +175,7 @@ const Instructions = () => {
         'Your responses are recorded and cannot be changed after submission.',
     ];
 
-    const domainLabel = selectedTests.map(t => t.name).join(', ');
+    const domainLabel = selectedTests.map(t => normalizeAssessmentDomainLabel(t.name)).join(', ');
 
     const btnStyle = (primary, disabled) => ({
         flex: 1, padding: '14px 0', borderRadius: 8, fontWeight: primary ? 600 : 500, fontSize: 14,
@@ -208,7 +209,7 @@ const Instructions = () => {
                     <p style={{ fontSize: 13, fontWeight: 600, color: '#166534', margin: '0 0 6px' }}>Selected Domains ({selectedTests.length})</p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {selectedTests.map(t => (
-                            <span key={t.id} style={{ fontSize: 12, background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 6, fontWeight: 500 }}>{t.name}</span>
+                            <span key={t.id} style={{ fontSize: 12, background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 6, fontWeight: 500 }}>{normalizeAssessmentDomainLabel(t.name)}</span>
                         ))}
                     </div>
                 </div>

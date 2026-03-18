@@ -735,7 +735,7 @@ const TestEngine = () => {
                 if (!item) break;
 
                 try {
-                    await submitVideo(session.id, item.questionId, item.blob);
+                    await submitVideo(session.id, item.questionId, item.blob, item.questionText);
                     await videoQueueDelete(item.upload_id);
                 } catch {
                     const nextRetries = (Number(item.retries) || 0) + 1;
@@ -767,6 +767,7 @@ const TestEngine = () => {
             session_id: session.id,
             created_at: new Date().toISOString(),
             questionId: uploadPayload.questionId,
+            questionText: uploadPayload.questionText || '',
             blob: uploadPayload.blob,
             fileName: uploadPayload.fileName,
             retries: 0,

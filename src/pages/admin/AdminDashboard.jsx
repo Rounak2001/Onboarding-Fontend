@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
+import BrandLogo from '../../components/BrandLogo';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -234,15 +235,8 @@ const AdminDashboard = () => {
                     maxWidth: 1300, margin: '0 auto', padding: '0 32px',
                     height: 60, display: 'flex', alignItems: 'center', gap: 14,
                 }}>
-                    <div style={{
-                        width: 36, height: 36,
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <span style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>T</span>
-                    </div>
+                    <BrandLogo height={28} />
                     <span style={{ fontWeight: 700, fontSize: 16, color: '#f1f5f9' }}>Admin Dashboard</span>
-                    <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>TaxplanAdvisor</span>
 
                     <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
                         <span style={{
