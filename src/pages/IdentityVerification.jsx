@@ -72,7 +72,9 @@ const IdentityVerification = () => {
             if (backendCode === 'PERSONAL_DETAILS_MISMATCH') {
                 const issues = [];
                 if (verification?.name_match === false) {
-                    issues.push(`Name on ID does not match your profile (${verification.name_similarity_pct || 0}% similarity)`);
+                    const profileName = verification?.profile_first_last_name || 'your profile';
+                    const documentName = verification?.document_first_last_name || 'your Government ID';
+                    issues.push(`First and last name on ID (${documentName}) do not match your profile (${profileName})`);
                 }
                 if (verification?.dob_match === false) {
                     issues.push('Date of Birth on ID does not match your profile');
@@ -81,7 +83,7 @@ const IdentityVerification = () => {
                     issues.push('Details on ID do not match your profile');
                 }
                 setMismatchDetails(issues);
-                setError('Your personal details do not match the uploaded Government ID.');
+                setError('Your first and last name or date of birth do not match the uploaded Government ID.');
                 // Clear the uploaded file so they can retry
                 setFile(null);
                 if (preview) URL.revokeObjectURL(preview);
@@ -211,7 +213,7 @@ const IdentityVerification = () => {
                                     ))}
                                 </ul>
                                 <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 12px' }}>
-                                    Please update your profile details to match your Government ID exactly, then come back and upload again.
+                                    Please update your profile so the first and last name match your Government ID, then come back and upload again.
                                 </p>
                                 <button
                                     onClick={() => navigate('/onboarding', {

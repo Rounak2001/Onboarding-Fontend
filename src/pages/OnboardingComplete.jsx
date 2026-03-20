@@ -48,8 +48,8 @@ const OnboardingComplete = () => {
                                 fontSize: 12, fontWeight: 700, color: '#059669', flexShrink: 0
                             }}>1</div>
                             <div>
-                                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>Document Verification</p>
-                                <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>Our team will verify your uploaded documents and qualifications.</p>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>Verification Checks</p>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>We validate your Government ID, face match, assessment, and qualification documents.</p>
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
@@ -59,8 +59,8 @@ const OnboardingComplete = () => {
                                 fontSize: 12, fontWeight: 700, color: '#059669', flexShrink: 0
                             }}>2</div>
                             <div>
-                                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>Assessment Evaluation</p>
-                                <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>Your assessment responses and video answers will be reviewed.</p>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>Automatic Credential Issue</p>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>As soon as every required onboarding check clears, your consultant credentials are generated automatically.</p>
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
@@ -71,7 +71,7 @@ const OnboardingComplete = () => {
                             }}>3</div>
                             <div>
                                 <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>Login Credentials</p>
-                                <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>Upon successful verification, you will receive your consultant login credentials via email.</p>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>Your username and password will be emailed to you automatically once the final required check is complete.</p>
                             </div>
                         </div>
                     </div>
@@ -87,7 +87,7 @@ const OnboardingComplete = () => {
                         <div>
                             <p style={{ fontSize: 14, fontWeight: 600, color: '#92400e', margin: 0 }}>Verification in Progress</p>
                             <p style={{ fontSize: 13, color: '#a16207', margin: '4px 0 0', lineHeight: 1.5 }}>
-                                This process typically takes 2–3 business days. You will be notified via email once your application is approved.
+                                If any assessment or document check is still processing, your credentials will be emailed automatically as soon as it clears.
                             </p>
                         </div>
                     </div>

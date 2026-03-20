@@ -278,7 +278,7 @@ const Success = () => {
                         <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
                         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#065f46', margin: '0 0 8px' }}>Onboarding Complete!</h2>
                         <p style={{ fontSize: 15, color: '#047857', margin: 0, lineHeight: 1.6 }}>
-                            You have completed the onboarding process. Once verification is complete, you will receive your login credentials on your email ID.
+                            You have completed the onboarding process. As soon as every required verification check clears, your login credentials will be generated automatically and emailed to you.
                         </p>
                     </div>
                 )}
