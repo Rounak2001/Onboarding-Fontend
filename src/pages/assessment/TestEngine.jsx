@@ -4,8 +4,6 @@ import Webcam from 'react-webcam';
 import TestQuestion from './TestQuestion';
 import VideoQuestion from './VideoQuestion';
 import { submitTest, submitVideo, logViolation, processProctoringSnapshot, uploadProctoringAudioClip, logProctoringAudioTelemetry, getProctoringPolicy, saveMcqProgress } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
-import AccountControls from '../../components/AccountControls';
 import BrandLogo from '../../components/BrandLogo';
 
 const DEFAULT_PROCTORING_POLICY = {
@@ -153,18 +151,12 @@ const videoQueueDelete = async (uploadId) => {
 const TestEngine = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
     const { session } = location.state || {};
     const [questions, setQuestions] = useState([]);
     const [videoQuestions, setVideoQuestions] = useState([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState({});
     const [loading, setLoading] = useState(true);
-
-    const handleSignOut = async () => {
-        await logout();
-        navigate('/login');
-    };
 
     const [questionTimeLeft, setQuestionTimeLeft] = useState(30);
     const [isVideoSection, setIsVideoSection] = useState(false);
@@ -1823,12 +1815,6 @@ const TestEngine = () => {
                                 ))}
                         </div>
                     )}
-                    <AccountControls
-                        email={user?.email}
-                        onSignOut={handleSignOut}
-                        compact
-                        confirmText="Sign out now? This will end your assessment session and you may need to restart."
-                    />
                 </div>
             </header>
 

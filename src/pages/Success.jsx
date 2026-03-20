@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getLatestResult } from '../services/api';
-import AccountControls from '../components/AccountControls';
 import BrandLogo from '../components/BrandLogo';
 
 const formatRetryUnlockAt = (value) => {
@@ -39,7 +38,7 @@ const formatRetryCountdown = (totalSeconds) => {
 };
 
 const Success = () => {
-    const { user, stepFlags, logout, checkAuth, updateStepFlags } = useAuth();
+    const { user, stepFlags, checkAuth, updateStepFlags } = useAuth();
     const navigate = useNavigate();
     const [assessmentPassed, setAssessmentPassed] = useState(stepFlags?.has_passed_assessment || false);
     const [assessmentStatus, setAssessmentStatus] = useState(null);
@@ -50,32 +49,46 @@ const Success = () => {
     const [retrySecondsRemaining, setRetrySecondsRemaining] = useState(() => getRetrySecondsRemaining(stepFlags?.assessment_retry_available_at));
     const [loading, setLoading] = useState(true);
 
-    const refreshAssessmentState = useCallback(() => {
-        getLatestResult()
-            .then((data) => {
-                setAssessmentPassed(Boolean(data?.passed));
-                if (data?.status) setAssessmentStatus(data.status);
-                setAssessmentReviewPending(Boolean(data?.review_pending));
-                setRetryLocked(Boolean(data?.retry_locked));
-                setRetryAvailableAt(data?.retry_available_at || null);
-                setRetrySecondsRemaining(getRetrySecondsRemaining(data?.retry_available_at));
-                setIsDisqualified(Boolean(data?.disqualified));
-                updateStepFlags({
-                    has_passed_assessment: Boolean(data?.passed),
-                    assessment_review_pending: Boolean(data?.review_pending),
-                    assessment_retry_locked: Boolean(data?.retry_locked),
-                    assessment_retry_available_at: data?.retry_available_at || null,
-                    assessment_retry_in_seconds: getRetrySecondsRemaining(data?.retry_available_at),
-                    assessment_can_retry_now: Boolean(data?.can_retry_now),
-                });
-            })
-            .catch(() => { });
+    const refreshAssessmentState = useCallback(async () => {
+        try {
+            const data = await getLatestResult();
+            setAssessmentPassed(Boolean(data?.passed));
+            if (data?.status) setAssessmentStatus(data.status);
+            setAssessmentReviewPending(Boolean(data?.review_pending));
+            setRetryLocked(Boolean(data?.retry_locked));
+            setRetryAvailableAt(data?.retry_available_at || null);
+            setRetrySecondsRemaining(getRetrySecondsRemaining(data?.retry_available_at));
+            setIsDisqualified(Boolean(data?.disqualified));
+            updateStepFlags({
+                has_passed_assessment: Boolean(data?.passed),
+                assessment_review_pending: Boolean(data?.review_pending),
+                assessment_retry_locked: Boolean(data?.retry_locked),
+                assessment_retry_available_at: data?.retry_available_at || null,
+                assessment_retry_in_seconds: getRetrySecondsRemaining(data?.retry_available_at),
+                assessment_can_retry_now: Boolean(data?.can_retry_now),
+            });
+            return data;
+        } catch (error) {
+            return null;
+        }
     }, [updateStepFlags]);
 
     useEffect(() => {
-        checkAuth().then(() => setLoading(false)).catch(() => setLoading(false));
-        refreshAssessmentState();
-    }, [checkAuth, refreshAssessmentState]);
+        let isActive = true;
+
+        const loadPageState = async () => {
+            await refreshAssessmentState();
+            if (isActive) {
+                setLoading(false);
+            }
+        };
+
+        loadPageState();
+
+        return () => {
+            isActive = false;
+        };
+    }, [refreshAssessmentState]);
 
     useEffect(() => {
         if (!retryLocked || !retryAvailableAt) {
@@ -98,11 +111,6 @@ const Success = () => {
 
         return () => window.clearInterval(intervalId);
     }, [retryLocked, retryAvailableAt, checkAuth, refreshAssessmentState]);
-
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
-    };
 
     const hasIdentity = stepFlags?.has_identity_doc;
     const isVerified = user?.is_verified;
@@ -167,22 +175,15 @@ const Success = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <BrandLogo />
-                    </div>
-                    <AccountControls email={user?.email} onSignOut={handleLogout} />
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <BrandLogo />
                 </div>
             </header>
 
             <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 32px' }}>
                 <div style={{ marginBottom: 32 }}>
-                    <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111827', margin: 0 }}>
-                        Welcome back, {user?.first_name || user?.email?.split('@')[0]}
-                    </h1>
-                    <p style={{ fontSize: 15, color: '#6b7280', marginTop: 6 }}>
-                        Complete the steps below to finish your consultant onboarding.
-                    </p>
+                    <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111827', margin: 0 }}>{`Welcome back, ${user?.first_name || user?.email?.split('@')[0]}`}</h1>
+                    <p style={{ fontSize: 15, color: '#6b7280', marginTop: 6 }}>Complete the steps below to finish your consultant onboarding.</p>
                 </div>
 
                 <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>

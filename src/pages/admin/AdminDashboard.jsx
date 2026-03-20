@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
+import { readResponsePayload } from '../../utils/http';
 import BrandLogo from '../../components/BrandLogo';
 
 const AdminDashboard = () => {
@@ -53,7 +54,7 @@ const AdminDashboard = () => {
                 navigate(adminUrl());
                 return;
             }
-            const data = await res.json();
+            const data = await readResponsePayload(res);
             if (!res.ok) {
                 alert(data.error || 'Failed to delete consultant');
                 return;

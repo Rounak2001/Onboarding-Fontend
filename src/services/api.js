@@ -45,6 +45,8 @@ api.interceptors.response.use(
     }
 );
 
+let pendingLatestResultRequest = null;
+
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
 // Google Authentication (Onboarding portal — uses distinct endpoint)
@@ -222,9 +224,21 @@ export const logViolation = async (sessionId, data) => {
     return response.data;
 };
 
-export const getLatestResult = async () => {
-    const response = await api.get('/assessment/sessions/latest_result/');
-    return response.data;
+export const getLatestResult = async ({ force = false } = {}) => {
+    if (!force && pendingLatestResultRequest) {
+        return pendingLatestResultRequest;
+    }
+
+    const request = api.get('/assessment/sessions/latest_result/')
+        .then((response) => response.data)
+        .finally(() => {
+            if (pendingLatestResultRequest === request) {
+                pendingLatestResultRequest = null;
+            }
+        });
+
+    pendingLatestResultRequest = request;
+    return request;
 };
 
 export const processProctoringSnapshot = async (sessionId, formData) => {

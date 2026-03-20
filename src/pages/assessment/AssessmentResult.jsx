@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getLatestResult } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import AccountControls from '../../components/AccountControls';
 import BrandLogo from '../../components/BrandLogo';
 
 const formatRetryUnlockAt = (value) => {
@@ -34,7 +33,7 @@ const formatRetryCountdown = (seconds) => {
 
 const AssessmentResult = () => {
     const navigate = useNavigate();
-    const { user, logout, checkAuth } = useAuth();
+    const { checkAuth } = useAuth();
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -100,11 +99,6 @@ const AssessmentResult = () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
     }, []);
-
-    const handleSignOut = async () => {
-        await logout();
-        navigate('/login');
-    };
 
     const handleContinueDocuments = async () => {
         await checkAuth().catch(() => { });
@@ -178,7 +172,14 @@ const AssessmentResult = () => {
                 : { primary: '#b45309', soft: '#fff7ed', border: '#fdba74' };
 
     return (
-        <div className="tp-page" style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f8fafc 0%, #f9fafb 100%)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f8fafc 0%, #f9fafb 100%)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
+                <div style={{ maxWidth: 920, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <BrandLogo />
+                </div>
+            </header>
+
+            <div style={{ maxWidth: 920, margin: '0 auto', padding: '42px 32px 56px' }}>
             <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
                 @keyframes fadeUp {
@@ -203,18 +204,8 @@ const AssessmentResult = () => {
                 }
             `}</style>
 
-            <header style={{ background: '#0d1b2a', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 920, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <BrandLogo />
-                    <div style={{ marginLeft: 'auto' }}>
-                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact confirmText="Sign out now? You can return to continue later." />
-                    </div>
-                </div>
-            </header>
-
-            <div style={{ maxWidth: 920, margin: '0 auto', padding: '42px 32px 56px' }}>
-                <div className="tp-result-card" style={{ position: 'relative', overflow: 'hidden', background: '#fff', borderRadius: 20, border: '1px solid #e5e7eb', boxShadow: '0 18px 60px rgba(15, 23, 42, 0.06)', padding: '40px 36px' }}>
-                    <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at top right, ${accent.soft}, transparent 36%)`, pointerEvents: 'none' }} />
+            <div className="tp-result-card" style={{ position: 'relative', overflow: 'hidden', background: '#fff', borderRadius: 20, border: '1px solid #e5e7eb', boxShadow: '0 18px 60px rgba(15, 23, 42, 0.06)', padding: '40px 36px' }}>
+                <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at top right, ${accent.soft}, transparent 36%)`, pointerEvents: 'none' }} />
 
                     {reviewPending ? (
                         <>
@@ -427,7 +418,7 @@ const AssessmentResult = () => {
                             </div>
                         </>
                     )}
-                </div>
+            </div>
             </div>
         </div>
     );

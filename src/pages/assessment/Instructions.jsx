@@ -1,15 +1,13 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createSession, getProctoringPolicy } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
-import AccountControls from '../../components/AccountControls';
 import BrandLogo from '../../components/BrandLogo';
+import { getAssessmentCategory, summarizeSelectedServices } from './assessmentCatalog';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
 
 const Instructions = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logout } = useAuth();
     const selectedTests = location.state?.selectedTests || [];
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -29,7 +27,29 @@ const Instructions = () => {
         max_webcam_warnings: 3,
         max_fullscreen_exits: 3,
     });
-    if (selectedTests.length === 0) { navigate('/assessment/select'); return null; }
+
+    useEffect(() => {
+        if (selectedTests.length === 0) {
+            navigate('/assessment/select');
+        }
+    }, [navigate, selectedTests]);
+
+    const selectedCategorySummaries = useMemo(() => {
+        return selectedTests.map((test) => {
+            const category = getAssessmentCategory(test?.slug || test?.name);
+            const selectedServiceIds = Array.isArray(test?.selectedServiceIds) ? test.selectedServiceIds : [];
+            const summary = summarizeSelectedServices(category || test?.slug || test?.name, selectedServiceIds, 4);
+
+            return {
+                ...test,
+                category,
+                selectedServiceIds,
+                selectedServiceCount: selectedServiceIds.length,
+                preview: summary.preview,
+                remainingCount: summary.remainingCount,
+            };
+        });
+    }, [selectedTests]);
 
     useEffect(() => {
         let mounted = true;
@@ -74,11 +94,6 @@ const Instructions = () => {
     useEffect(() => {
         return () => stopDeviceTest();
     }, [stopDeviceTest]);
-
-    const handleSignOut = async () => {
-        await logout();
-        navigate('/login');
-    };
 
     const handleDeviceTest = useCallback(async () => {
         stopDeviceTest();
@@ -152,7 +167,13 @@ const Instructions = () => {
     const handleStart = async () => {
         setLoading(true); setError('');
         try {
-            const data = await createSession({ selected_tests: selectedTests.map(t => t.name) });
+            const data = await createSession({
+                selected_tests: selectedTests.map((test) => test.slug || test.name),
+                selected_test_details: selectedTests.map((test) => ({
+                    slug: test.slug || test.name,
+                    selected_service_ids: Array.isArray(test.selectedServiceIds) ? test.selectedServiceIds : [],
+                })),
+            });
             navigate('/assessment/test', { state: { session: data } });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to start session.');
@@ -175,7 +196,9 @@ const Instructions = () => {
         'Your responses are recorded and cannot be changed after submission.',
     ];
 
-    const domainLabel = selectedTests.map(t => normalizeAssessmentDomainLabel(t.name)).join(', ');
+    const domainLabel = selectedCategorySummaries
+        .map((test) => normalizeAssessmentDomainLabel(test?.category?.name || test?.name))
+        .join(', ');
 
     const btnStyle = (primary, disabled) => ({
         flex: 1, padding: '14px 0', borderRadius: 8, fontWeight: primary ? 600 : 500, fontSize: 14,
@@ -184,32 +207,55 @@ const Instructions = () => {
         color: disabled ? '#9ca3af' : primary ? '#fff' : '#374151',
     });
 
+    if (selectedTests.length === 0) {
+        return null;
+    }
+
     return (
-        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
                 <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BrandLogo />
-                    <div style={{ marginLeft: 'auto' }}>
-                        <AccountControls email={user?.email} onSignOut={handleSignOut} compact confirmText="Sign out now? You may need to sign in again to continue your assessment." />
-                    </div>
                 </div>
             </header>
 
             <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 32px 60px' }}>
                 <div style={{ marginBottom: 24 }}>
-                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>
-                        {domainLabel}
-                    </span>
+                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>{domainLabel}</span>
                     <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Instructions</h1>
                     <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Please read carefully before starting.</p>
                 </div>
 
-                {/* Selected domains summary */}
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#166534', margin: '0 0 6px' }}>Selected Domains ({selectedTests.length})</p>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {selectedTests.map(t => (
-                            <span key={t.id} style={{ fontSize: 12, background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 6, fontWeight: 500 }}>{normalizeAssessmentDomainLabel(t.name)}</span>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#166534', margin: '0 0 10px' }}>
+                        Selected Categories ({selectedCategorySummaries.length})
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {selectedCategorySummaries.map((test) => (
+                            <div
+                                key={test.id || test.slug || test.name}
+                                style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #dcfce7',
+                                    borderRadius: 10,
+                                    padding: '11px 12px',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>
+                                        {normalizeAssessmentDomainLabel(test?.category?.name || test.name)}
+                                    </span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#047857', background: '#dcfce7', padding: '4px 8px', borderRadius: 999 }}>
+                                        {test.selectedServiceCount} titles
+                                    </span>
+                                </div>
+                                {test.selectedServiceCount > 0 && (
+                                    <p style={{ fontSize: 12, lineHeight: 1.55, color: '#166534', margin: '8px 0 0' }}>
+                                        {test.preview.join(', ')}
+                                        {test.remainingCount > 0 ? ` +${test.remainingCount} more` : ''}
+                                    </p>
+                                )}
+                            </div>
                         ))}
                     </div>
                 </div>

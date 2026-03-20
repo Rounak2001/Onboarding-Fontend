@@ -4,13 +4,12 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { completeOnboarding, sendOnboardingPhoneOtp, uploadOnboardingDocument, verifyOnboardingPhoneOtp } from '../services/api';
 import FileDropzone from '../components/FileDropzone';
-import AccountControls from '../components/AccountControls';
 import BrandLogo from '../components/BrandLogo';
 
 const Onboarding = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, updateUser, logout } = useAuth();
+    const { user, updateUser } = useAuth();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [formError, setFormError] = useState('');
@@ -417,30 +416,21 @@ const Onboarding = () => {
     const labelStyle = { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 };
     const errorStyle = { fontSize: 12, color: '#ef4444', marginTop: 4 };
 
-    const handleSignOut = async () => {
-        await logout();
-        navigate('/login');
-    };
-
     return (
-        <div className="tp-page" style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
-            {/* Header */}
-            <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <BrandLogo />
-                    <div style={{ marginLeft: 'auto' }}>
-                        <AccountControls email={user?.email} onSignOut={handleSignOut} />
+        <>
+            <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
+                    <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <BrandLogo />
                     </div>
-                </div>
-            </header>
+                </header>
 
-            <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 32px 60px' }}>
-                {/* Title */}
-                <div style={{ marginBottom: 28 }}>
-                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 1 of 5</span>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Complete Your Profile</h1>
-                    <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Fill in your details accurately. This information is used for verification.</p>
-                </div>
+                <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 32px 60px' }}>
+                    <div style={{ marginBottom: 28 }}>
+                        <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 1 of 5</span>
+                        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Complete Your Profile</h1>
+                        <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Fill in your details accurately. This information is used for verification.</p>
+                    </div>
 
                 {identityMismatchNotice && (
                     <div style={{ marginBottom: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#92400e' }}>
@@ -705,10 +695,11 @@ const Onboarding = () => {
                         </button>
                     </div>
                 </form>
+                </div>
             </div>
 
             {/* OTP Modal (glassmorphism) */}
-                                    {otpModalOpen && !isPhoneVerified && createPortal((
+            {otpModalOpen && !isPhoneVerified && createPortal((
                 <div
                     role="dialog"
                     aria-modal="true"
@@ -912,7 +903,7 @@ const Onboarding = () => {
                     </div>
                 </div>
             ), document.body)}
-        </div>
+        </>
     );
 };
 

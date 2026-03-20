@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
+import { readResponsePayload } from '../../utils/http';
 
 const ConsultantDetail = () => {
     const { id } = useParams();
@@ -73,7 +74,7 @@ const ConsultantDetail = () => {
                 method: 'DELETE',
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
-            const d = await res.json();
+            const d = await readResponsePayload(res);
             if (res.status === 401 || res.status === 403) {
                 localStorage.removeItem('admin_token');
                 navigate(adminUrl());
