@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getTestTypes, getLatestResult } from '../../services/api';
 import BrandLogo from '../../components/BrandLogo';
+import { useAuth } from '../../context/AuthContext';
 import {
     ASSESSMENT_CATEGORIES,
     ASSESSMENT_CATEGORY_MAP,
@@ -29,6 +30,7 @@ const hasCategorySelection = (selectionMatrix, categorySlug) =>
 
 const TestList = () => {
     const navigate = useNavigate();
+    const { stepFlags } = useAuth();
     const [testTypes, setTestTypes] = useState([]);
     const [selectedServiceMatrix, setSelectedServiceMatrix] = useState(createEmptySelectionMatrix);
     const [activeCategorySlug, setActiveCategorySlug] = useState('');
@@ -36,6 +38,18 @@ const TestList = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [disqualified, setDisqualified] = useState(false);
+    const availableCategorySlugs = stepFlags?.available_assessment_categories || [];
+    const unlockedCategorySlugs = stepFlags?.unlocked_categories || [];
+    const unlockedCategoryLabel = unlockedCategorySlugs
+        .map((slug) => normalizeAssessmentDomainLabel(slug))
+        .join(', ');
+    const isExpansionMode = Boolean(stepFlags?.has_passed_assessment && availableCategorySlugs.length > 0);
+    const visibleCategories = useMemo(() => {
+        if (!isExpansionMode) {
+            return ASSESSMENT_CATEGORIES;
+        }
+        return ASSESSMENT_CATEGORIES.filter((category) => availableCategorySlugs.includes(category.slug));
+    }, [availableCategorySlugs, isExpansionMode]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -50,7 +64,7 @@ const TestList = () => {
                     return;
                 }
 
-                if (result?.passed) {
+                if (result?.passed && !(result?.available_assessment_categories || []).length) {
                     navigate('/success');
                     return;
                 }
@@ -105,7 +119,7 @@ const TestList = () => {
             });
         });
 
-        ASSESSMENT_CATEGORIES.forEach((category) => {
+        visibleCategories.forEach((category) => {
             if (!lookup.has(category.slug)) {
                 lookup.set(category.slug, {
                     id: category.slug,
@@ -116,10 +130,10 @@ const TestList = () => {
         });
 
         return lookup;
-    }, [testTypes]);
+    }, [testTypes, visibleCategories]);
 
     const selectedCategories = useMemo(() => {
-        return ASSESSMENT_CATEGORIES
+        return visibleCategories
             .filter((category) => (selectedServiceMatrix[category.slug] || []).length > 0)
             .map((category) => {
                 const selectedServiceIds = selectedServiceMatrix[category.slug] || [];
@@ -144,14 +158,17 @@ const TestList = () => {
                     remainingCount,
                 };
             });
-    }, [selectedServiceMatrix, testTypeByCategory]);
+    }, [selectedServiceMatrix, testTypeByCategory, visibleCategories]);
 
     const hasRegistrationPrerequisite = useMemo(() => {
-        return ASSESSMENT_CATEGORIES.some((category) => (
+        if (isExpansionMode) {
+            return true;
+        }
+        return visibleCategories.some((category) => (
             category.slug !== REGISTRATIONS_CATEGORY_SLUG
             && hasCategorySelection(selectedServiceMatrix, category.slug)
         ));
-    }, [selectedServiceMatrix]);
+    }, [isExpansionMode, selectedServiceMatrix, visibleCategories]);
 
     const activeCategory = activeCategorySlug
         ? ASSESSMENT_CATEGORY_MAP[activeCategorySlug] || null
@@ -162,6 +179,10 @@ const TestList = () => {
     );
 
     useEffect(() => {
+        if (isExpansionMode) {
+            return;
+        }
+
         if (hasRegistrationPrerequisite) {
             return;
         }
@@ -184,10 +205,14 @@ const TestList = () => {
             setActiveCategorySlug('');
             setDraftSelection([]);
         }
-    }, [activeCategorySlug, hasRegistrationPrerequisite, selectedServiceMatrix]);
+    }, [activeCategorySlug, hasRegistrationPrerequisite, isExpansionMode, selectedServiceMatrix]);
 
     const openCategoryModal = (category) => {
         if (disqualified) {
+            return;
+        }
+
+        if (!visibleCategories.some((item) => item.slug === category.slug)) {
             return;
         }
 
@@ -362,10 +387,35 @@ const TestList = () => {
             `}</style>
 
                 <div style={{ marginBottom: 28 }}>
-                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '5px 12px', borderRadius: 999, marginBottom: 14 }}>Step 4 of 5</span>
-                    <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0 }}>Select Assessment Categories</h1>
-                    <p style={{ fontSize: 14, lineHeight: 1.65, color: '#64748b', marginTop: 8 }}>Choose one or more categories, then select the exact titles covered inside each popup. The assessment still generates 50 MCQs, split evenly across your confirmed categories.</p>
+                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '5px 12px', borderRadius: 999, marginBottom: 14 }}>
+                        {isExpansionMode ? 'Additional Unlock Assessment' : 'Step 4 of 5'}
+                    </span>
+                    <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0 }}>
+                        {isExpansionMode ? 'Unlock More Categories' : 'Select Assessment Categories'}
+                    </h1>
+                    <p style={{ fontSize: 14, lineHeight: 1.65, color: '#64748b', marginTop: 8 }}>
+                        {isExpansionMode
+                            ? 'Choose one or more locked categories, then confirm the exact titles you want unlocked. Registrations unlock automatically once any main category has been cleared.'
+                            : 'Choose one or more categories, then select the exact titles covered inside each popup. The assessment still generates 50 MCQs, split evenly across your confirmed categories.'}
+                    </p>
                 </div>
+
+                {isExpansionMode && (
+                    <div
+                        style={{
+                            background: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            borderRadius: 16,
+                            padding: '18px 20px',
+                            marginBottom: 20,
+                        }}
+                    >
+                        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: '#065f46' }}>
+                            Already unlocked: {unlockedCategoryLabel || '—'}.
+                            {' '}Registrations are available automatically after your first cleared main-category assessment.
+                        </p>
+                    </div>
+                )}
 
                 {disqualified && (
                     <div
@@ -434,7 +484,7 @@ const TestList = () => {
                         pointerEvents: disqualified ? 'none' : 'auto',
                     }}
                 >
-                    {ASSESSMENT_CATEGORIES.map((category) => {
+                    {visibleCategories.map((category) => {
                         const selectedIds = selectedServiceMatrix[category.slug] || [];
                         const isSelected = selectedIds.length > 0;
                         const isLocked = (

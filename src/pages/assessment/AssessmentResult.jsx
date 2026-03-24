@@ -33,7 +33,7 @@ const formatRetryCountdown = (seconds) => {
 
 const AssessmentResult = () => {
     const navigate = useNavigate();
-    const { checkAuth } = useAuth();
+    const { checkAuth, stepFlags } = useAuth();
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -102,7 +102,7 @@ const AssessmentResult = () => {
 
     const handleContinueDocuments = async () => {
         await checkAuth().catch(() => { });
-        navigate('/onboarding/documentation');
+        navigate(stepFlags?.has_documents ? '/success' : '/onboarding/documentation');
     };
 
     const handleRetry = () => {

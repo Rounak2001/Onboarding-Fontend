@@ -46,6 +46,7 @@ const ScrollToTop = () => {
 // Protected Route — requires authentication
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -55,7 +56,10 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    const nextPath = `${location.pathname}${location.search || ''}`;
+    return <Navigate to={`/login?next=${encodeURIComponent(nextPath)}`} replace />;
+  }
 
   return children;
 };
@@ -93,6 +97,7 @@ const StepGuard = ({ step, children }) => {
   const hasPassedAssessment = stepFlags?.has_passed_assessment;
   const assessmentReviewPending = stepFlags?.assessment_review_pending;
   const assessmentRetryLocked = stepFlags?.assessment_retry_locked;
+  const assessmentCanStart = stepFlags?.assessment_can_start;
   const verified = user?.is_verified;
   const passedAssessment = stepFlags?.has_passed_assessment;
 
@@ -110,7 +115,7 @@ const StepGuard = ({ step, children }) => {
       allowed = onboarded && hasIdentity && !verified;
       break;
     case 'assessment':
-      allowed = onboarded && verified && !hasPassedAssessment && !assessmentReviewPending && !assessmentRetryLocked;
+      allowed = onboarded && verified && assessmentCanStart && !assessmentReviewPending && !assessmentRetryLocked;
       break;
     case 'documents':
       allowed = onboarded && passedAssessment;

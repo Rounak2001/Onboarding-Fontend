@@ -19,15 +19,18 @@ const createService = (id, label, group, section = group) => ({
 });
 
 export const REGISTRATIONS_CATEGORY_SLUG = 'registrations';
+const SHARED_CATEGORY_THEME = {
+    accent: '#0f766e',
+    accentSoft: '#ecfdf5',
+    border: '#99f6e4',
+};
 
 export const ASSESSMENT_CATEGORIES = [
     {
         slug: 'itr',
         name: 'ITR',
         token: 'ITR',
-        accent: '#0f766e',
-        accentSoft: '#ecfdf5',
-        border: '#99f6e4',
+        ...SHARED_CATEGORY_THEME,
         description: 'Income-tax return work, TDS workflows, and related consultation.',
         coverageSummary: ['7 ITR services', '4 TDS services', '1 consultation'],
         services: [
@@ -49,9 +52,7 @@ export const ASSESSMENT_CATEGORIES = [
         slug: 'gstr',
         name: 'GSTR',
         token: 'GST',
-        accent: '#1d4ed8',
-        accentSoft: '#eff6ff',
-        border: '#bfdbfe',
+        ...SHARED_CATEGORY_THEME,
         description: 'GST return operations, periodic filings, and related consultation.',
         coverageSummary: ['7 GSTR services', '1 consultation'],
         services: [
@@ -69,9 +70,7 @@ export const ASSESSMENT_CATEGORIES = [
         slug: 'scrutiny',
         name: 'Scrutiny',
         token: 'SCN',
-        accent: '#b45309',
-        accentSoft: '#fff7ed',
-        border: '#fed7aa',
+        ...SHARED_CATEGORY_THEME,
         description: 'Scrutiny and assessment support grouped by income-tax and GST matters.',
         coverageSummary: ['6 Income Tax scrutiny services', '3 GSTR scrutiny services'],
         services: [
@@ -90,9 +89,7 @@ export const ASSESSMENT_CATEGORIES = [
         slug: REGISTRATIONS_CATEGORY_SLUG,
         name: 'Registrations',
         token: 'REG',
-        accent: '#be123c',
-        accentSoft: '#fff1f2',
-        border: '#fecdd3',
+        ...SHARED_CATEGORY_THEME,
         description: 'Core registration workflows unlocked after you choose at least one main category first.',
         coverageSummary: ['16 registration services'],
         requiresPriorSelection: true,

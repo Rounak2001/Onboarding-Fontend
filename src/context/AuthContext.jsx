@@ -12,6 +12,10 @@ const mapStepFlags = (data = {}) => ({
     assessment_retry_available_at: data.assessment_retry_available_at || null,
     assessment_retry_in_seconds: data.assessment_retry_in_seconds || 0,
     assessment_can_retry_now: data.assessment_can_retry_now || false,
+    assessment_can_start: data.assessment_can_start || false,
+    passed_categories: data.passed_categories || [],
+    unlocked_categories: data.unlocked_categories || [],
+    available_assessment_categories: data.available_assessment_categories || [],
     has_documents: data.has_documents || false,
     has_accepted_declaration: data.has_accepted_declaration || false,
 });
@@ -128,6 +132,10 @@ export const AuthProvider = ({ children }) => {
             assessment_retry_available_at: freshData.assessment_retry_available_at,
             assessment_retry_in_seconds: freshData.assessment_retry_in_seconds,
             assessment_can_retry_now: freshData.assessment_can_retry_now,
+            assessment_can_start: freshData.assessment_can_start,
+            passed_categories: freshData.passed_categories || [],
+            unlocked_categories: freshData.unlocked_categories || [],
+            available_assessment_categories: freshData.available_assessment_categories || [],
             has_documents: freshData.has_documents,
             has_accepted_declaration: freshData.has_accepted_declaration,
         } : stepFlags;

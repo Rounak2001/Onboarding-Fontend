@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { googleAuth } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import EmailConflictDialog from '../components/EmailConflictDialog';
 
 const Login = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { syncAuthData } = useAuth();
     const [error, setError] = useState('');
     const [conflictMessage, setConflictMessage] = useState('');
@@ -44,6 +45,10 @@ const Login = () => {
             // getNextRoute() → /declaration, racing with whatever we navigate to next.
             // Using the fresh response data avoids any stale-state race condition.
             const targetUser = data.user;
+            const requestedNextPath = searchParams.get('next');
+            const nextPath = requestedNextPath && requestedNextPath.startsWith('/')
+                ? requestedNextPath
+                : '';
             let nextRoute = '/';
             if (!data.has_accepted_declaration) {
                 nextRoute = '/declaration';
@@ -64,7 +69,7 @@ const Login = () => {
             } else {
                 nextRoute = '/success';
             }
-            navigate(nextRoute);
+            navigate(nextPath || nextRoute);
         } catch (err) {
             const errorData = err?.response?.data;
             if (errorData?.code === 'EMAIL_CONFLICT') {
