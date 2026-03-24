@@ -100,7 +100,7 @@ const AssessmentResult = () => {
         };
     }, []);
 
-    const handleContinueDocuments = async () => {
+    const handleContinue = async () => {
         await checkAuth().catch(() => { });
         navigate(stepFlags?.has_documents ? '/success' : '/onboarding/documentation');
     };
@@ -367,7 +367,7 @@ const AssessmentResult = () => {
                                 {passed ? (
                                     <button
                                         className="tp-btn"
-                                        onClick={handleContinueDocuments}
+                                        onClick={handleContinue}
                                         style={{
                                             padding: '13px 22px',
                                             borderRadius: 10,
@@ -379,7 +379,7 @@ const AssessmentResult = () => {
                                             boxShadow: '0 10px 24px rgba(5, 150, 105, 0.18)',
                                         }}
                                     >
-                                        Continue to Qualification Documents →
+                                        Continue to Qualification Documents
                                     </button>
                                 ) : !disqualified && !retryLocked && attemptsRemaining > 0 ? (
                                     <button

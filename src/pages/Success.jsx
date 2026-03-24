@@ -121,9 +121,9 @@ const Success = () => {
     const retryCountdownText = formatRetryCountdown(retrySecondsRemaining);
 
     const steps = [
-        { label: 'Profile Details', desc: 'Personal and practice information', done: user?.is_onboarded, icon: '👤' },
-        { label: 'Identity Verification', desc: 'Upload government-issued ID', done: hasIdentity, action: () => navigate('/onboarding/identity'), icon: '🪪' },
-        { label: 'Face Verification', desc: 'Verify your identity via camera', done: isVerified, requires: hasIdentity, action: () => navigate('/onboarding/face-verification'), icon: '📸' },
+        { label: 'Profile Details', desc: 'Personal and practice information', done: user?.is_onboarded, icon: '\u{1F464}' },
+        { label: 'Identity Verification', desc: 'Upload government-issued ID', done: hasIdentity, action: () => navigate('/onboarding/identity'), icon: '\u{1FAAA}' },
+        { label: 'Face Verification', desc: 'Verify your identity via camera', done: isVerified, requires: hasIdentity, action: () => navigate('/onboarding/face-verification'), icon: '\u{1F4F8}' },
         {
             label: disqualified ? 'Assessment Disqualified' : underReview ? 'Assessment Under Review' : retryLocked ? 'Assessment Retry Locked' : 'Domain Assessment',
             desc: disqualified
@@ -136,7 +136,7 @@ const Success = () => {
             done: assessmentPassed || stepFlags?.has_passed_assessment,
             requires: isVerified && !disqualified,
             action: disqualified || underReview || retryLocked ? null : () => navigate('/assessment/select'),
-            icon: disqualified ? '🚫' : underReview ? '⏳' : '📝',
+            icon: disqualified ? '\u{1F6AB}' : underReview ? '\u23F3' : '\u{1F4DD}',
             customStatus: disqualified
                 ? <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '6px 14px', borderRadius: 20, border: '1px solid #fecaca' }}>Disqualified</span>
                 : underReview
@@ -151,7 +151,7 @@ const Success = () => {
             done: stepFlags?.has_documents,
             requires: assessmentPassed || stepFlags?.has_passed_assessment,
             action: () => navigate(stepFlags?.has_documents ? '/onboarding/complete' : '/onboarding/documentation'),
-            icon: '📄',
+            icon: '\u{1F4C4}',
         },
     ];
 

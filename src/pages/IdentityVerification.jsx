@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { uploadIdentityDocument } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import FileDropzone from '../components/FileDropzone';
@@ -7,6 +7,7 @@ import BrandLogo from '../components/BrandLogo';
 
 const IdentityVerification = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { updateStepFlags } = useAuth();
     const [file, setFile] = useState(null);
     const [preview, setPreview] = useState(null);
@@ -14,6 +15,7 @@ const IdentityVerification = () => {
     const [error, setError] = useState('');
     const [mismatchDetails, setMismatchDetails] = useState(null);
     const fileInputRef = useRef(null);
+    const faceMismatchNotice = location.state?.faceMismatchMessage || '';
 
     useEffect(() => {
         return () => {
@@ -127,10 +129,78 @@ const IdentityVerification = () => {
                     <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Upload a clear government-issued ID for verification.</p>
                 </div>
 
-            <div style={{ marginTop: -16, marginBottom: 28, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 12px' }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#92400E', lineHeight: 1.45 }}>
-                    Warning: You may upload masked or unmasked ID. If you upload unmasked ID, you are responsible for sharing sensitive details.
-                </p>
+            <div
+                style={{
+                    marginTop: -12,
+                    marginBottom: 28,
+                    borderRadius: 18,
+                    border: '1px solid #e5e7eb',
+                    background: '#ffffff',
+                    padding: '18px 18px 16px',
+                    boxShadow: '0 16px 36px rgba(15, 23, 42, 0.05)',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <div
+                        style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 12,
+                            background: '#ecfdf5',
+                            border: '1px solid #d1fae5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#059669',
+                            fontSize: 15,
+                            fontWeight: 800,
+                            flexShrink: 0,
+                        }}
+                    >
+                        i
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>Verification Notes</div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                            Review these checks before uploading your ID.
+                        </div>
+                    </div>
+                </div>
+
+                {faceMismatchNotice && (
+                    <div
+                        style={{
+                            borderRadius: 14,
+                            border: '1px solid #fdba74',
+                            background: 'linear-gradient(135deg, #fffaf0 0%, #fff7ed 100%)',
+                            padding: '14px 16px',
+                            marginBottom: 12,
+                        }}
+                    >
+                        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: '#9a3412', textTransform: 'uppercase', marginBottom: 4 }}>
+                            Re-upload Required
+                        </div>
+                        <p style={{ margin: 0, fontSize: 13, color: '#9a3412', lineHeight: 1.65 }}>
+                            {faceMismatchNotice}
+                        </p>
+                    </div>
+                )}
+
+                <div
+                    style={{
+                        borderRadius: 14,
+                        border: '1px solid #f3f4f6',
+                        background: '#fafaf9',
+                        padding: '14px 16px',
+                    }}
+                >
+                    <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: '#6b7280', textTransform: 'uppercase', marginBottom: 4 }}>
+                        Privacy Note
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#4b5563', lineHeight: 1.6 }}>
+                        You may upload a masked or unmasked ID. If you choose to upload an unmasked ID, you are responsible for sharing sensitive details.
+                    </p>
+                </div>
             </div>
 
             <div style={cardStyle}>

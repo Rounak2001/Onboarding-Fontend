@@ -94,12 +94,11 @@ const StepGuard = ({ step, children }) => {
   const onboarded = user?.is_onboarded;
   const hasAcceptedDeclaration = stepFlags?.has_accepted_declaration;
   const hasIdentity = stepFlags?.has_identity_doc;
-  const hasPassedAssessment = stepFlags?.has_passed_assessment;
   const assessmentReviewPending = stepFlags?.assessment_review_pending;
   const assessmentRetryLocked = stepFlags?.assessment_retry_locked;
   const assessmentCanStart = stepFlags?.assessment_can_start;
   const verified = user?.is_verified;
-  const passedAssessment = stepFlags?.has_passed_assessment;
+  const hasDocuments = stepFlags?.has_documents;
 
   let allowed = false;
   switch (step) {
@@ -118,7 +117,7 @@ const StepGuard = ({ step, children }) => {
       allowed = onboarded && verified && assessmentCanStart && !assessmentReviewPending && !assessmentRetryLocked;
       break;
     case 'documents':
-      allowed = onboarded && passedAssessment;
+      allowed = onboarded && verified && stepFlags?.has_passed_assessment;
       break;
     case 'dashboard':
       allowed = onboarded;
