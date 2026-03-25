@@ -38,6 +38,7 @@ const SNAPSHOT_MAX_RETRIES = 8;
 const SNAPSHOT_RETRY_BASE_MS = 2000;
 const SNAPSHOT_RETRY_MAX_MS = 60000;
 const MIN_SNAPSHOT_INTERVAL_MS = 6000;
+const VIDEO_QUESTION_TIME_SECONDS = 90;
 
 const computeSnapshotRetryDelayMs = (retryCount) => {
     const exponent = Math.max(0, Number(retryCount) - 1);
@@ -160,6 +161,7 @@ const TestEngine = () => {
 
     const [questionTimeLeft, setQuestionTimeLeft] = useState(30);
     const [isVideoSection, setIsVideoSection] = useState(false);
+    const [showVideoPrepScreen, setShowVideoPrepScreen] = useState(false);
     const [showWarningModal, setShowWarningModal] = useState(false);
     const [violationMessage, setViolationMessage] = useState('');
     const [proctoringPolicy, setProctoringPolicy] = useState(DEFAULT_PROCTORING_POLICY);
@@ -192,6 +194,8 @@ const TestEngine = () => {
     });
 
     const [currentVideoQuestionIndex, setCurrentVideoQuestionIndex] = useState(0);
+    const [currentVideoTimeLeft, setCurrentVideoTimeLeft] = useState(VIDEO_QUESTION_TIME_SECONDS);
+    const [currentVideoDeadlineAt, setCurrentVideoDeadlineAt] = useState(null);
     const [videoCompleted, setVideoCompleted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatusText, setSubmitStatusText] = useState('Submitting assessment…');
@@ -293,6 +297,27 @@ const TestEngine = () => {
         }
         setLoading(false);
     }, [session, navigate]);
+
+    const startVideoQuestion = useCallback(() => {
+        const deadline = Date.now() + (VIDEO_QUESTION_TIME_SECONDS * 1000);
+        setCurrentVideoDeadlineAt(deadline);
+        setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
+    }, []);
+
+    const openVideoPrepScreen = useCallback(() => {
+        setIsVideoSection(false);
+        setShowVideoPrepScreen(true);
+        setCurrentVideoQuestionIndex(0);
+        setCurrentVideoDeadlineAt(null);
+        setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
+    }, []);
+
+    const beginVideoAssessment = useCallback(() => {
+        setShowVideoPrepScreen(false);
+        setIsVideoSection(true);
+        setVideoCompleted(false);
+        startVideoQuestion();
+    }, [startVideoQuestion]);
 
     useEffect(() => {
         let mounted = true;
@@ -1058,8 +1083,13 @@ const TestEngine = () => {
             setCurrentQuestionIndex(prev => prev + 1);
             setQuestionTimeLeft(30);
         } else {
-            setIsVideoSection(true);
-            setCurrentVideoQuestionIndex(0);
+            if (videoQuestions.length > 0) {
+                openVideoPrepScreen();
+            } else {
+                setIsVideoSection(true);
+                setShowVideoPrepScreen(false);
+                setCurrentVideoQuestionIndex(0);
+            }
 
             // Background save of MCQ progress when transitioning to video
             if (session?.id) {
@@ -1068,11 +1098,11 @@ const TestEngine = () => {
                 });
             }
         }
-    }, [currentQuestionIndex, questions.length, session?.id, answers]);
+    }, [currentQuestionIndex, questions.length, session?.id, answers, openVideoPrepScreen, videoQuestions.length]);
 
     // MCQ 30s timer
     useEffect(() => {
-        if (loading || isVideoSection || questions.length === 0 || submissionResult) return;
+        if (loading || isVideoSection || showVideoPrepScreen || questions.length === 0 || submissionResult) return;
         setQuestionTimeLeft(30);
         const t = setInterval(() => {
             setQuestionTimeLeft(prev => {
@@ -1081,12 +1111,47 @@ const TestEngine = () => {
             });
         }, 1000);
         return () => clearInterval(t);
-    }, [currentQuestionIndex, isVideoSection, questions.length, loading, submissionResult]);
+    }, [currentQuestionIndex, isVideoSection, showVideoPrepScreen, questions.length, loading, submissionResult]);
 
     // MCQ timeout → next
     useEffect(() => {
-        if (!isVideoSection && questionTimeLeft === 0 && questions.length > 0 && !loading && !submissionResult) handleNext();
-    }, [questionTimeLeft, isVideoSection, questions.length, loading, handleNext, submissionResult]);
+        if (!isVideoSection && !showVideoPrepScreen && questionTimeLeft === 0 && questions.length > 0 && !loading && !submissionResult) handleNext();
+    }, [questionTimeLeft, isVideoSection, showVideoPrepScreen, questions.length, loading, handleNext, submissionResult]);
+
+    useEffect(() => {
+        if (!isVideoSection || showVideoPrepScreen || videoCompleted || !currentVideoDeadlineAt || submissionResult) return;
+
+        const updateVideoCountdown = () => {
+            const remainingMs = Math.max(0, currentVideoDeadlineAt - Date.now());
+            setCurrentVideoTimeLeft(Math.ceil(remainingMs / 1000));
+        };
+
+        updateVideoCountdown();
+        const timer = setInterval(updateVideoCountdown, 250);
+        return () => clearInterval(timer);
+    }, [isVideoSection, showVideoPrepScreen, videoCompleted, currentVideoDeadlineAt, submissionResult]);
+
+    useEffect(() => {
+        if (!hasStartedAssessmentRef.current && !showVideoPrepScreen && !isVideoSection) return;
+
+        const handlePopState = () => {
+            window.history.pushState(null, '', window.location.href);
+        };
+
+        const handleBeforeUnload = (event) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+
+        window.history.pushState(null, '', window.location.href);
+        window.addEventListener('popstate', handlePopState);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [showVideoPrepScreen, isVideoSection]);
 
     // Snapshot Loop (Strictly for MCQ Section)
     useEffect(() => {
@@ -1445,11 +1510,13 @@ const TestEngine = () => {
 
         if (currentVideoQuestionIndex < videoQuestions.length - 1) {
             setCurrentVideoQuestionIndex(prev => prev + 1);
+            startVideoQuestion();
         } else {
             setVideoCompleted(true);
+            setCurrentVideoDeadlineAt(null);
             handleSubmitTest();
         }
-    }, [currentVideoQuestionIndex, videoQuestions.length, enqueueVideoUpload, handleSubmitTest]);
+    }, [currentVideoQuestionIndex, videoQuestions.length, enqueueVideoUpload, handleSubmitTest, startVideoQuestion]);
 
     // --- Styles ---
     const s = {
@@ -1470,8 +1537,11 @@ const TestEngine = () => {
         );
     }
 
+    const showInitialFullscreenPrompt = !isFullScreen && !hasStartedAssessmentRef.current && !submissionResult && !isSubmitting;
+    const showFullscreenOverlay = !isFullScreen && hasStartedAssessmentRef.current && !submissionResult && !isSubmitting;
+
     // Fullscreen prompt
-    if (!isFullScreen && !submissionResult && !isSubmitting) {
+    if (showInitialFullscreenPrompt) {
         return (
             <div style={s.center}>
                 <div style={s.card}>
@@ -1644,7 +1714,7 @@ const TestEngine = () => {
             )}
 
             {/* Webcam (always active during MCQ, except when submitted) */}
-            {!isVideoSection && !submissionResult && (
+            {!isVideoSection && !showVideoPrepScreen && !submissionResult && (
                 <div style={s.webcamContainer}>
                     <Webcam
                         ref={webcamRef}
@@ -1673,7 +1743,7 @@ const TestEngine = () => {
                     />
                 </div>
             )}
-            {SHOW_PROCTORING_DEBUG && !isVideoSection && !submissionResult && (
+            {SHOW_PROCTORING_DEBUG && !isVideoSection && !showVideoPrepScreen && !submissionResult && (
                 <div style={{
                     position: 'fixed',
                     bottom: 20,
@@ -1747,7 +1817,7 @@ const TestEngine = () => {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     {/* MCQ timer only — video timer is inside VideoQuestion */}
-                    {!isVideoSection && (
+                    {!isVideoSection && !showVideoPrepScreen && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 13 }}>⏱</span>
                             <span style={{
@@ -1758,13 +1828,24 @@ const TestEngine = () => {
                             </span>
                         </div>
                     )}
+                    {isVideoSection && !videoCompleted && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13 }}>â±</span>
+                            <span style={{
+                                fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
+                                color: currentVideoTimeLeft < 15 ? '#fca5a5' : '#f8fafc',
+                            }}>
+                                {Math.floor(currentVideoTimeLeft / 60)}:{String(Math.max(0, currentVideoTimeLeft % 60)).padStart(2, '0')}
+                            </span>
+                        </div>
+                    )}
 
                     <span style={{
                         fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20,
-                        background: isVideoSection ? '#f5f3ff' : '#ecfdf5',
-                        color: isVideoSection ? '#7c3aed' : '#059669',
+                        background: (isVideoSection || showVideoPrepScreen) ? '#f5f3ff' : '#ecfdf5',
+                        color: (isVideoSection || showVideoPrepScreen) ? '#7c3aed' : '#059669',
                     }}>
-                        {isVideoSection ? '🎥 Video' : '📝 MCQ'}
+                        {(isVideoSection || showVideoPrepScreen) ? 'Video' : 'MCQ'}
                     </span>
 
                     {pendingVideoUploads > 0 && (
@@ -1838,17 +1919,71 @@ const TestEngine = () => {
             )}
 
             {/* Progress bar */}
-            {!isVideoSection && questions.length > 0 && (
+            {!isVideoSection && !showVideoPrepScreen && questions.length > 0 && (
                 <div style={{ position: 'fixed', top: topContentOffset, left: 0, right: 0, height: 4, background: '#e5e7eb', zIndex: 30 }}>
                     <div style={{ height: '100%', background: '#059669', transition: 'width 0.5s ease', width: `${progressPct}%` }}></div>
                 </div>
             )}
 
+            {showFullscreenOverlay && (
+                <div style={{
+                    position: 'fixed',
+                    top: topContentOffset,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.76)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 70,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 24,
+                }}>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: 540,
+                        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                        borderRadius: 24,
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 24px 80px rgba(15,23,42,0.26)',
+                        padding: '34px 30px',
+                        textAlign: 'center',
+                    }}>
+                        <div style={{
+                            width: 76,
+                            height: 76,
+                            margin: '0 auto 18px',
+                            borderRadius: 24,
+                            background: 'linear-gradient(135deg, #ede9fe 0%, #dbeafe 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 34,
+                        }}>
+                            ⛶
+                        </div>
+                        <h2 style={{ margin: '0 0 10px', fontSize: 28, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em' }}>
+                            Return to fullscreen
+                        </h2>
+                        <p style={{ margin: '0 auto 18px', maxWidth: 420, fontSize: 15, lineHeight: 1.7, color: '#475569' }}>
+                            This assessment is still active. Re-enter fullscreen immediately to continue.
+                        </p>
+                        <button className="tp-btn" onClick={enterFullScreen} style={{ ...s.btnPrimary, width: '100%', marginBottom: 12 }}>
+                            Re-enter fullscreen
+                        </button>
+                        <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                            Leaving fullscreen may still be logged as a violation.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Main content */}
-            <main style={{ flex: 1, marginTop: topContentOffset, padding: '40px 24px', maxWidth: 800, margin: `${topContentOffset}px auto 0`, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: `calc(100vh - ${topContentOffset}px)` }}>
+            <main style={{ flex: 1, marginTop: topContentOffset, padding: '40px 24px', maxWidth: 920, margin: `${topContentOffset}px auto 0`, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: `calc(100vh - ${topContentOffset}px)` }}>
 
                 {/* MCQ Section */}
-                {!isVideoSection && questions.length > 0 && (
+                {!isVideoSection && !showVideoPrepScreen && questions.length > 0 && (
                     <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: '32px 28px' }}>
                         <TestQuestion
                             question={questions[currentQuestionIndex]}
@@ -1859,7 +1994,67 @@ const TestEngine = () => {
                         />
                         <div style={{ marginTop: 28, display: 'flex', justifyContent: 'flex-end' }}>
                             <button className="tp-btn" onClick={handleNext} style={s.btnPrimary}>
-                                {currentQuestionIndex === questions.length - 1 ? 'Proceed to Video →' : 'Next Question →'}
+                                {currentQuestionIndex === questions.length - 1 ? 'Proceed to Video' : 'Next Question'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {showVideoPrepScreen && videoQuestions.length > 0 && (
+                    <div style={{
+                        background: '#ffffff',
+                        borderRadius: 24,
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 18px 42px rgba(15,23,42,0.06)',
+                        overflow: 'hidden',
+                    }}>
+                        <div style={{
+                            padding: '32px 32px 24px',
+                            background: '#fcfdff',
+                            borderBottom: '1px solid #eef2f7',
+                        }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: 999, background: '#f1f5f9', color: '#475569', fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>
+                                Video assessment ahead
+                            </div>
+                            <h1 style={{ margin: '0 0 10px', fontSize: 30, lineHeight: 1.12, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em' }}>
+                                Prepare for the video assessment
+                            </h1>
+                            <p style={{ margin: 0, maxWidth: 680, fontSize: 15, lineHeight: 1.75, color: '#475569' }}>
+                                Your MCQ section is complete. Next, you will answer {videoQuestions.length} video question{videoQuestions.length > 1 ? 's' : ''} using your camera and microphone.
+                                Make sure your setup is fully ready before you continue.
+                            </p>
+                        </div>
+
+                        <div style={{ padding: '28px 32px' }}>
+                            <div>
+                                <h3 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                    Before you start
+                                </h3>
+                                <div style={{ display: 'grid', gap: 10 }}>
+                                    {[
+                                        ['Use earphones or a headset', 'Clearer audio makes your response easier to review and reduces echo.'],
+                                        ['Sit in a quiet environment', 'Avoid background voices, fan noise, traffic, or interruptions.'],
+                                        ['Keep your face clearly visible', 'Stay centered in the frame with your head and shoulders in view.'],
+                                        ['Use front lighting', 'Face the light source so your expressions and eye contact stay visible.'],
+                                        ['Speak clearly and answer to the point', 'Think for a second, then respond in a structured way.'],
+                                        ['Stay in fullscreen throughout', 'Keep the assessment open and uninterrupted while you answer.'],
+                                    ].map(([title, text], index) => (
+                                        <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                            <div style={{ width: 24, height: 24, borderRadius: 999, background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
+                                                {index + 1}
+                                            </div>
+                                            <div>
+                                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{title}</p>
+                                                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: '#64748b' }}>{text}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, padding: '0 32px 32px', flexWrap: 'wrap' }}>
+                            <button className="tp-btn" onClick={beginVideoAssessment} style={{ ...s.btnPrimary, minWidth: 260, boxShadow: '0 12px 24px rgba(5,150,105,0.18)' }}>
+                                Start video assessment
                             </button>
                         </div>
                     </div>
@@ -1875,6 +2070,8 @@ const TestEngine = () => {
                             totalVideoQuestions={videoQuestions.length}
                             registerSnapshotGetter={(getter) => { videoSnapshotGetterRef.current = getter; }}
                             onVideoUploaded={handleVideoComplete}
+                            timeLeft={currentVideoTimeLeft}
+                            totalTime={VIDEO_QUESTION_TIME_SECONDS}
                         />
                     </div>
                 )}
@@ -1900,13 +2097,13 @@ const TestEngine = () => {
                 )}
 
                 {/* No MCQs */}
-                {!isVideoSection && questions.length === 0 && (
+                {!isVideoSection && !showVideoPrepScreen && questions.length === 0 && (
                     <div style={{ ...s.card, margin: '0 auto' }}>
                         <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
                         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No Questions Available</h2>
                         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>No MCQ questions for the selected domains.</p>
                         {videoQuestions.length > 0 && (
-                            <button className="tp-btn" onClick={() => { setIsVideoSection(true); setCurrentVideoQuestionIndex(0); }} style={s.btnPrimary}>
+                            <button className="tp-btn" onClick={openVideoPrepScreen} style={s.btnPrimary}>
                                 Proceed to Video Questions
                             </button>
                         )}
@@ -1918,3 +2115,5 @@ const TestEngine = () => {
 };
 
 export default TestEngine;
+
+

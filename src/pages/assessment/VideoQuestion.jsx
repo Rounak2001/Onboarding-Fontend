@@ -3,18 +3,26 @@ import Webcam from 'react-webcam';
 
 const TOTAL_TIME = 90; // 1 min 30 sec
 
-export default function VideoQuestion({ question, onVideoUploaded, questionIndex, totalVideoQuestions, registerSnapshotGetter }) {
+export default function VideoQuestion({
+    question,
+    onVideoUploaded,
+    questionIndex,
+    totalVideoQuestions,
+    registerSnapshotGetter,
+    timeLeft = TOTAL_TIME,
+    totalTime = TOTAL_TIME,
+}) {
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
     const autoSubmitRef = useRef(false);
+    const timeExpiryHandledRef = useRef(false);
 
     const [recording, setRecording] = useState(false);
     const [recordedBlob, setRecordedBlob] = useState(null);
     const [preview, setPreview] = useState(null);
     const [uploaded, setUploaded] = useState(false);
     const [error, setError] = useState('');
-    const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
     const [hasStartedRecording, setHasStartedRecording] = useState(false);
 
     const stopRecording = useCallback(() => {
@@ -25,17 +33,19 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
     }, []);
 
     useEffect(() => {
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(timer);
-    }, []);
+        timeExpiryHandledRef.current = false;
+        autoSubmitRef.current = false;
+        setRecording(false);
+        setRecordedBlob(null);
+        setPreview((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return null;
+        });
+        setUploaded(false);
+        setError('');
+        setHasStartedRecording(false);
+        chunksRef.current = [];
+    }, [question?.id]);
 
     const handleQueueAndAdvance = useCallback((blob) => {
         const uploadBlob = blob || recordedBlob;
@@ -55,7 +65,8 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
     }, [recordedBlob, onVideoUploaded, question.id, question.question, question.text]);
 
     useEffect(() => {
-        if (timeLeft > 0) return;
+        if (timeLeft > 0 || timeExpiryHandledRef.current) return;
+        timeExpiryHandledRef.current = true;
 
         if (hasStartedRecording && recording) {
             autoSubmitRef.current = true;
@@ -128,7 +139,8 @@ export default function VideoQuestion({ question, onVideoUploaded, questionIndex
     }, [preview]);
 
     const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    const pct = ((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100;
+    const safeTotalTime = Math.max(1, totalTime || TOTAL_TIME);
+    const pct = ((safeTotalTime - Math.max(0, timeLeft)) / safeTotalTime) * 100;
     const isLow = timeLeft < 15;
     const recordingButtonStyle = {
         width: 'clamp(120px, 24%, 170px)',

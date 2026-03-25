@@ -110,6 +110,7 @@ const AssessmentResult = () => {
     };
 
     const handleDashboard = async () => {
+        if (!isFinalAnalysisReady) return;
         await checkAuth().catch(() => { });
         navigate('/success');
     };
@@ -162,6 +163,11 @@ const AssessmentResult = () => {
     const videoPercentage = videoTotal > 0 ? Math.round((videoScore / videoTotal) * 100) : 0;
     const retryUnlockAtText = formatRetryUnlockAt(result?.retry_available_at);
     const retryCountdownText = formatRetryCountdown(result?.retry_in_seconds);
+    const expectedVideoAnswers = Number(result?.video_expected || 0);
+    const completedVideoAnswers = Number(result?.video_completed || 0);
+    const hasMcqAnalysis = result?.score != null && result?.total != null;
+    const hasVideoAnalysis = expectedVideoAnswers <= 0 || (result?.video_score != null && result?.video_total_possible != null && completedVideoAnswers >= expectedVideoAnswers);
+    const isFinalAnalysisReady = !reviewPending && hasMcqAnalysis && hasVideoAnalysis;
 
     const accent = reviewPending
         ? { primary: '#b45309', soft: '#fff7ed', border: '#fdba74' }
@@ -210,13 +216,6 @@ const AssessmentResult = () => {
                     {reviewPending ? (
                         <>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', position: 'relative' }}>
-                                <div style={{ position: 'relative', width: 88, height: 88, marginBottom: 22 }}>
-                                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: accent.soft, border: `1px solid ${accent.border}`, animation: 'pulseRing 2.4s ease-out infinite' }} />
-                                    <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', background: '#fff', border: `1px solid ${accent.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>
-                                        🎥
-                                    </div>
-                                </div>
-
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, letterSpacing: 0.4, color: accent.primary, background: accent.soft, border: `1px solid ${accent.border}`, padding: '8px 14px', borderRadius: 999, marginBottom: 16 }}>
                                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: accent.primary }} />
                                     REVIEW IN PROGRESS
@@ -284,14 +283,16 @@ const AssessmentResult = () => {
                                 <button
                                     className="tp-btn"
                                     onClick={handleDashboard}
+                                    disabled={!isFinalAnalysisReady}
                                     style={{
                                         padding: '12px 22px',
                                         borderRadius: 10,
                                         border: '1px solid #d1d5db',
                                         background: '#fff',
-                                        color: '#374151',
+                                        color: !isFinalAnalysisReady ? '#94a3b8' : '#374151',
                                         fontWeight: 600,
-                                        cursor: 'pointer',
+                                        cursor: !isFinalAnalysisReady ? 'not-allowed' : 'pointer',
+                                        opacity: !isFinalAnalysisReady ? 0.7 : 1,
                                     }}
                                 >
                                     Return to Dashboard
@@ -301,10 +302,6 @@ const AssessmentResult = () => {
                     ) : (
                         <>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                                <div style={{ width: 82, height: 82, borderRadius: '50%', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: accent.soft, border: `1px solid ${accent.border}`, fontSize: 34 }}>
-                                    {passed ? '✅' : disqualified ? '🚫' : '↺'}
-                                </div>
-
                                 <h1 style={{ fontSize: 30, fontWeight: 800, color: passed ? '#15803d' : disqualified ? '#b91c1c' : '#b45309', margin: 0 }}>
                                     {passed ? 'Assessment cleared' : disqualified ? 'Assessment disqualified' : retryLocked ? 'Retry unlock scheduled' : 'Assessment not cleared'}
                                 </h1>
