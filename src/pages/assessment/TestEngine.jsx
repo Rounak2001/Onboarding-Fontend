@@ -1816,10 +1816,10 @@ const TestEngine = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    {/* MCQ timer only — video timer is inside VideoQuestion */}
+                    {/* MCQ timer only - video timer is inside VideoQuestion */}
                     {!isVideoSection && !showVideoPrepScreen && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13 }}>⏱</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Time</span>
                             <span style={{
                                 fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
                                 color: questionTimeLeft < 10 ? '#f87171' : '#f8fafc',
@@ -1830,7 +1830,7 @@ const TestEngine = () => {
                     )}
                     {isVideoSection && !videoCompleted && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13 }}>â±</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Time</span>
                             <span style={{
                                 fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
                                 color: currentVideoTimeLeft < 15 ? '#fca5a5' : '#f8fafc',
@@ -1883,8 +1883,7 @@ const TestEngine = () => {
                     {serverViolationCount > 0 && (
                         <div style={{ display: 'flex', gap: 6 }}>
                             {serverViolationCount > 0 && (
-                                <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>
-                                    ⚠ Violations: {serverViolationCount}
+                                <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>Violations: {serverViolationCount}
                                 </span>
                             )}
                             {Object.entries(serverViolationCounters)
@@ -2115,5 +2114,6 @@ const TestEngine = () => {
 };
 
 export default TestEngine;
+
 
 
