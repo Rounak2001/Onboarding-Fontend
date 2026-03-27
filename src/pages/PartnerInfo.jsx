@@ -1,256 +1,287 @@
 import { useNavigate } from 'react-router-dom';
-import taxplanAdvisorLogo from '../assets/TAXPLAN.png';
 
 const PartnerInfo = () => {
     const navigate = useNavigate();
-
-    const card = {
-        background: '#fff',
-        border: '1px solid rgba(148,163,184,0.22)',
-        borderRadius: 18,
-        padding: 24,
-        boxShadow: '0 10px 24px rgba(15,23,42,0.06)',
-        backdropFilter: 'blur(6px)',
+    const CONTENT_WIDTH = 1000;
+    const CONTENT_INSET = 28;
+    const brand = {
+        mirage: '#081828',
+        mint: '#28C088',
+        ocean: '#A0C8F0',
+        platinum: '#E0E8E8',
     };
-    const softCard = {
-        ...card,
-        background: 'rgba(255,255,255,0.92)',
-    };
-
-    const pill = (text) => (
-        <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '6px 12px',
-            borderRadius: 999,
-            fontSize: 12,
-            fontWeight: 700,
-            background: 'rgba(16,185,129,0.10)',
-            color: '#065f46',
-            border: '1px solid rgba(16,185,129,0.22)',
-        }}>
-            {text}
-        </span>
-    );
 
     const sectionTitle = (title) => (
-        <h2 style={{ fontSize: 14, fontWeight: 900, color: '#111827', margin: '0 0 10px' }}>
+        <h2
+            style={{
+                margin: 0,
+                fontSize: 28,
+                fontWeight: 800,
+                lineHeight: 1.2,
+                color: brand.mirage,
+                letterSpacing: '-0.01em',
+            }}
+        >
             {title}
         </h2>
     );
 
-    const bullet = (text) => (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
-            <span style={{ color: '#059669', fontWeight: 900, marginTop: 1 }}>✓</span>
-            <span>{text}</span>
-        </div>
+    const stepBlock = (stepNo, heading, body) => (
+        <article
+            style={{
+                display: 'grid',
+                gridTemplateColumns: '68px 1fr',
+                gap: 16,
+                alignItems: 'start',
+                width: '100%',
+            }}
+        >
+            <p
+                aria-hidden="true"
+                style={{
+                    margin: 0,
+                    fontSize: 44,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    color: 'rgba(8, 24, 40, 0.14)',
+                    letterSpacing: '-0.03em',
+                }}
+            >
+                {stepNo}
+            </p>
+            <div>
+                <h3
+                    style={{
+                        margin: '0 0 8px',
+                        fontSize: 20,
+                        fontWeight: 700,
+                        lineHeight: 1.3,
+                        color: brand.mirage,
+                    }}
+                >
+                    {heading}
+                </h3>
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: 14,
+                        lineHeight: 1.62,
+                        color: '#475569',
+                        textAlign: 'justify',
+                        textAlignLast: 'left',
+                        textJustify: 'inter-word',
+                        hyphens: 'auto',
+                        WebkitHyphens: 'auto',
+                        MozHyphens: 'auto',
+                        overflowWrap: 'break-word',
+                    }}
+                >
+                    {body}
+                </p>
+            </div>
+        </article>
     );
 
     return (
-        <div className="tp-page" style={{
-            minHeight: '100vh',
-            background: 'radial-gradient(1200px 600px at 20% 0%, rgba(16,185,129,0.18) 0%, rgba(248,250,252,1) 55%), radial-gradient(900px 420px at 90% 10%, rgba(59,130,246,0.10) 0%, rgba(248,250,252,0) 60%), #f8fafc',
-            fontFamily: "'Inter', system-ui, sans-serif",
-        }}>
-            <header style={{
-                background: '#0C141D',
-                borderBottom: '1px solid rgba(148,163,184,0.22)',
-                position: 'sticky',
-                top: 0,
-                zIndex: 30,
-                backdropFilter: 'blur(10px)',
-            }}>
-                <div style={{
-                    maxWidth: 1020,
-                    margin: '0 auto',
-                    padding: '0 24px',
-                    minHeight: 72,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <img
-                            src={taxplanAdvisorLogo}
-                            alt="Taxplan Advisor"
-                            style={{
-                                height: 46,
-                                width: 'auto',
-                                display: 'block',
-                                objectFit: 'contain',
-                            }}
-                        />
-                    </div>
-
-                    <div />
+        <div
+            className="tp-page"
+            style={{
+                minHeight: '100vh',
+                background: '#ffffff',
+                fontFamily: "'Be Vietnam Pro', 'Inter', system-ui, -apple-system, sans-serif",
+            }}
+        >
+            <header
+                style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 20,
+                    background: 'rgba(255, 255, 255, 0.96)',
+                    borderBottom: `1px solid ${brand.platinum}`,
+                    backdropFilter: 'blur(10px)',
+                }}
+            >
+                <div
+                    style={{
+                        width: '100%',
+                        minHeight: 64,
+                        padding: '0 0 0 32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                    }}
+                >
+                    <img
+                        src="/Col_Log_1.png"
+                        alt="Taxplan Advisor"
+                        style={{
+                            height: 40,
+                            width: 'auto',
+                            objectFit: 'contain',
+                            display: 'block',
+                        }}
+                    />
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1020, margin: '0 auto', padding: '34px 24px 64px' }}>
-                <div style={{ marginBottom: 18, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    {pill('Fast onboarding')}
-                    {pill('Verified consultants')}
-                    {pill('Assessment-based eligibility')}
-                </div>
-
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1.25fr 0.75fr',
-                    gap: 16,
-                    alignItems: 'start',
-                }}>
-                    <div style={{ ...softCard, position: 'relative', overflow: 'hidden' }}>
-                        <div style={{
-                            position: 'absolute',
-                            inset: -2,
-                            background: 'radial-gradient(400px 180px at 15% 0%, rgba(16,185,129,0.20) 0%, rgba(255,255,255,0) 60%)',
-                            pointerEvents: 'none',
-                        }} />
-                        <h1 style={{ fontSize: 28, fontWeight: 950, color: '#111827', margin: '0 0 10px', lineHeight: 1.15 }}>
-                            Become a Taxplan Advisor partner consultant
+            <main
+                style={{
+                    maxWidth: CONTENT_WIDTH,
+                    margin: '0 auto',
+                    padding: '38px 0 48px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 34,
+                }}
+            >
+                <section
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 30,
+                        maxWidth: CONTENT_WIDTH,
+                        margin: '0 auto',
+                        width: '100%',
+                        padding: `0 ${CONTENT_INSET}px`,
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <section
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 16,
+                            paddingTop: 4,
+                        }}
+                    >
+                        <h1
+                            style={{
+                                margin: 0,
+                                fontSize: 'clamp(1.95rem, 3.2vw, 2.8rem)',
+                                lineHeight: 1.12,
+                                fontWeight: 800,
+                                letterSpacing: '-0.02em',
+                                color: brand.mirage,
+                                width: '100%',
+                            }}
+                        >
+                            Become a Taxplan Advisor Partner
                         </h1>
-                        <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.7 }}>
-                            This portal is for CAs/consultants who want to work with Taxplan Advisor. We use a short verification + assessment flow to
-                            ensure quality and protect clients.
+
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: 16,
+                                lineHeight: 1.65,
+                                color: '#475569',
+                                maxWidth: '100%',
+                                textAlign: 'justify',
+                                textAlignLast: 'left',
+                                textJustify: 'inter-word',
+                                hyphens: 'auto',
+                                WebkitHyphens: 'auto',
+                                MozHyphens: 'auto',
+                                overflowWrap: 'break-word',
+                            }}
+                        >
+                            This portal is for qualified tax and financial professionals seeking to partner with
+                            Taxplan Advisor. Our onboarding process is designed to uphold high standards and ensure
+                            lasting client trust.
                         </p>
 
-                        <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                            <button
-                                className="tp-btn"
-                                onClick={() => window.scrollTo({ top: 1000, behavior: 'smooth' })}
-                                style={{
-                                    padding: '12px 16px',
-                                    borderRadius: 12,
-                                    fontWeight: 800,
-                                    fontSize: 14,
-                                    border: '1px solid #d1d5db',
-                                    background: '#fff',
-                                    color: '#111827',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                How it works
-                            </button>
-                        </div>
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: '#64748b',
+                                letterSpacing: '0.01em',
+                                width: '100%',
+                            }}
+                        >
+                            ~30 mins to complete &bull; Secure verification &bull; Portal access after approval
+                        </p>
+                    </section>
 
-                        <div style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                fontSize: 12, fontWeight: 700, color: '#0f172a',
-                                background: 'rgba(15,23,42,0.03)', border: '1px solid rgba(15,23,42,0.08)',
-                                borderRadius: 999, padding: '6px 10px',
-                            }}>
-                                <span>⏱</span><span>~30 mins to complete</span>
-                            </div>
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                fontSize: 12, fontWeight: 700, color: '#0f172a',
-                                background: 'rgba(15,23,42,0.03)', border: '1px solid rgba(15,23,42,0.08)',
-                                borderRadius: 999, padding: '6px 10px',
-                            }}>
-                                <span>🔒</span><span>Secure verification</span>
-                            </div>
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                fontSize: 12, fontWeight: 700, color: '#0f172a',
-                                background: 'rgba(15,23,42,0.03)', border: '1px solid rgba(15,23,42,0.08)',
-                                borderRadius: 999, padding: '6px 10px',
-                            }}>
-                                <span>💼</span><span>Portal access after approval</span>
-                            </div>
-                        </div>
-                    </div>
+                    <section style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        {sectionTitle('How onboarding works')}
 
-                    <div style={{
-                        ...softCard,
-                        background: 'linear-gradient(180deg, rgba(16,185,129,0.10) 0%, rgba(255,255,255,0.92) 60%)',
-                        borderColor: 'rgba(16,185,129,0.22)',
-                    }}>
-                        {sectionTitle('What you get')}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {bullet('Access to the consultant portal after approval.')}
-                            {bullet('Clear onboarding steps (profile → ID → face → assessment → documents).')}
-                            {bullet('Credentials issued after verification + assessment + review.')}
-                        </div>
-                    </div>
-                </div>
+                        {stepBlock(
+                            '01',
+                            'Identity & Eligibility',
+                            'Valid government ID, live face verification, and degree documents are required to validate profile authenticity before assessment.'
+                        )}
 
-                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                    <div style={softCard}>
-                        {sectionTitle('Eligibility & requirements')}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {bullet('Valid government ID (for identity verification).')}
-                            {bullet('Live face verification via webcam.')}
-                            {bullet('Degree documents (Bachelor’s required; other docs optional).')}
-                            {bullet('Desktop/laptop recommended for assessment.')}
-                        </div>
-                    </div>
-                    <div style={softCard}>
-                        {sectionTitle('Assessment overview')}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {bullet('50 MCQ questions (domains split across your selection).')}
-                            {bullet('Video questions with camera + microphone.')}
-                            {bullet('Standard proctoring during assessment to ensure fairness.')}
-                        </div>
-                    </div>
-                </div>
+                        {stepBlock(
+                            '02',
+                            'The Assessment',
+                            'You complete 50 MCQ questions, video responses, and standard proctoring checks to confirm baseline readiness for client facing work.'
+                        )}
 
-                <div style={{ marginTop: 16, ...softCard }}>
-                    {sectionTitle('How approval works')}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {bullet('Complete identity + face verification and upload required documents.')}
-                            {bullet('Pass the assessment and follow proctoring policy.')}
-                            {bullet('We review the application for final activation.')}
-                        </div>
-                        <div style={{
-                            background: '#fff7ed',
-                            border: '1px solid rgba(253,186,116,0.65)',
-                            borderRadius: 12,
-                            padding: 14,
-                            color: '#9a3412',
-                            fontSize: 13,
-                            lineHeight: 1.6,
-                            fontWeight: 600,
-                        }}>
-                            Approval is not automatic employment. Passing the assessment makes you eligible for activation subject to verification and review.
-                        </div>
-                    </div>
-                </div>
+                        {stepBlock(
+                            '03',
+                            'Review & Access',
+                            'After successful submission and review, approved consultants receive immediate portal credential access.'
+                        )}
+                    </section>
+                </section>
 
-                <div style={{ marginTop: 16, ...softCard }}>
-                    {sectionTitle('Privacy & consent')}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {bullet('You will be asked to use camera/microphone for identity, face verification, and the assessment.')}
-                        {bullet('By continuing, you consent to verification/proctoring required to protect clients and maintain assessment integrity.')}
-                    </div>
-                </div>
+                <section
+                    style={{
+                        textAlign: 'justify',
+                        textAlignLast: 'left',
+                        textJustify: 'inter-word',
+                        color: '#64748b',
+                        fontSize: 12.5,
+                        lineHeight: 1.75,
+                        maxWidth: CONTENT_WIDTH,
+                        margin: '0 auto',
+                        width: '100%',
+                        padding: `0 ${CONTENT_INSET}px`,
+                        boxSizing: 'border-box',
+                        hyphens: 'auto',
+                        WebkitHyphens: 'auto',
+                        MozHyphens: 'auto',
+                        overflowWrap: 'break-word',
+                    }}
+                >
+                    Approval is not automatic employment. Passing the assessment makes you eligible for activation
+                    subject to verification and review. By continuing, you consent to camera and microphone usage for
+                    identity verification and assessment integrity. By continuing, you agree to the portal terms and
+                    privacy policy.
+                </section>
 
-                <div style={{ marginTop: 18, display: 'flex', justifyContent: 'center' }}>
+                <section
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        width: '100%',
+                        maxWidth: CONTENT_WIDTH,
+                        margin: '0 auto',
+                        padding: `0 ${CONTENT_INSET}px`,
+                        boxSizing: 'border-box',
+                    }}
+                >
                     <button
                         className="tp-btn"
                         onClick={() => navigate('/login')}
                         style={{
-                            padding: '14px 18px',
+                            minWidth: 320,
+                            padding: '15px 30px',
                             borderRadius: 14,
-                            fontWeight: 950,
-                            fontSize: 14,
                             border: 'none',
-                            background: '#059669',
-                            color: '#fff',
+                            background: brand.mint,
+                            color: '#ffffff',
                             cursor: 'pointer',
-                            minWidth: 240,
+                            fontSize: 15,
+                            fontWeight: 800,
+                            letterSpacing: '0.01em',
+                            boxShadow: '0 10px 24px rgba(40, 192, 136, 0.28)',
                         }}
                     >
-                        Continue to sign in <span className="tp-btn-icon">→</span>
+                        Start Application <span className="tp-btn-icon">-&gt;</span>
                     </button>
-                </div>
-
-                <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: 12, marginTop: 18, lineHeight: 1.6 }}>
-                    By continuing, you agree to the portal terms and privacy policy.
-                </p>
-            </div>
+                </section>
+            </main>
         </div>
     );
 };
