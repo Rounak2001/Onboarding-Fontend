@@ -52,9 +52,35 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
         () => normalizeAssessmentDomainLabel(question?.domain),
         [question?.domain]
     );
+    const categoryLabel = useMemo(() => {
+        const raw = String(question?.category || '').trim();
+        return raw || domainLabel;
+    }, [question?.category, domainLabel]);
 
     return (
-        <div>
+        <div style={{ position: 'relative' }}>
+            {categoryLabel && (
+                <span
+                    style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: 0,
+                        zIndex: 1,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                        color: '#0f766e',
+                        background: '#ecfeff',
+                        border: '1px solid #99f6e4',
+                        borderRadius: 999,
+                        padding: '6px 10px',
+                        textTransform: 'uppercase',
+                        lineHeight: 1,
+                    }}
+                >
+                    {categoryLabel}
+                </span>
+            )}
             {/* Question header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
                 <span style={{
@@ -63,14 +89,6 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
                 }}>
                     Q{questionIndex + 1} / {totalQuestions}
                 </span>
-                {domainLabel && (
-                    <span style={{
-                        fontSize: 12, fontWeight: 600, color: '#6366f1', background: '#eef2ff',
-                        padding: '5px 14px', borderRadius: 20,
-                    }}>
-                        {domainLabel}
-                    </span>
-                )}
             </div>
 
             {/* Question text */}
