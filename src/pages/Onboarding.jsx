@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { completeOnboarding, sendOnboardingPhoneOtp, uploadOnboardingDocument, verifyOnboardingPhoneOtp } from '../services/api';
 import FileDropzone from '../components/FileDropzone';
 import BrandLogo from '../components/BrandLogo';
+import PhoneOtpVerificationModal from '../../../shared/PhoneOtpVerificationModal';
 
 const Onboarding = () => {
     const navigate = useNavigate();
@@ -53,7 +53,6 @@ const Onboarding = () => {
     const [devOtp, setDevOtp] = useState('');
     const [otpPhoneDisplay, setOtpPhoneDisplay] = useState('');
     const [otpModalOpen, setOtpModalOpen] = useState(false);
-    const otpBoxRefs = useRef([]);
 
     const [pinLookup, setPinLookup] = useState({ loading: false, error: '', autofilled: false, pin: '' });
     const pinCacheRef = useRef(new Map());
@@ -90,26 +89,6 @@ const Onboarding = () => {
         const id = setTimeout(() => setOtpMessage(''), 4500);
         return () => clearTimeout(id);
     }, [otpMessage]);
-
-    useEffect(() => {
-        if (!otpModalOpen) return;
-        const prevOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        const onKeyDown = (e) => {
-            if (e.key === 'Escape') setOtpModalOpen(false);
-        };
-        window.addEventListener('keydown', onKeyDown);
-        const focusId = setTimeout(() => {
-            const idx = otpDigits.findIndex((d) => !d);
-            const target = otpBoxRefs.current[idx === -1 ? 0 : idx];
-            target?.focus?.();
-        }, 50);
-        return () => {
-            document.body.style.overflow = prevOverflow;
-            window.removeEventListener('keydown', onKeyDown);
-            clearTimeout(focusId);
-        };
-    }, [otpModalOpen, otpDigits]);
 
     const calculateAge = (dob) => {
         if (!dob) return '';
@@ -698,213 +677,32 @@ const Onboarding = () => {
                 </div>
             </div>
 
-            {/* OTP Modal (glassmorphism) */}
-            {otpModalOpen && !isPhoneVerified && createPortal((
-                <div
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="Verify OTP"
-                    onMouseDown={(e) => {
-                        if (e.target === e.currentTarget) setOtpModalOpen(false);
-                    }}
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 80,
-                        display: 'grid',
-                        placeItems: 'center',
-                        padding: 16,
-                        overflowY: 'auto',
-                        background: 'rgba(15, 23, 42, 0.35)',
-                        margin: 0,
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 'min(520px, 100%)',
-                            margin: 'auto',
-                            maxHeight: 'calc(100vh - 32px)',
-                            borderRadius: 16,
-                            border: '1px solid rgba(255,255,255,0.22)',
-                            background: 'rgba(255, 255, 255, 0.18)',
-                            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.25)',
-                            backdropFilter: 'blur(14px)',
-                            WebkitBackdropFilter: 'blur(14px)',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.14)' }}>
-                            <div style={{ width: 34, height: 34, borderRadius: 12, background: 'rgba(5,150,105,0.18)', border: '1px solid rgba(5,150,105,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#065f46', fontWeight: 900 }}>
-                                ✓
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Verify OTP</div>
-                                <div style={{ fontSize: 12, color: 'rgba(15,23,42,0.70)' }}>
-                                    {otpPhoneDisplay ? `Sent to ${otpPhoneDisplay}` : 'Sent to your WhatsApp number'}
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                className="tp-btn"
-                                onClick={() => setOtpModalOpen(false)}
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    borderRadius: 12,
-                                    border: '1px solid rgba(15,23,42,0.12)',
-                                    background: 'rgba(255,255,255,0.55)',
-                                    color: '#0f172a',
-                                    cursor: 'pointer',
-                                    fontWeight: 900,
-                                }}
-                                aria-label="Close"
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        <div style={{ padding: 16 }} aria-live="polite">
-                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                                <div
-                                    onPaste={(e) => {
-                                        const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
-                                        if (!text) return;
-                                        e.preventDefault();
-                                        const next = ['', '', '', '', '', ''];
-                                        for (let i = 0; i < text.length; i++) next[i] = text[i];
-                                        setOtpDigits(next);
-                                        setOtpError('');
-                                        setOtpMessage('');
-                                        const focusIndex = Math.min(text.length, 5);
-                                        setTimeout(() => otpBoxRefs.current[focusIndex]?.focus?.(), 0);
-                                    }}
-                                    style={{ display: 'flex', gap: 8, alignItems: 'center' }}
-                                >
-                                    {otpDigits.map((d, idx) => (
-                                        <input
-                                            key={idx}
-                                            ref={(el) => { otpBoxRefs.current[idx] = el; }}
-                                            value={d}
-                                            inputMode="numeric"
-                                            autoComplete="one-time-code"
-                                            aria-label={`OTP digit ${idx + 1}`}
-                                            onChange={(e) => {
-                                                const v = String(e.target.value || '').replace(/\D/g, '').slice(-1);
-                                                const next = [...otpDigits];
-                                                next[idx] = v;
-                                                setOtpDigits(next);
-                                                setOtpError('');
-                                                setOtpMessage('');
-                                                if (v && idx < 5) otpBoxRefs.current[idx + 1]?.focus?.();
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    if (otpComplete && !otpVerifying) handleVerifyOtp();
-                                                    return;
-                                                }
-                                                if (e.key === 'Backspace') {
-                                                    e.preventDefault();
-                                                    const next = [...otpDigits];
-                                                    if (next[idx]) {
-                                                        next[idx] = '';
-                                                        setOtpDigits(next);
-                                                        return;
-                                                    }
-                                                    if (idx > 0) {
-                                                        next[idx - 1] = '';
-                                                        setOtpDigits(next);
-                                                        otpBoxRefs.current[idx - 1]?.focus?.();
-                                                    }
-                                                    return;
-                                                }
-                                                if (e.key === 'ArrowLeft' && idx > 0) {
-                                                    e.preventDefault();
-                                                    otpBoxRefs.current[idx - 1]?.focus?.();
-                                                }
-                                                if (e.key === 'ArrowRight' && idx < 5) {
-                                                    e.preventDefault();
-                                                    otpBoxRefs.current[idx + 1]?.focus?.();
-                                                }
-                                            }}
-                                            style={{
-                                                width: 42,
-                                                height: 44,
-                                                borderRadius: 12,
-                                                fontSize: 16,
-                                                fontWeight: 800,
-                                                border: otpError ? '1px solid rgba(239, 68, 68, 0.55)' : '1px solid rgba(15,23,42,0.16)',
-                                                background: 'rgba(255,255,255,0.60)',
-                                                outline: 'none',
-                                                textAlign: 'center',
-                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                                <button
-                                    type="button"
-                                    className="tp-btn"
-                                    onClick={handleVerifyOtp}
-                                    disabled={!otpComplete || otpVerifying || !currentPhoneE164}
-                                    style={{
-                                        padding: '11px 14px',
-                                        borderRadius: 12,
-                                        border: '1px solid rgba(5,150,105,0.65)',
-                                        background: otpVerifying ? 'rgba(209, 250, 229, 0.9)' : 'rgba(5,150,105,0.92)',
-                                        color: otpVerifying ? '#065f46' : '#fff',
-                                        fontSize: 13,
-                                        fontWeight: 900,
-                                        cursor: (!otpComplete || otpVerifying || !currentPhoneE164) ? 'not-allowed' : 'pointer',
-                                    }}
-                                >
-                                    {otpVerifying ? 'Verifying…' : 'Verify'}
-                                </button>
-
-                                <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.2 }}>
-                                    {resendCooldown > 0 ? (
-                                        <span style={{ fontSize: 12, color: 'rgba(15,23,42,0.70)' }}>
-                                            Resend in {resendCooldown}s
-                                        </span>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={handleSendOtp}
-                                            disabled={!currentPhoneE164 || otpSending}
-                                            style={{
-                                                background: 'transparent',
-                                                border: 'none',
-                                                padding: 0,
-                                                fontSize: 12,
-                                                fontWeight: 800,
-                                                color: '#0f172a',
-                                                cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
-                                                textDecoration: 'underline',
-                                            }}
-                                        >
-                                            {otpSending ? 'Sending…' : 'Resend OTP'}
-                                        </button>
-                                    )}
-                                    <span style={{ fontSize: 11, color: 'rgba(15,23,42,0.55)' }}>WhatsApp OTP</span>
-                                </div>
-                            </div>
-
-                            {otpError && <div style={{ marginTop: 10, fontSize: 12, color: '#b91c1c' }}>{otpError}</div>}
-                            {otpMessage && !otpError && <div style={{ marginTop: 10, fontSize: 12, color: '#065f46' }}>{otpMessage}</div>}
-                            {import.meta.env.DEV && devOtp && (
-                                <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(15,23,42,0.65)' }}>
-                                    DEV OTP: <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{devOtp}</span>
-                                </div>
-                            )}
-
-                            <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(15,23,42,0.60)' }}>
-                                Tip: If you didn’t receive it, check WhatsApp message requests/spam.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ), document.body)}
+            <PhoneOtpVerificationModal
+                open={otpModalOpen && !isPhoneVerified}
+                onClose={() => setOtpModalOpen(false)}
+                otpDigits={otpDigits}
+                onOtpDigitsChange={(next) => {
+                    setOtpDigits(next);
+                    setOtpError('');
+                    setOtpMessage('');
+                }}
+                otpComplete={otpComplete}
+                otpVerifying={otpVerifying}
+                otpSending={otpSending}
+                resendCooldown={resendCooldown}
+                otpError={otpError}
+                otpMessage={otpMessage}
+                devOtp={import.meta.env.DEV ? devOtp : ''}
+                phoneDisplay={otpPhoneDisplay}
+                onVerify={handleVerifyOtp}
+                onResend={handleSendOtp}
+                resendDisabled={!currentPhoneE164}
+                verificationEnabled={Boolean(currentPhoneE164)}
+                title="Verify OTP"
+            />
         </>
     );
 };
 
 export default Onboarding;
+
