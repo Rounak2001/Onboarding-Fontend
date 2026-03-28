@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Webcam from 'react-webcam';
+import { normalizeAssessmentDomainLabel } from './domainLabels';
 
 const TOTAL_TIME = 90; // 1 min 30 sec
 
@@ -24,6 +25,12 @@ export default function VideoQuestion({
     const [uploaded, setUploaded] = useState(false);
     const [error, setError] = useState('');
     const [hasStartedRecording, setHasStartedRecording] = useState(false);
+    const categoryLabel = useMemo(() => {
+        const raw = String(question?.category || '').trim();
+        if (raw) return raw;
+        if (question?.type === 'introduction') return 'Introduction';
+        return normalizeAssessmentDomainLabel(question?.domain);
+    }, [question?.category, question?.domain, question?.type]);
 
     const stopRecording = useCallback(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -159,7 +166,29 @@ export default function VideoQuestion({
     };
 
     return (
-        <div>
+        <div style={{ position: 'relative' }}>
+            {categoryLabel && (
+                <span
+                    style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: 0,
+                        zIndex: 1,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                        color: '#0f766e',
+                        background: '#ecfeff',
+                        border: '1px solid #99f6e4',
+                        borderRadius: 999,
+                        padding: '6px 10px',
+                        textTransform: 'uppercase',
+                        lineHeight: 1,
+                    }}
+                >
+                    {categoryLabel}
+                </span>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '5px 14px', borderRadius: 20 }}>
