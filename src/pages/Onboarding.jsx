@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { completeOnboarding, sendOnboardingPhoneOtp, uploadOnboardingDocument, verifyOnboardingPhoneOtp } from '../services/api';
 import FileDropzone from '../components/FileDropzone';
 import BrandLogo from '../components/BrandLogo';
-import PhoneOtpVerificationModal from '../../../shared/PhoneOtpVerificationModal';
+import PhoneOtpVerificationModal from '../components/PhoneOtpVerificationModal';
 
 const Onboarding = () => {
     const navigate = useNavigate();
