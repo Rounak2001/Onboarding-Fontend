@@ -11,6 +11,7 @@ const ConsultantDetail = () => {
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [restoringSessionId, setRestoringSessionId] = useState(null);
     const [credentialsPopup, setCredentialsPopup] = useState(null);
     const [error, setError] = useState('');
     const [openSections, setOpenSections] = useState({
@@ -89,6 +90,40 @@ const ConsultantDetail = () => {
             alert('Failed to connect to server');
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const handleRestoreAssessment = async (sessionId) => {
+        if (!window.confirm('Restore this flagged session and reset violation count to 0?')) return;
+        setRestoringSessionId(sessionId);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/restore-assessment/`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ session_id: sessionId }),
+            });
+            const payload = await readResponsePayload(res);
+
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                navigate(adminUrl());
+                return;
+            }
+
+            if (!res.ok) {
+                alert(`Error: ${payload.error || 'Failed to restore assessment session'}`);
+                return;
+            }
+
+            alert(payload.message || 'Assessment session restored successfully.');
+            fetchDetail();
+        } catch {
+            alert('Failed to connect to server');
+        } finally {
+            setRestoringSessionId(null);
         }
     };
 
@@ -481,6 +516,25 @@ const ConsultantDetail = () => {
                                                 </span>
                                             );
                                         })()}
+                                        {s.status === 'flagged' && (
+                                            <button
+                                                onClick={() => handleRestoreAssessment(s.id)}
+                                                disabled={restoringSessionId === s.id}
+                                                style={{
+                                                    marginLeft: 'auto',
+                                                    padding: '6px 12px',
+                                                    borderRadius: 8,
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    background: restoringSessionId === s.id ? 'rgba(148,163,184,0.2)' : 'rgba(59,130,246,0.16)',
+                                                    color: restoringSessionId === s.id ? '#94a3b8' : '#93c5fd',
+                                                    border: '1px solid rgba(59,130,246,0.35)',
+                                                    cursor: restoringSessionId === s.id ? 'not-allowed' : 'pointer',
+                                                }}
+                                            >
+                                                {restoringSessionId === s.id ? 'Restoring...' : 'Restore Attempt'}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Score cards */}
