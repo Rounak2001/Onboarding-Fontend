@@ -41,22 +41,55 @@ const ConsultantDetail = () => {
         finally { setLoading(false); }
     };
 
+    const generateCredentialsRequest = async (forcePhoneReassign = false) => {
+        const body = forcePhoneReassign ? { force_phone_reassign: true } : {};
+        return fetch(apiUrl(`/admin-panel/consultants/${id}/generate-credentials/`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
+        });
+    };
+
     const handleGenerateCredentials = async () => {
         if (!window.confirm("Are you sure you want to generate and email credentials to this consultant?")) return;
         setGenerating(true);
         try {
-            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/generate-credentials/`), {
-                method: 'POST',
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-            });
-            const d = await res.json();
+            let res = await generateCredentialsRequest(false);
+            let d = await readResponsePayload(res);
+
+            if (!res.ok) {
+                const errorMessage = d?.error || 'Failed to generate credentials';
+                const isClientPhoneConflict =
+                    typeof errorMessage === 'string' &&
+                    errorMessage.includes('phone number') &&
+                    errorMessage.includes('(CLIENT)');
+
+                if (isClientPhoneConflict) {
+                    const forceProceed = window.confirm(
+                        `${errorMessage}\n\n` +
+                        'To continue, we can reassign this phone number from the existing CLIENT account to this consultant account. Continue?'
+                    );
+
+                    if (forceProceed) {
+                        res = await generateCredentialsRequest(true);
+                        d = await readResponsePayload(res);
+                    } else {
+                        alert(`Error: ${errorMessage}`);
+                        return;
+                    }
+                }
+            }
+
             if (res.ok) {
                 setCredentialsPopup({ username: d.username, password: d.password, message: d.message });
                 fetchDetail();
             } else {
-                alert(`Error: ${d.error}`);
+                alert(`Error: ${d?.error || 'Failed to generate credentials'}`);
             }
-        } catch (err) {
+        } catch (_err) {
             alert('Failed to connect to server');
         } finally {
             setGenerating(false);
