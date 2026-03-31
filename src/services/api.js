@@ -194,6 +194,21 @@ export const saveMcqProgress = async (sessionId, data) => {
     return response.data;
 };
 
+export const pingAssessment = async (sessionId, data) => {
+    const response = await api.post(`/assessment/sessions/${sessionId}/ping/`, data);
+    return response.data;
+};
+
+export const submitMcq = async (sessionId, data) => {
+    const response = await api.post(`/assessment/sessions/${sessionId}/submit_mcq/`, data);
+    return response.data;
+};
+
+export const getSession = async (sessionId) => {
+    const response = await api.get(`/assessment/sessions/${sessionId}/`);
+    return response.data;
+};
+
 export const submitTest = async (sessionId, data) => {
     const response = await api.post(`/assessment/sessions/${sessionId}/submit_test/`, data);
     return response.data;
@@ -205,13 +220,16 @@ export const getVideoUploadUrl = async (sessionId, data) => {
 };
 
 // Direct multipart video upload
-export const submitVideo = async (sessionId, questionId, blob, questionText = '') => {
+export const submitVideo = async (sessionId, questionId, blob, questionText = '', durationSeconds = null) => {
     const formData = new FormData();
     const fileName = `video_${questionId}.webm`;
     formData.append('video', blob, fileName);
     formData.append('question_id', String(questionId ?? ''));
     if (questionText) {
         formData.append('question_text', questionText);
+    }
+    if (Number.isFinite(durationSeconds) && durationSeconds >= 0) {
+        formData.append('duration_seconds', String(durationSeconds));
     }
     const response = await api.post(`/assessment/sessions/${sessionId}/submit_video/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },

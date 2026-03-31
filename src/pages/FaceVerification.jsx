@@ -92,7 +92,7 @@ const FaceVerification = () => {
 
             <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 32px 60px' }}>
                 <div style={{ marginBottom: 28 }}>
-                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 3 of 5</span>
+                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 3 of 6</span>
                     <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Face Verification</h1>
                     <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Now take a live photo using your webcam to verify your identity against the ID you uploaded.</p>
                 </div>

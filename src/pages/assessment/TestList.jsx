@@ -255,6 +255,25 @@ const TestList = () => {
         }));
     };
 
+    const handleSelectAllSection = (sectionServices) => {
+        if (!activeCategory) return;
+        const sectionIds = sectionServices.map((s) => s.id);
+        const allSelected = sectionIds.every((id) => draftSelection.includes(id));
+
+        setDraftSelection((prev) => {
+            let next;
+            if (allSelected) {
+                // Deselect all in this section
+                next = prev.filter((id) => !sectionIds.includes(id));
+            } else {
+                // Add any missing ones
+                const toAdd = sectionIds.filter((id) => !prev.includes(id));
+                next = [...prev, ...toAdd];
+            }
+            return sortServiceIds(activeCategory, next);
+        });
+    };
+
     const handleApplySelection = () => {
         if (!activeCategory || draftSelection.length === 0) {
             return;
@@ -388,7 +407,7 @@ const TestList = () => {
 
                 <div style={{ marginBottom: 28 }}>
                     <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '5px 12px', borderRadius: 999, marginBottom: 14 }}>
-                        {isExpansionMode ? 'Additional Unlock Assessment' : 'Step 4 of 5'}
+                        {isExpansionMode ? 'Additional Unlock Assessment' : 'Step 4: MCQ'}
                     </span>
                     <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0 }}>
                         {isExpansionMode ? 'Unlock More Categories' : 'Select Assessment Categories'}
@@ -843,6 +862,7 @@ const TestList = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                                 {activeSections.map((section) => {
                                     const groupCount = new Set(section.services.map((service) => service.group)).size;
+                                    const sectionAllSelected = section.services.every((service) => draftSelection.includes(service.id));
 
                                     return (
                                         <section key={`${activeCategory.slug}-${section.title}`} className="tp-service-section">
@@ -858,19 +878,47 @@ const TestList = () => {
                                                 <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>
                                                     {section.title}
                                                 </h3>
-                                                <span
-                                                    style={{
-                                                        fontSize: 11,
-                                                        fontWeight: 800,
-                                                        color: '#64748b',
-                                                        background: '#f8fafc',
-                                                        border: '1px solid #dbe4ef',
-                                                        borderRadius: 999,
-                                                        padding: '5px 9px',
-                                                    }}
-                                                >
-                                                    {section.services.length} titles
-                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span
+                                                        style={{
+                                                            fontSize: 11,
+                                                            fontWeight: 800,
+                                                            color: '#64748b',
+                                                            background: '#f8fafc',
+                                                            border: '1px solid #dbe4ef',
+                                                            borderRadius: 999,
+                                                            padding: '5px 9px',
+                                                        }}
+                                                    >
+                                                        {section.services.length} titles
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSelectAllSection(section.services);
+                                                        }}
+                                                        style={{
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            color: sectionAllSelected ? '#334155' : '#ffffff',
+                                                            background: sectionAllSelected ? '#e2e8f0' : activeCategory.accent,
+                                                            border: sectionAllSelected
+                                                                ? '1px solid #cbd5e1'
+                                                                : `1px solid ${activeCategory.accent}`,
+                                                            cursor: 'pointer',
+                                                            padding: '6px 10px',
+                                                            borderRadius: 999,
+                                                            textTransform: 'uppercase',
+                                                            letterSpacing: 0.5,
+                                                            boxShadow: sectionAllSelected
+                                                                ? 'none'
+                                                                : `0 4px 12px ${activeCategory.accent}33`,
+                                                        }}
+                                                    >
+                                                        {sectionAllSelected ? 'Deselect All' : 'Select All'}
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div className="tp-service-grid">

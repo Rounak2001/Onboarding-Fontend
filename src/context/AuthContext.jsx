@@ -4,6 +4,25 @@ import { getUserProfile, logout as logoutApi } from '../services/api';
 const AuthContext = createContext(null);
 let pendingProfileRequest = null;
 
+const parseJwtPayload = (token) => {
+    try {
+        const parts = String(token || '').split('.');
+        if (parts.length !== 3) return null;
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+        return JSON.parse(atob(padded));
+    } catch {
+        return null;
+    }
+};
+
+const isTokenUsable = (token) => {
+    const payload = parseJwtPayload(token);
+    if (!payload || !payload.exp) return false;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return Number(payload.exp) > nowSeconds + 10;
+};
+
 const mapStepFlags = (data = {}) => ({
     has_identity_doc: data.has_identity_doc || false,
     has_passed_assessment: data.has_passed_assessment || false,
@@ -87,6 +106,11 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const applicantToken = localStorage.getItem('applicant_token');
         if (!applicantToken) {
+            setLoading(false);
+            return;
+        }
+        if (!isTokenUsable(applicantToken)) {
+            localStorage.removeItem('applicant_token');
             setLoading(false);
             return;
         }

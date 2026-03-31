@@ -98,8 +98,9 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
 
             {/* Options */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {optionEntries.map(([key, value]) => {
+                {optionEntries.map(([key, value], index) => {
                     const isSelected = selectedAnswer === key;
+                    const displayLabel = String.fromCharCode(65 + index); // Always A, B, C, D
                     return (
                         <button
                             className="tp-btn"
@@ -120,7 +121,7 @@ export default function TestQuestion({ question, selectedAnswer, onSelectAnswer,
                                 background: isSelected ? '#059669' : '#f3f4f6',
                                 color: isSelected ? '#fff' : '#6b7280',
                             }}>
-                                {isSelected ? '✓' : key}
+                                {isSelected ? '✓' : displayLabel}
                             </div>
                             <span style={{ fontSize: 15, fontWeight: 500, color: isSelected ? '#111827' : '#374151', lineHeight: 1.5 }}>
                                 {value}

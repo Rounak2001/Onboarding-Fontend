@@ -18,6 +18,7 @@ export default function VideoQuestion({
     const chunksRef = useRef([]);
     const autoSubmitRef = useRef(false);
     const timeExpiryHandledRef = useRef(false);
+    const recordingStartedAtRef = useRef(null);
 
     const [recording, setRecording] = useState(false);
     const [recordedBlob, setRecordedBlob] = useState(null);
@@ -42,6 +43,7 @@ export default function VideoQuestion({
     useEffect(() => {
         timeExpiryHandledRef.current = false;
         autoSubmitRef.current = false;
+        recordingStartedAtRef.current = null;
         setRecording(false);
         setRecordedBlob(null);
         setPreview((prev) => {
@@ -62,11 +64,16 @@ export default function VideoQuestion({
         setUploaded(true);
 
         setTimeout(() => {
+            const startedAtMs = Number(recordingStartedAtRef.current || 0);
+            const durationSeconds = startedAtMs > 0
+                ? Math.max(0, (Date.now() - startedAtMs) / 1000)
+                : null;
             onVideoUploaded && onVideoUploaded({
                 questionId: question.id,
                 questionText: question.question || question.text || '',
                 blob: uploadBlob,
                 fileName: `video_${question.id}.webm`,
+                durationSeconds,
             });
         }, 250);
     }, [recordedBlob, onVideoUploaded, question.id, question.question, question.text]);
@@ -140,6 +147,7 @@ export default function VideoQuestion({
         };
 
         mediaRecorderRef.current = recorder;
+        recordingStartedAtRef.current = Date.now();
         recorder.start();
         setRecording(true);
         setHasStartedRecording(true);
@@ -167,38 +175,39 @@ export default function VideoQuestion({
 
     return (
         <div style={{ position: 'relative' }}>
-            {categoryLabel && (
-                <span
-                    style={{
-                        position: 'absolute',
-                        top: -6,
-                        right: 0,
-                        zIndex: 1,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: '0.02em',
-                        color: '#0f766e',
-                        background: '#ecfeff',
-                        border: '1px solid #99f6e4',
-                        borderRadius: 999,
-                        padding: '6px 10px',
-                        textTransform: 'uppercase',
-                        lineHeight: 1,
-                    }}
-                >
-                    {categoryLabel}
-                </span>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '5px 14px', borderRadius: 20 }}>
                         Video {questionIndex + 1} / {totalVideoQuestions}
                     </span>
+                    {categoryLabel && (
+                        <span
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: '0.02em',
+                                color: '#0f766e',
+                                background: '#ecfeff',
+                                border: '1px solid #99f6e4',
+                                borderRadius: 999,
+                                padding: '6px 10px',
+                                textTransform: 'uppercase',
+                                lineHeight: 1,
+                                maxWidth: '100%',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            {categoryLabel}
+                        </span>
+                    )}
                 </div>
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     background: isLow ? '#fef2f2' : '#f9fafb', padding: '6px 14px', borderRadius: 20,
                     border: `1px solid ${isLow ? '#fecaca' : '#e5e7eb'}`,
+                    marginLeft: 'auto',
                 }}>
                     <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 15, color: isLow ? '#dc2626' : '#111827' }}>
                         {formatTime(timeLeft)}

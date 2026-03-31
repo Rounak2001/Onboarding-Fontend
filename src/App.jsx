@@ -20,7 +20,8 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import './index.css';
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "1051464119459-a5apk0uflgqp3le9avo2qttmmrqcsg52.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
 
 // Layout for onboarding pages — includes a fixed header
 export const OnboardingLayout = () => {
@@ -191,13 +192,21 @@ function AppRoutes() {
 }
 
 function App() {
+  const appTree = (
+    <Router>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </Router>
+  );
+
+  if (!GOOGLE_OAUTH_ENABLED) {
+    return appTree;
+  }
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <Router>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </Router>
+      {appTree}
     </GoogleOAuthProvider>
   );
 }

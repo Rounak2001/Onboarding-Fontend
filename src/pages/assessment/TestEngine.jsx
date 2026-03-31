@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import TestQuestion from './TestQuestion';
 import VideoQuestion from './VideoQuestion';
-import { submitTest, submitVideo, logViolation, processProctoringSnapshot, uploadProctoringAudioClip, logProctoringAudioTelemetry, getProctoringPolicy, saveMcqProgress } from '../../services/api';
+import { submitTest, submitVideo, logViolation, processProctoringSnapshot, uploadProctoringAudioClip, logProctoringAudioTelemetry, getProctoringPolicy, submitMcq, pingAssessment, saveMcqProgress } from '../../services/api';
+import { saveAnswersLocally, getAnswersLocally, clearAnswersLocally } from '../../services/IndexedDBSyncHandler';
 import BrandLogo from '../../components/BrandLogo';
 
 const DEFAULT_PROCTORING_POLICY = {
@@ -17,6 +18,9 @@ const ENABLE_DEV_DIAGNOSTICS = import.meta.env.DEV && String(
 ).toLowerCase() === 'true';
 const SHOW_PROCTORING_DEBUG = ENABLE_DEV_DIAGNOSTICS;
 const SHOW_DETECTOR_FALLBACK_NOTICE = ENABLE_DEV_DIAGNOSTICS;
+const ENABLE_PROCTORING_AUDIO_ENDPOINTS = String(
+    import.meta.env.VITE_PROCTORING_AUDIO_ENDPOINTS ?? 'false'
+).toLowerCase() === 'true';
 const EYE_TRACKING_ENABLED = String(import.meta.env.VITE_EYE_TRACKING || '').trim() === '1';
 const FACE_LANDMARKER_MODEL_URL =
     String(import.meta.env.VITE_FACE_LANDMARKER_MODEL_URL || '').trim()
@@ -25,7 +29,7 @@ const TASKS_VISION_WASM_BASE_URL =
     String(import.meta.env.VITE_TASKS_VISION_WASM_BASE_URL || '').trim()
     || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
 const MCQ_SNAPSHOT_BASE_MS = 10000;
-const VIDEO_SNAPSHOT_BASE_MS = 15000;
+const VIDEO_SNAPSHOT_BASE_MS = 10000;
 const AUDIO_RMS_THRESHOLD = 0.035;
 const AUDIO_TELEMETRY_SAMPLE_MS = 200;
 const AUDIO_TELEMETRY_POST_MS = 5000;
@@ -47,10 +51,8 @@ const computeSnapshotRetryDelayMs = (retryCount) => {
 };
 
 const withSnapshotJitter = (baseMs) => {
-    // Add jitter so snapshot timing is less predictable to end users.
-    const spread = Math.max(1200, Math.round(baseMs * 0.2));
-    const offset = Math.floor((Math.random() * (spread * 2 + 1)) - spread);
-    return Math.max(MIN_SNAPSHOT_INTERVAL_MS, baseMs + offset);
+    // Keep a predictable cadence for compliance checks.
+    return Math.max(MIN_SNAPSHOT_INTERVAL_MS, baseMs);
 };
 
 const supportsIndexedDb = () => typeof window !== 'undefined' && !!window.indexedDB;
@@ -203,6 +205,9 @@ const TestEngine = () => {
     const [failedVideoUploads, setFailedVideoUploads] = useState(0);
     const [pendingSnapshotUploads, setPendingSnapshotUploads] = useState(0);
     const [failedSnapshotUploads, setFailedSnapshotUploads] = useState(0);
+    const [snapshotRecordedCount, setSnapshotRecordedCount] = useState(0);
+    const [proctoringSuspended, setProctoringSuspended] = useState(false);
+    const [proctoringSuspendReason, setProctoringSuspendReason] = useState('');
     const [isOnline, setIsOnline] = useState(() => navigator?.onLine !== false);
     const [webcamStatus, setWebcamStatus] = useState('idle');
     const [permissionRetrying, setPermissionRetrying] = useState(false);
@@ -285,17 +290,30 @@ const TestEngine = () => {
 
     // Load session data
     useEffect(() => {
-        if (!session) { navigate('/assessment/select'); return; }
-        if (session.question_set) setQuestions(session.question_set);
-        else if (session.questions) setQuestions(session.questions);
-        if (session.video_question_set) setVideoQuestions(session.video_question_set);
-        else if (session.video_questions) setVideoQuestions(session.video_questions);
-        else if (session.videoQuestions) setVideoQuestions(session.videoQuestions);
-        setServerViolationCount(session?.violation_count || 0);
-        if (session?.violation_counters && typeof session.violation_counters === 'object') {
-            setServerViolationCounters(session.violation_counters);
-        }
-        setLoading(false);
+        let mounted = true;
+        const initializeSession = async () => {
+            if (!session) { navigate('/assessment/select'); return; }
+            if (session.question_set) setQuestions(session.question_set);
+            else if (session.questions) setQuestions(session.questions);
+            if (session.video_question_set) setVideoQuestions(session.video_question_set);
+            else if (session.video_questions) setVideoQuestions(session.video_questions);
+            else if (session.videoQuestions) setVideoQuestions(session.videoQuestions);
+            setServerViolationCount(session?.violation_count || 0);
+            if (session?.violation_counters && typeof session.violation_counters === 'object') {
+                setServerViolationCounters(session.violation_counters);
+            }
+
+            // Restore offline answers if any exist
+            if (session.id) {
+                const cachedAnswers = await getAnswersLocally(session.id);
+                if (mounted && cachedAnswers && Object.keys(cachedAnswers).length > 0) {
+                    setAnswers(cachedAnswers);
+                }
+            }
+            if (mounted) setLoading(false);
+        };
+        initializeSession();
+        return () => { mounted = false; };
     }, [session, navigate]);
 
     const startVideoQuestion = useCallback(() => {
@@ -312,12 +330,12 @@ const TestEngine = () => {
         setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
     }, []);
 
-    const beginVideoAssessment = useCallback(() => {
+    const beginVideoAssessment = () => {
         setShowVideoPrepScreen(false);
         setIsVideoSection(true);
-        setVideoCompleted(false);
+        setCurrentVideoQuestionIndex(0);
         startVideoQuestion();
-    }, [startVideoQuestion]);
+    };
 
     useEffect(() => {
         let mounted = true;
@@ -450,6 +468,7 @@ const TestEngine = () => {
 
     // Continuous audio telemetry: lightweight client-side VAD sampling (works across browsers via WebAudio).
     useEffect(() => {
+        if (!ENABLE_PROCTORING_AUDIO_ENDPOINTS) return;
         if (!session?.id) return;
         if (loading || submissionResult) return;
         if (!navigator?.mediaDevices?.getUserMedia) return;
@@ -469,7 +488,7 @@ const TestEngine = () => {
             state.lastSampleMs = now;
 
             // DEV-only: capture short clips on speech bursts so STT can detect "mark B/option 2" prompts.
-            if (import.meta.env.DEV && detected && !state.lastDetected) {
+            if (ENABLE_PROCTORING_AUDIO_ENDPOINTS && import.meta.env.DEV && detected && !state.lastDetected) {
                 if (typeof MediaRecorder !== 'undefined' && now - lastBurstClipAtRef.current >= 8000) {
                     lastBurstClipAtRef.current = now;
                     (async () => {
@@ -683,30 +702,31 @@ const TestEngine = () => {
     }, []);
 
     const getAdaptiveSnapshotCadenceMs = useCallback(() => {
-        let cadenceMs = isVideoSection ? VIDEO_SNAPSHOT_BASE_MS : MCQ_SNAPSHOT_BASE_MS;
-
-        const connection = navigator?.connection || navigator?.mozConnection || navigator?.webkitConnection;
-        const effectiveType = connection?.effectiveType;
-        const saveData = connection?.saveData;
-        if (saveData) {
-            cadenceMs = 20000;
-        } else if (effectiveType === 'slow-2g' || effectiveType === '2g') {
-            cadenceMs = 25000;
-        } else if (effectiveType === '3g') {
-            cadenceMs = 15000;
-        }
-
-        // If previous snapshot round-trip was slow, back off to reduce overload.
-        if (lastSnapshotDurationRef.current > 4000) cadenceMs = Math.max(cadenceMs, 15000);
-        if (lastSnapshotDurationRef.current > 7000) cadenceMs = Math.max(cadenceMs, 20000);
-
-        return cadenceMs;
+        return isVideoSection ? VIDEO_SNAPSHOT_BASE_MS : MCQ_SNAPSHOT_BASE_MS;
     }, [isVideoSection]);
 
     const setSnapshotDebugTelemetry = useCallback((updater) => {
         if (!SHOW_PROCTORING_DEBUG && !SHOW_DETECTOR_FALLBACK_NOTICE) return;
         setDebugTelemetry(updater);
     }, []);
+
+    const getSnapshotErrorMessage = useCallback((err) => {
+        return String(err?.response?.data?.error || err?.message || '').trim();
+    }, []);
+
+    const handleProctoringSessionInactive = useCallback((err) => {
+        const msg = getSnapshotErrorMessage(err).toLowerCase();
+        const inactive = msg.includes('session not active');
+        if (!inactive) return false;
+        setProctoringSuspended(true);
+        setProctoringSuspendReason('Session not active');
+        setSnapshotDebugTelemetry(prev => ({
+            ...prev,
+            lastSnapshotStatus: 'stopped',
+            lastError: 'Session not active: proctoring snapshot uploads stopped.',
+        }));
+        return true;
+    }, [getSnapshotErrorMessage, setSnapshotDebugTelemetry]);
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -752,7 +772,13 @@ const TestEngine = () => {
                 if (!item) break;
 
                 try {
-                    await submitVideo(session.id, item.questionId, item.blob, item.questionText);
+                    await submitVideo(
+                        session.id,
+                        item.questionId,
+                        item.blob,
+                        item.questionText,
+                        Number(item.durationSeconds)
+                    );
                     await videoQueueDelete(item.upload_id);
                 } catch {
                     const nextRetries = (Number(item.retries) || 0) + 1;
@@ -785,6 +811,7 @@ const TestEngine = () => {
             created_at: new Date().toISOString(),
             questionId: uploadPayload.questionId,
             questionText: uploadPayload.questionText || '',
+            durationSeconds: Number(uploadPayload.durationSeconds),
             blob: uploadPayload.blob,
             fileName: uploadPayload.fileName,
             retries: 0,
@@ -928,6 +955,7 @@ const TestEngine = () => {
         audioDetected,
         clientTimestamp,
     }) => {
+        if (!ENABLE_PROCTORING_AUDIO_ENDPOINTS) return;
         if (!import.meta.env.DEV) return;
         if (!audioDetected) return;
         if (navigator?.onLine === false) return;
@@ -992,7 +1020,7 @@ const TestEngine = () => {
     }, [initAudioDetector, session?.id, setSnapshotDebugTelemetry]);
 
     const drainSnapshotUploadQueue = useCallback(async () => {
-        if (!supportsIndexedDb() || !session?.id || isSnapshotUploadWorkerRunningRef.current || navigator?.onLine === false) return;
+        if (!supportsIndexedDb() || !session?.id || proctoringSuspended || isSnapshotUploadWorkerRunningRef.current || navigator?.onLine === false) return;
         isSnapshotUploadWorkerRunningRef.current = true;
         await refreshSnapshotQueueStats();
 
@@ -1014,6 +1042,9 @@ const TestEngine = () => {
                     await sendSnapshotToBackend(nextItem, Date.now());
                     await snapshotQueueDelete(nextItem.snapshot_id);
                 } catch (err) {
+                    if (handleProctoringSessionInactive(err)) {
+                        break;
+                    }
                     if (isRetryableSnapshotError(err)) {
                         const nextRetries = (Number(nextItem.retries) || 0) + 1;
                         const errMsg = err?.response?.data?.error || err?.message || 'Snapshot retry failed';
@@ -1039,7 +1070,7 @@ const TestEngine = () => {
             isSnapshotUploadWorkerRunningRef.current = false;
             await refreshSnapshotQueueStats();
         }
-    }, [enqueueSnapshotUpload, isRetryableSnapshotError, refreshSnapshotQueueStats, sendSnapshotToBackend, session?.id]);
+    }, [enqueueSnapshotUpload, handleProctoringSessionInactive, isRetryableSnapshotError, proctoringSuspended, refreshSnapshotQueueStats, sendSnapshotToBackend, session?.id]);
 
     const waitForSnapshotUploadsToFinish = useCallback(async (maxWaitMs = 12000) => {
         const deadline = Date.now() + maxWaitMs;
@@ -1056,7 +1087,7 @@ const TestEngine = () => {
         const onOnline = () => {
             setIsOnline(true);
             drainVideoUploadQueue();
-            drainSnapshotUploadQueue();
+            if (!proctoringSuspended) drainSnapshotUploadQueue();
         };
         const onOffline = () => {
             setIsOnline(false);
@@ -1066,7 +1097,7 @@ const TestEngine = () => {
         const retryTick = setInterval(() => {
             if (navigator?.onLine === false) return;
             drainVideoUploadQueue();
-            drainSnapshotUploadQueue();
+            if (!proctoringSuspended) drainSnapshotUploadQueue();
         }, 8000);
         refreshSnapshotQueueStats();
         refreshVideoQueueStats();
@@ -1075,7 +1106,19 @@ const TestEngine = () => {
             window.removeEventListener('offline', onOffline);
             clearInterval(retryTick);
         };
-    }, [drainVideoUploadQueue, drainSnapshotUploadQueue, refreshSnapshotQueueStats, refreshVideoQueueStats]);
+    }, [drainVideoUploadQueue, drainSnapshotUploadQueue, proctoringSuspended, refreshSnapshotQueueStats, refreshVideoQueueStats]);
+
+    // Background heartbeat ping
+    useEffect(() => {
+        if (!session?.id || submissionResult || loading) return;
+        const pingInterval = setInterval(() => {
+            if (navigator?.onLine !== false) {
+                pingAssessment(session.id, { client_timestamp: new Date().toISOString() })
+                    .catch(e => console.error("Heartbeat failed", e));
+            }
+        }, 10000);
+        return () => clearInterval(pingInterval);
+    }, [session?.id, submissionResult, loading]);
 
     // MCQ next
     const handleNext = useCallback(() => {
@@ -1090,11 +1133,10 @@ const TestEngine = () => {
                 setShowVideoPrepScreen(false);
                 setCurrentVideoQuestionIndex(0);
             }
-
-            // Background save of MCQ progress when transitioning to video
+            // Synchronous save of MCQ progress when transitioning to video
             if (session?.id) {
-                saveMcqProgress(session.id, { answers }).catch(err => {
-                    console.error("Failed to save MCQ intermediate progress:", err);
+                submitMcq(session.id, { answers }).catch(err => {
+                    console.error("Failed to submit MCQ intermediate progress:", err);
                 });
             }
         }
@@ -1153,31 +1195,21 @@ const TestEngine = () => {
         };
     }, [showVideoPrepScreen, isVideoSection]);
 
-    // Snapshot Loop (Strictly for MCQ Section)
+    // Snapshot loop for both MCQ and video sections.
     useEffect(() => {
-        // Adaptive scheduler instead of fixed interval.
-        let timerId = null;
-        const clearTimer = () => {
-            if (timerId) clearTimeout(timerId);
-            timerId = null;
-        };
+        if (loading || submissionResult || !session?.id || proctoringSuspended) return undefined;
+        const cadenceMs = withSnapshotJitter(getAdaptiveSnapshotCadenceMs());
+        setSnapshotDebugTelemetry(prev => ({ ...prev, snapshotCadenceMs: cadenceMs }));
 
-        const scheduleNext = () => {
-            clearTimer();
-            if (loading || submissionResult || !session?.id) return;
-            const cadenceMs = withSnapshotJitter(getAdaptiveSnapshotCadenceMs());
-            setSnapshotDebugTelemetry(prev => ({ ...prev, snapshotCadenceMs: cadenceMs }));
-            timerId = setTimeout(async () => {
-                await captureAndAnalyzeSnapshot();
-                scheduleNext();
-            }, cadenceMs);
-        };
+        const timerId = setInterval(() => {
+            captureAndAnalyzeSnapshot();
+        }, cadenceMs);
 
-        scheduleNext();
-        return () => clearTimer();
-    }, [isVideoSection, loading, submissionResult, session?.id, getAdaptiveSnapshotCadenceMs, setSnapshotDebugTelemetry]);
+        return () => clearInterval(timerId);
+    }, [isVideoSection, loading, proctoringSuspended, submissionResult, session?.id, getAdaptiveSnapshotCadenceMs, setSnapshotDebugTelemetry]);
 
     const captureAndAnalyzeSnapshot = async () => {
+        if (proctoringSuspended) return;
         if (snapshotCaptureInFlightRef.current) return;
         const imageSrcFromMcq = webcamRef.current?.getScreenshot?.() || null;
         const imageSrcFromVideo = typeof videoSnapshotGetterRef.current === 'function'
@@ -1224,6 +1256,7 @@ const TestEngine = () => {
             retries: 0,
             last_error: null,
         };
+        setSnapshotRecordedCount(prev => prev + 1);
 
         setSnapshotDebugTelemetry(prev => ({
             ...prev,
@@ -1270,6 +1303,10 @@ const TestEngine = () => {
         try {
             await sendSnapshotToBackend(snapshotItem, startedAt);
         } catch (err) {
+            if (handleProctoringSessionInactive(err)) {
+                snapshotCaptureInFlightRef.current = false;
+                return;
+            }
             const retryable = isRetryableSnapshotError(err);
             if (retryable) {
                 await enqueueSnapshotUpload(snapshotItem, {
@@ -1467,7 +1504,15 @@ const TestEngine = () => {
     };
 
     const handleAnswer = (optionKey) => {
-        setAnswers(prev => ({ ...prev, [questions[currentQuestionIndex].id]: optionKey }));
+        setAnswers(prev => {
+            const nextAnswers = { ...prev, [questions[currentQuestionIndex].id]: optionKey };
+            if (session?.id) {
+                saveAnswersLocally(session.id, nextAnswers).catch(err => {
+                    console.error("Local sync error", err);
+                });
+            }
+            return nextAnswers;
+        });
     };
 
     const handleSubmitTest = async () => {
@@ -1493,6 +1538,11 @@ const TestEngine = () => {
 
             setSubmitStatusText('Submitting answers…');
             const res = await submitTest(session.id, { answers });
+            
+            if (session?.id) {
+                await clearAnswersLocally(session.id);
+            }
+            
             navigate('/assessment/result', {
                 state: { result: { ...res, passed: res.passed ?? (res.score >= 0) } }
             });
@@ -1721,7 +1771,6 @@ const TestEngine = () => {
                         audio={false}
                         screenshotFormat="image/jpeg"
                         screenshotQuality={1}
-                        screenshotWidth={1280}
                         videoConstraints={{ width: 1280, height: 720, facingMode: "user" }}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onUserMedia={() => {
@@ -1839,25 +1888,6 @@ const TestEngine = () => {
                             </span>
                         </div>
                     )}
-
-                    <span style={{
-                        fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20,
-                        background: (isVideoSection || showVideoPrepScreen) ? '#f5f3ff' : '#ecfdf5',
-                        color: (isVideoSection || showVideoPrepScreen) ? '#7c3aed' : '#059669',
-                    }}>
-                        {(isVideoSection || showVideoPrepScreen) ? 'Video' : 'MCQ'}
-                    </span>
-
-                    {pendingVideoUploads > 0 && (
-                        <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
-                            Uploading videos: {pendingVideoUploads}
-                        </span>
-                    )}
-                    {failedVideoUploads > 0 && (
-                        <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
-                            Upload failed: {failedVideoUploads}
-                        </span>
-                    )}
                     <span style={{
                         fontSize: 12,
                         fontWeight: 700,
@@ -1872,6 +1902,14 @@ const TestEngine = () => {
                     {pendingSnapshotUploads > 0 && (
                         <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#ecfeff', color: '#155e75', border: '1px solid #a5f3fc' }}>
                             Snapshot queue: {pendingSnapshotUploads}
+                        </span>
+                    )}
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                        Snapshots recorded: {snapshotRecordedCount}
+                    </span>
+                    {proctoringSuspended && (
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#9a3412', border: '1px solid #fdba74' }}>
+                            Proctoring paused: {proctoringSuspendReason || 'Session not active'}
                         </span>
                     )}
                     {failedSnapshotUploads > 0 && (

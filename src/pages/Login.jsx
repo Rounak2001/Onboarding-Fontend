@@ -6,6 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import taxplanAdvisorDarkLogo from '../assets/TAXPLANDARK.png';
 import EmailConflictDialog from '../components/EmailConflictDialog';
 
+const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
+
 const Login = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -105,24 +108,30 @@ const Login = () => {
                     <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', textAlign: 'center', margin: '0 0 4px' }}>Welcome</h2>
                     <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', marginBottom: 28 }}>Sign in with your Google account to get started</p>
 
-                    <div
-                        ref={googleButtonRef}
-                        tabIndex={-1}
-                        style={{ display: 'flex', justifyContent: 'center', marginBottom: 20, outline: 'none' }}
-                    >
-                        <GoogleLogin
-                            onSuccess={handleGoogleSuccess}
-                            onError={() => {
-                                setShowConflictDialog(false);
-                                setConflictMessage('');
-                                setError('Login failed');
-                            }}
-                            theme="outline"
-                            shape="rectangular"
-                            size="large"
-                            width="350"
-                        />
-                    </div>
+                    {GOOGLE_OAUTH_ENABLED ? (
+                        <div
+                            ref={googleButtonRef}
+                            tabIndex={-1}
+                            style={{ display: 'flex', justifyContent: 'center', marginBottom: 20, outline: 'none' }}
+                        >
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={() => {
+                                    setShowConflictDialog(false);
+                                    setConflictMessage('');
+                                    setError('Login failed');
+                                }}
+                                theme="outline"
+                                shape="rectangular"
+                                size="large"
+                                width="350"
+                            />
+                        </div>
+                    ) : (
+                        <p style={{ color: '#92400e', fontSize: 13, textAlign: 'center', background: '#fffbeb', borderRadius: 8, padding: '10px 12px', marginBottom: 20 }}>
+                            Google login is disabled. Set `VITE_GOOGLE_CLIENT_ID` for this environment.
+                        </p>
+                    )}
 
                     {error && (
                         <p style={{ color: '#dc2626', fontSize: 14, textAlign: 'center', background: '#fef2f2', borderRadius: 8, padding: '8px 16px', marginTop: 16 }}>{error}</p>
