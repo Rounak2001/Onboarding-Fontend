@@ -333,6 +333,8 @@ const TestEngine = () => {
     const beginVideoAssessment = () => {
         setShowVideoPrepScreen(false);
         setIsVideoSection(true);
+        setProctoringSuspended(false);
+        setProctoringSuspendReason('');
         setCurrentVideoQuestionIndex(0);
         startVideoQuestion();
     };
@@ -718,14 +720,13 @@ const TestEngine = () => {
         const msg = getSnapshotErrorMessage(err).toLowerCase();
         const inactive = msg.includes('session not active');
         if (!inactive) return false;
-        setProctoringSuspended(true);
-        setProctoringSuspendReason('Session not active');
         setSnapshotDebugTelemetry(prev => ({
             ...prev,
-            lastSnapshotStatus: 'stopped',
-            lastError: 'Session not active: proctoring snapshot uploads stopped.',
+            lastSnapshotStatus: 'retrying',
+            lastError: 'Session not active: retrying proctoring snapshot upload.',
         }));
-        return true;
+        // Keep proctoring active and allow retry/queue flow to proceed.
+        return false;
     }, [getSnapshotErrorMessage, setSnapshotDebugTelemetry]);
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1899,20 +1900,22 @@ const TestEngine = () => {
                     }}>
                         {isOnline ? 'Online' : 'Offline'}
                     </span>
-                    {pendingSnapshotUploads > 0 && (
+                    {SHOW_PROCTORING_DEBUG && pendingSnapshotUploads > 0 && (
                         <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#ecfeff', color: '#155e75', border: '1px solid #a5f3fc' }}>
                             Snapshot queue: {pendingSnapshotUploads}
                         </span>
                     )}
+                    {SHOW_PROCTORING_DEBUG && (
                     <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
                         Snapshots recorded: {snapshotRecordedCount}
                     </span>
-                    {proctoringSuspended && (
+                    )}
+                    {SHOW_PROCTORING_DEBUG && proctoringSuspended && (
                         <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#9a3412', border: '1px solid #fdba74' }}>
                             Proctoring paused: {proctoringSuspendReason || 'Session not active'}
                         </span>
                     )}
-                    {failedSnapshotUploads > 0 && (
+                    {SHOW_PROCTORING_DEBUG && failedSnapshotUploads > 0 && (
                         <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
                             Snapshot failed: {failedSnapshotUploads}
                         </span>
