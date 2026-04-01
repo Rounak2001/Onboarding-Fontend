@@ -214,7 +214,7 @@ const PartnerInfo = () => {
                         {stepBlock(
                             '02',
                             'The Assessment',
-                            'You complete 50 MCQ questions, video responses, and standard proctoring checks to confirm baseline readiness for client facing work.'
+                            'You complete 50 MCQ questions, video responses, and standard proctoring checks to confirm baseline readiness for client facing work. The assessment should be completed without interruption.'
                         )}
 
                         {stepBlock(
