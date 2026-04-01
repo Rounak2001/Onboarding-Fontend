@@ -8,7 +8,11 @@ const steps = [
     },
     {
         title: 'Identity verification',
-        detail: 'Upload a government ID and complete live face verification.',
+        detail: 'Upload a government ID so your onboarding details can be verified.',
+    },
+    {
+        title: 'Face verification',
+        detail: 'Complete a live webcam check to match your face with the uploaded ID.',
     },
     {
         title: 'Qualification upload',
