@@ -411,269 +411,269 @@ const Onboarding = () => {
                         <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Fill in your details accurately. This information is used for verification.</p>
                     </div>
 
-                {identityMismatchNotice && (
-                    <div style={{ marginBottom: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#92400e' }}>
-                        {identityMismatchNotice}
-                    </div>
-                )}
-
-                {formError && (
-                    <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#991b1b' }}>
-                        {formError}
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit}>
-                    {/* Personal Information */}
-                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
-                        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Personal Information</h2>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                            <div>
-                                <label style={labelStyle}>First Name <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input ref={firstNameRef} name="first_name" value={formData.first_name} onChange={handleChange} placeholder="Enter first name" style={inputStyle(errors.first_name)} />
-                                {errors.first_name && <p style={errorStyle}>{errors.first_name}</p>}
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Middle Name</label>
-                                <input name="middle_name" value={formData.middle_name} onChange={handleChange} placeholder="Enter middle name" style={inputStyle(false)} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Last Name <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input ref={lastNameRef} name="last_name" value={formData.last_name} onChange={handleChange} placeholder="Enter last name" style={inputStyle(errors.last_name)} />
-                                {errors.last_name && <p style={errorStyle}>{errors.last_name}</p>}
-                            </div>
+                    {identityMismatchNotice && (
+                        <div style={{ marginBottom: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#92400e' }}>
+                            {identityMismatchNotice}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
-                            <div>
-                                <label style={labelStyle}>Date of Birth <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input ref={dobRef} type="date" name="dob" value={formData.dob} onChange={handleChange}
-                                    max={maxDob} min={minDob}
-                                    style={inputStyle(errors.dob)} />
-                                {errors.dob && <p style={errorStyle}>{errors.dob}</p>}
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Age</label>
-                                <input value={formData.age} readOnly disabled placeholder="Auto-calculated"
-                                    style={{ ...inputStyle(false), background: '#f9fafb', color: '#9ca3af', cursor: 'not-allowed' }} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input ref={phoneInputRef} name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="+91 XXXXXXXXXX" type="tel" style={inputStyle(errors.phone_number)} />
-                                {errors.phone_number && <p style={errorStyle}>{errors.phone_number}</p>}
+                    )}
 
-                                <div aria-live="polite" style={{ marginTop: 8 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                                        <span style={{
-                                            fontSize: 12,
-                                            fontWeight: 700,
-                                            padding: '3px 10px',
-                                            borderRadius: 999,
-                                            border: `1px solid ${isPhoneVerified ? '#86efac' : '#fecaca'}`,
-                                            background: isPhoneVerified ? '#d1fae5' : '#fef2f2',
-                                            color: isPhoneVerified ? '#065f46' : '#991b1b',
-                                        }}>
-                                            {isPhoneVerified ? 'Verified' : 'Not verified'}
-                                        </span>
+                    {formError && (
+                        <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#991b1b' }}>
+                            {formError}
+                        </div>
+                    )}
 
-                                        {isPhoneVerified ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => phoneInputRef.current?.focus()}
-                                                style={{
-                                                    marginLeft: 'auto',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    padding: 0,
-                                                    fontSize: 12,
-                                                    fontWeight: 600,
-                                                    color: '#059669',
-                                                    cursor: 'pointer',
-                                                    textDecoration: 'underline',
-                                                }}
-                                            >
-                                                Change number
-                                            </button>
-                                        ) : (
-                                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                                {!otpSent ? (
-                                                    <button
-                                                        type="button"
-                                                        className="tp-btn"
-                                                        onClick={handleSendOtp}
-                                                        disabled={!currentPhoneE164 || otpSending}
-                                                        style={{
-                                                            padding: '6px 10px',
-                                                            borderRadius: 9,
-                                                            border: '1px solid #059669',
-                                                            background: otpSending ? '#d1fae5' : '#059669',
-                                                            fontSize: 13,
-                                                            fontWeight: 800,
-                                                            color: otpSending ? '#065f46' : '#fff',
-                                                            cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
-                                                        }}
-                                                    >
-                                                        {otpSending ? 'Sending…' : 'Send OTP'}
-                                                    </button>
-                                                ) : (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
-                                                        <span style={{ fontSize: 11, color: '#6b7280' }}>
-                                                            {otpPhoneDisplay ? `Sent to ${otpPhoneDisplay}` : 'OTP sent to WhatsApp'}
-                                                        </span>
-                                                        {resendCooldown > 0 ? (
-                                                            <span style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                                                                Resend available in {resendCooldown}s
+                    <form onSubmit={handleSubmit}>
+                        {/* Personal Information */}
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
+                            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Personal Information</h2>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>First Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <input ref={firstNameRef} name="first_name" value={formData.first_name} onChange={handleChange} placeholder="Enter first name" style={inputStyle(errors.first_name)} />
+                                    {errors.first_name && <p style={errorStyle}>{errors.first_name}</p>}
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Middle Name</label>
+                                    <input name="middle_name" value={formData.middle_name} onChange={handleChange} placeholder="Enter middle name" style={inputStyle(false)} />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Last Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <input ref={lastNameRef} name="last_name" value={formData.last_name} onChange={handleChange} placeholder="Enter last name" style={inputStyle(errors.last_name)} />
+                                    {errors.last_name && <p style={errorStyle}>{errors.last_name}</p>}
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>Date of Birth <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <input ref={dobRef} type="date" name="dob" value={formData.dob} onChange={handleChange}
+                                        max={maxDob} min={minDob}
+                                        style={inputStyle(errors.dob)} />
+                                    {errors.dob && <p style={errorStyle}>{errors.dob}</p>}
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Age</label>
+                                    <input value={formData.age} readOnly disabled placeholder="Auto-calculated"
+                                        style={{ ...inputStyle(false), background: '#f9fafb', color: '#9ca3af', cursor: 'not-allowed' }} />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <input ref={phoneInputRef} name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="+91 XXXXXXXXXX" type="tel" style={inputStyle(errors.phone_number)} />
+                                    {errors.phone_number && <p style={errorStyle}>{errors.phone_number}</p>}
+
+                                    <div aria-live="polite" style={{ marginTop: 8 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                            <span style={{
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                padding: '3px 10px',
+                                                borderRadius: 999,
+                                                border: `1px solid ${isPhoneVerified ? '#86efac' : '#fecaca'}`,
+                                                background: isPhoneVerified ? '#d1fae5' : '#fef2f2',
+                                                color: isPhoneVerified ? '#065f46' : '#991b1b',
+                                            }}>
+                                                {isPhoneVerified ? 'Verified' : 'Not verified'}
+                                            </span>
+
+                                            {isPhoneVerified ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => phoneInputRef.current?.focus()}
+                                                    style={{
+                                                        marginLeft: 'auto',
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        padding: 0,
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        color: '#059669',
+                                                        cursor: 'pointer',
+                                                        textDecoration: 'underline',
+                                                    }}
+                                                >
+                                                    Change number
+                                                </button>
+                                            ) : (
+                                                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                    {!otpSent ? (
+                                                        <button
+                                                            type="button"
+                                                            className="tp-btn"
+                                                            onClick={handleSendOtp}
+                                                            disabled={!currentPhoneE164 || otpSending}
+                                                            style={{
+                                                                padding: '6px 10px',
+                                                                borderRadius: 9,
+                                                                border: '1px solid #059669',
+                                                                background: otpSending ? '#d1fae5' : '#059669',
+                                                                fontSize: 13,
+                                                                fontWeight: 800,
+                                                                color: otpSending ? '#065f46' : '#fff',
+                                                                cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
+                                                            }}
+                                                        >
+                                                            {otpSending ? 'Sending…' : 'Send OTP'}
+                                                        </button>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
+                                                            <span style={{ fontSize: 11, color: '#6b7280' }}>
+                                                                {otpPhoneDisplay ? `Sent to ${otpPhoneDisplay}` : 'OTP sent to WhatsApp'}
                                                             </span>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                onClick={handleSendOtp}
-                                                                disabled={!currentPhoneE164 || otpSending}
-                                                                style={{
-                                                                    background: 'transparent',
-                                                                    border: 'none',
-                                                                    padding: 0,
-                                                                    marginTop: 2,
-                                                                    fontSize: 12,
-                                                                    fontWeight: 700,
-                                                                    color: '#059669',
-                                                                    cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
-                                                                    textDecoration: 'underline',
-                                                                }}
-                                                            >
-                                                                Resend OTP
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                            {resendCooldown > 0 ? (
+                                                                <span style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                                                                    Resend available in {resendCooldown}s
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleSendOtp}
+                                                                    disabled={!currentPhoneE164 || otpSending}
+                                                                    style={{
+                                                                        background: 'transparent',
+                                                                        border: 'none',
+                                                                        padding: 0,
+                                                                        marginTop: 2,
+                                                                        fontSize: 12,
+                                                                        fontWeight: 700,
+                                                                        color: '#059669',
+                                                                        cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
+                                                                        textDecoration: 'underline',
+                                                                    }}
+                                                                >
+                                                                    Resend OTP
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
 
-                                                {otpSent && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setOtpModalOpen(true)}
-                                                        style={{
-                                                            background: 'transparent',
-                                                            border: 'none',
-                                                            padding: 0,
-                                                            fontSize: 12,
-                                                            fontWeight: 800,
-                                                            color: '#111827',
-                                                            cursor: 'pointer',
-                                                            textDecoration: 'underline',
-                                                        }}
-                                                    >
-                                                        Enter OTP
-                                                    </button>
-                                                )}
+                                                    {otpSent && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOtpModalOpen(true)}
+                                                            style={{
+                                                                background: 'transparent',
+                                                                border: 'none',
+                                                                padding: 0,
+                                                                fontSize: 12,
+                                                                fontWeight: 800,
+                                                                color: '#111827',
+                                                                cursor: 'pointer',
+                                                                textDecoration: 'underline',
+                                                            }}
+                                                        >
+                                                            Enter OTP
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {!otpModalOpen && otpError && <div style={{ marginTop: 8, fontSize: 12, color: '#b91c1c' }}>{otpError}</div>}
+                                        {!otpModalOpen && otpMessage && !otpError && <div style={{ marginTop: 8, fontSize: 12, color: '#065f46' }}>{otpMessage}</div>}
+                                        {import.meta.env.DEV && devOtp && !otpModalOpen && (
+                                            <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280' }}>
+                                                DEV OTP: <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{devOtp}</span>
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                        </div>
 
-                                    {!otpModalOpen && otpError && <div style={{ marginTop: 8, fontSize: 12, color: '#b91c1c' }}>{otpError}</div>}
-                                    {!otpModalOpen && otpMessage && !otpError && <div style={{ marginTop: 8, fontSize: 12, color: '#065f46' }}>{otpMessage}</div>}
-                                    {import.meta.env.DEV && devOtp && !otpModalOpen && (
-                                        <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280' }}>
-                                            DEV OTP: <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{devOtp}</span>
-                                        </div>
+                        {/* Address */}
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
+                            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Address Details</h2>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={labelStyle}>Address Line 1 <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input ref={address1Ref} name="address_line1" value={formData.address_line1} onChange={handleChange} placeholder="Street address, building" style={inputStyle(errors.address_line1)} />
+                                {errors.address_line1 && <p style={errorStyle}>{errors.address_line1}</p>}
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={labelStyle}>Address Line 2</label>
+                                <input name="address_line2" value={formData.address_line2} onChange={handleChange} placeholder="Apartment, suite, unit (optional)" style={inputStyle(false)} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>City <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <input ref={cityRef} name="city" value={formData.city} onChange={handleChange} placeholder="Enter city" style={inputStyle(errors.city)} />
+                                    {errors.city && <p style={errorStyle}>{errors.city}</p>}
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>State <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <select ref={stateRef} name="state" value={formData.state} onChange={handleChange} style={inputStyle(errors.state)}>
+                                        <option value="">Select State</option>
+                                        {indianStates.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                    {errors.state && <p style={errorStyle}>{errors.state}</p>}
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Pincode <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <input
+                                        ref={pincodeRef}
+                                        name="pincode"
+                                        value={formData.pincode}
+                                        onChange={handleChange}
+                                        placeholder="e.g. 560001"
+                                        inputMode="numeric"
+                                        maxLength={6}
+                                        style={inputStyle(errors.pincode || pinLookup.error)}
+                                    />
+                                    {errors.pincode && <p style={errorStyle}>{errors.pincode}</p>}
+                                    {pinLookup.loading && <p style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Looking up city & state…</p>}
+                                    {!pinLookup.loading && pinLookup.error && <p style={{ fontSize: 12, color: '#b91c1c', marginTop: 6 }}>{pinLookup.error}</p>}
+                                    {!pinLookup.loading && !pinLookup.error && pinLookup.autofilled && (
+                                        <p style={{ fontSize: 12, color: '#065f46', marginTop: 6 }}>City & state autofilled from pincode.</p>
                                     )}
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Address */}
-                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
-                        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Address Details</h2>
-                        <div style={{ marginBottom: 16 }}>
-                            <label style={labelStyle}>Address Line 1 <span style={{ color: '#ef4444' }}>*</span></label>
-                            <input ref={address1Ref} name="address_line1" value={formData.address_line1} onChange={handleChange} placeholder="Street address, building" style={inputStyle(errors.address_line1)} />
-                            {errors.address_line1 && <p style={errorStyle}>{errors.address_line1}</p>}
-                        </div>
-                        <div style={{ marginBottom: 16 }}>
-                            <label style={labelStyle}>Address Line 2</label>
-                            <input name="address_line2" value={formData.address_line2} onChange={handleChange} placeholder="Apartment, suite, unit (optional)" style={inputStyle(false)} />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                            <div>
-                                <label style={labelStyle}>City <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input ref={cityRef} name="city" value={formData.city} onChange={handleChange} placeholder="Enter city" style={inputStyle(errors.city)} />
-                                {errors.city && <p style={errorStyle}>{errors.city}</p>}
+                        {/* Practice */}
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Practice Details</h2>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>Practice Type</label>
+                                    <select name="practice_type" value={formData.practice_type} onChange={handleChange} style={inputStyle(false)}>
+                                        <option value="Individual">Individual</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Years of Experience</label>
+                                    <input ref={yearsExpRef} name="years_of_experience" value={formData.years_of_experience} onChange={handleChange} type="number" min="1" placeholder="e.g. 5" style={inputStyle(errors.years_of_experience)} />
+                                    {errors.years_of_experience && <p style={errorStyle}>{errors.years_of_experience}</p>}
+                                </div>
                             </div>
-                            <div>
-                                <label style={labelStyle}>State <span style={{ color: '#ef4444' }}>*</span></label>
-                                <select ref={stateRef} name="state" value={formData.state} onChange={handleChange} style={inputStyle(errors.state)}>
-                                    <option value="">Select State</option>
-                                    {indianStates.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                                {errors.state && <p style={errorStyle}>{errors.state}</p>}
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Pincode <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input
-                                    ref={pincodeRef}
-                                    name="pincode"
-                                    value={formData.pincode}
-                                    onChange={handleChange}
-                                    placeholder="e.g. 560001"
-                                    inputMode="numeric"
-                                    maxLength={6}
-                                    style={inputStyle(errors.pincode || pinLookup.error)}
-                                />
-                                {errors.pincode && <p style={errorStyle}>{errors.pincode}</p>}
-                                {pinLookup.loading && <p style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Looking up city & state…</p>}
-                                {!pinLookup.loading && pinLookup.error && <p style={{ fontSize: 12, color: '#b91c1c', marginTop: 6 }}>{pinLookup.error}</p>}
-                                {!pinLookup.loading && !pinLookup.error && pinLookup.autofilled && (
-                                    <p style={{ fontSize: 12, color: '#065f46', marginTop: 6 }}>City & state autofilled from pincode.</p>
-                                )}
-                            </div>
+                            {!isDetailsEdit && (
+                                <div style={{ marginTop: 16 }}>
+                                    <label style={labelStyle}>Experience Letter <span style={{ color: '#ef4444' }}></span></label>
+                                    <FileDropzone
+                                        title="Experience letter"
+                                        subtitle="Optional • PDF, JPG, PNG • Max 10MB"
+                                        helperText={experienceLetter ? '' : 'Drag & drop or click to upload.'}
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        files={experienceLetter ? [experienceLetter] : []}
+                                        pickerRef={experienceLetterRef}
+                                        onFilesSelected={(picked) => setExperienceLetterFromFile(picked?.[0] || null)}
+                                        onRemoveAt={() => setExperienceLetter(null)}
+                                        error={errors.experience_letter || ''}
+                                        disabled={loading}
+                                    />
+                                </div>
+                            )}
                         </div>
-                    </div>
 
-                    {/* Practice */}
-                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 24 }}>
-                        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Practice Details</h2>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-                            <div>
-                                <label style={labelStyle}>Practice Type</label>
-                                <select name="practice_type" value={formData.practice_type} onChange={handleChange} style={inputStyle(false)}>
-                                    <option value="Individual">Individual</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Years of Experience</label>
-                                <input ref={yearsExpRef} name="years_of_experience" value={formData.years_of_experience} onChange={handleChange} type="number" min="1" placeholder="e.g. 5" style={inputStyle(errors.years_of_experience)} />
-                                {errors.years_of_experience && <p style={errorStyle}>{errors.years_of_experience}</p>}
-                            </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button className="tp-btn" type="submit" disabled={loading} style={{
+                                padding: '12px 32px', borderRadius: 8, fontWeight: 600, fontSize: 14,
+                                border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+                                background: loading ? '#e5e7eb' : '#059669', color: loading ? '#9ca3af' : '#fff',
+                                transition: 'background 0.2s'
+                            }}>
+                                {loading ? 'Submitting...' : 'Submit & Continue →'}
+                            </button>
                         </div>
-                        {!isDetailsEdit && (
-                            <div style={{ marginTop: 16 }}>
-                                <label style={labelStyle}>Experience Letter <span style={{ color: '#ef4444' }}></span></label>
-                                <FileDropzone
-                                    title="Experience letter"
-                                    subtitle="Optional • PDF, JPG, PNG • Max 10MB"
-                                    helperText={experienceLetter ? '' : 'Drag & drop or click to upload.'}
-                                    accept=".pdf,.jpg,.jpeg,.png"
-                                    files={experienceLetter ? [experienceLetter] : []}
-                                    pickerRef={experienceLetterRef}
-                                    onFilesSelected={(picked) => setExperienceLetterFromFile(picked?.[0] || null)}
-                                    onRemoveAt={() => setExperienceLetter(null)}
-                                    error={errors.experience_letter || ''}
-                                    disabled={loading}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button className="tp-btn" type="submit" disabled={loading} style={{
-                            padding: '12px 32px', borderRadius: 8, fontWeight: 600, fontSize: 14,
-                            border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                            background: loading ? '#e5e7eb' : '#059669', color: loading ? '#9ca3af' : '#fff',
-                            transition: 'background 0.2s'
-                        }}>
-                            {loading ? 'Submitting...' : 'Submit & Continue →'}
-                        </button>
-                    </div>
-                </form>
+                    </form>
                 </div>
             </div>
 

@@ -141,9 +141,9 @@ const Success = () => {
                 ? <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '6px 14px', borderRadius: 20, border: '1px solid #fecaca' }}>Disqualified</span>
                 : underReview
                     ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>Under Review</span>
-                : retryLocked
+                    : retryLocked
                         ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>{retryCountdownText}</span>
-                    : null,
+                        : null,
         },
         {
             label: 'Qualification Upload',

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import MainWebsiteButton from '../components/MainWebsiteButton';
 
 const PartnerInfo = () => {
     const navigate = useNavigate();
@@ -110,16 +111,23 @@ const PartnerInfo = () => {
                         alignItems: 'center',
                     }}
                 >
-                    <img
-                        src="/Col_Log_1.png"
-                        alt="Taxplan Advisor"
-                        style={{
-                            height: 40,
-                            width: 'auto',
-                            objectFit: 'contain',
-                            display: 'block',
-                        }}
-                    />
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                        <a href="https://taxplanadvisor.in" target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
+                            <img
+                                src="/Col_Log_1.png"
+                                alt="Taxplan Advisor"
+                                style={{
+                                    height: 40,
+                                    width: 'auto',
+                                    objectFit: 'contain',
+                                    display: 'block',
+                                }}
+                            />
+                        </a>
+                    </div>
+                    <div style={{ paddingRight: 32 }}>
+                        <MainWebsiteButton light={true} />
+                    </div>
                 </div>
             </header>
 
