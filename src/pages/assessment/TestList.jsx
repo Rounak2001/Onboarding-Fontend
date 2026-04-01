@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getTestTypes, getLatestResult } from '../../services/api';
 import BrandLogo from '../../components/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
@@ -30,6 +30,7 @@ const hasCategorySelection = (selectionMatrix, categorySlug) =>
 
 const TestList = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { stepFlags } = useAuth();
     const [testTypes, setTestTypes] = useState([]);
     const [selectedServiceMatrix, setSelectedServiceMatrix] = useState(createEmptySelectionMatrix);
@@ -38,6 +39,7 @@ const TestList = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [disqualified, setDisqualified] = useState(false);
+    const sessionNotice = String(location.state?.sessionNotice || '').trim();
     const availableCategorySlugs = stepFlags?.available_assessment_categories || [];
     const unlockedCategorySlugs = stepFlags?.unlocked_categories || [];
     const unlockedCategoryLabel = unlockedCategorySlugs
@@ -432,6 +434,22 @@ const TestList = () => {
                         <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: '#065f46' }}>
                             Already unlocked: {unlockedCategoryLabel || '—'}.
                             {' '}Registrations are available automatically after your first cleared main-category assessment.
+                        </p>
+                    </div>
+                )}
+
+                {sessionNotice && (
+                    <div
+                        style={{
+                            background: '#fff7ed',
+                            border: '1px solid #fdba74',
+                            borderRadius: 12,
+                            padding: '14px 16px',
+                            marginBottom: 16,
+                        }}
+                    >
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: '#9a3412', fontWeight: 600 }}>
+                            {sessionNotice}
                         </p>
                     </div>
                 )}

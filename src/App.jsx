@@ -10,8 +10,10 @@ import FaceVerification from './pages/FaceVerification';
 import IdentityVerification from './pages/IdentityVerification';
 import TestList from './pages/assessment/TestList';
 import Instructions from './pages/assessment/Instructions';
+import PreFlightCheck from './pages/assessment/PreFlightCheck';
 import TestEngine from './pages/assessment/TestEngine';
 import AssessmentResult from './pages/assessment/AssessmentResult';
+import AssessmentDeviceRequired from './pages/assessment/AssessmentDeviceRequired';
 import OnboardingComplete from './pages/OnboardingComplete';
 import Declaration from './pages/Declaration';
 import PartnerInfo from './pages/PartnerInfo';
@@ -19,6 +21,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
+import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
 import './index.css';
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
@@ -93,13 +96,13 @@ const StepGuard = ({ step, children }) => {
   }
 
   const onboarded = user?.is_onboarded;
-  const hasAcceptedDeclaration = stepFlags?.has_accepted_declaration;
   const hasIdentity = stepFlags?.has_identity_doc;
   const assessmentReviewPending = stepFlags?.assessment_review_pending;
   const assessmentRetryLocked = stepFlags?.assessment_retry_locked;
   const assessmentCanStart = stepFlags?.assessment_can_start;
   const verified = user?.is_verified;
   const hasDocuments = stepFlags?.has_documents;
+  const deviceBlockedForAssessment = isAssessmentDeviceBlocked();
 
   let allowed = false;
   switch (step) {
@@ -115,10 +118,25 @@ const StepGuard = ({ step, children }) => {
       allowed = onboarded && hasIdentity && !verified;
       break;
     case 'assessment':
-      allowed = onboarded && verified && assessmentCanStart && !assessmentReviewPending && !assessmentRetryLocked;
+      allowed = onboarded
+        && verified
+        && hasDocuments
+        && assessmentCanStart
+        && !assessmentReviewPending
+        && !assessmentRetryLocked
+        && !deviceBlockedForAssessment;
+      break;
+    case 'assessment-device-required':
+      allowed = onboarded
+        && verified
+        && hasDocuments
+        && assessmentCanStart
+        && !assessmentReviewPending
+        && !assessmentRetryLocked
+        && deviceBlockedForAssessment;
       break;
     case 'documents':
-      allowed = onboarded && verified && stepFlags?.has_passed_assessment;
+      allowed = onboarded && verified && !hasDocuments;
       break;
     case 'dashboard':
       allowed = onboarded;
@@ -160,8 +178,14 @@ function AppRoutes() {
         <Route path="/assessment/select" element={
           <StepGuard step="assessment"><TestList /></StepGuard>
         } />
+        <Route path="/assessment/device-required" element={
+          <StepGuard step="assessment-device-required"><AssessmentDeviceRequired /></StepGuard>
+        } />
         <Route path="/assessment/instructions" element={
           <StepGuard step="assessment"><Instructions /></StepGuard>
+        } />
+        <Route path="/assessment/preflight" element={
+          <StepGuard step="assessment"><PreFlightCheck /></StepGuard>
         } />
         <Route path="/assessment/test" element={
           <StepGuard step="assessment"><TestEngine /></StepGuard>

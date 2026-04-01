@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { uploadDocument } from '../services/api';
 import FileDropzone from '../components/FileDropzone';
 import BrandLogo from '../components/BrandLogo';
+import { useAuth } from '../context/AuthContext';
+import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
 
 const DocumentUpload = () => {
     const navigate = useNavigate();
+    const { updateStepFlags } = useAuth();
 
     const [bachelors, setBachelors] = useState(null);
     const [masters, setMasters] = useState(null);
@@ -87,7 +90,8 @@ const DocumentUpload = () => {
                     return;
                 }
             }
-            navigate('/onboarding/complete');
+            updateStepFlags({ has_documents: true });
+            navigate(isAssessmentDeviceBlocked() ? '/assessment/device-required' : '/assessment/select');
         } finally {
             setUploading(false);
             setUploadProgress('');
@@ -138,9 +142,9 @@ const DocumentUpload = () => {
             )}
 
             <div style={{ marginBottom: 28 }}>
-                <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 6 of 6</span>
+                <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 4 of 6</span>
                 <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Upload Qualifications</h1>
-                <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Upload your degree certificates and any additional qualifications.</p>
+                <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Upload your degree certificates and any additional qualifications before the assessment.</p>
             </div>
 
             <p style={{ fontSize: 13, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 12px', marginTop: -16, marginBottom: 28 }}>
@@ -229,7 +233,7 @@ const DocumentUpload = () => {
                     transition: 'background 160ms ease, transform 120ms ease, box-shadow 160ms ease',
                     boxShadow: (uploading || !bachelors) ? 'none' : '0 10px 18px rgba(5,150,105,0.15)',
                 }}>
-                {uploading ? uploadProgress : `Upload ${totalFiles} Document${totalFiles !== 1 ? 's' : ''} & Complete \u2192`}
+                {uploading ? uploadProgress : `Upload ${totalFiles} Document${totalFiles !== 1 ? 's' : ''} & Continue to Assessment \u2192`}
             </button>
             </div>
         </div>

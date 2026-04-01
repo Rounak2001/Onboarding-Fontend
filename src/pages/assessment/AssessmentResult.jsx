@@ -33,7 +33,7 @@ const formatRetryCountdown = (seconds) => {
 
 const AssessmentResult = () => {
     const navigate = useNavigate();
-    const { checkAuth, stepFlags } = useAuth();
+    const { checkAuth } = useAuth();
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -102,7 +102,7 @@ const AssessmentResult = () => {
 
     const handleContinue = async () => {
         await checkAuth().catch(() => { });
-        navigate(stepFlags?.has_documents ? '/success' : '/onboarding/documentation');
+        navigate('/success');
     };
 
     const handleRetry = () => {
@@ -152,7 +152,6 @@ const AssessmentResult = () => {
     const passed = Boolean(result?.passed);
     const disqualified = Boolean(result?.status === 'flagged' || result?.disqualified || result?.hide_marks);
     const retryLocked = Boolean(result?.retry_locked) && !reviewPending && !passed && !disqualified;
-    const failed = Boolean(result?.failed) && !disqualified;
     const attemptsRemaining = Number(result?.attempts_remaining || 0);
     const failureReasons = Array.isArray(result?.failure_reasons) ? result.failure_reasons : [];
     const score = Number(result?.score || 0);
@@ -307,7 +306,7 @@ const AssessmentResult = () => {
                                 </h1>
                                 <p style={{ maxWidth: 560, fontSize: 15, lineHeight: 1.7, color: '#6b7280', margin: '12px 0 0' }}>
                                     {passed
-                                        ? 'Both your MCQ and video thresholds are complete. You can continue to the qualification document step.'
+                                        ? 'Both your MCQ and video thresholds are complete. You can continue to your dashboard.'
                                         : disqualified
                                             ? 'Your assessment access is locked because of violations or the maximum number of failed attempts.'
                                             : retryLocked
@@ -376,7 +375,7 @@ const AssessmentResult = () => {
                                             boxShadow: '0 10px 24px rgba(5, 150, 105, 0.18)',
                                         }}
                                     >
-                                        Continue to Qualification Documents
+                                        Continue to Dashboard
                                     </button>
                                 ) : !disqualified && !retryLocked && attemptsRemaining > 0 ? (
                                     <button

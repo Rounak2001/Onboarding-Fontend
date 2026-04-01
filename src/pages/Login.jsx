@@ -5,6 +5,7 @@ import { googleAuth } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import taxplanAdvisorDarkLogo from '../assets/TAXPLANDARK.png';
 import EmailConflictDialog from '../components/EmailConflictDialog';
+import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
 
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
@@ -61,14 +62,20 @@ const Login = () => {
                 nextRoute = '/onboarding/identity';
             } else if (!targetUser?.is_verified) {
                 nextRoute = '/onboarding/face-verification';
+            } else if (!data.has_documents) {
+                nextRoute = '/onboarding/documentation';
             } else if (data.assessment_review_pending) {
-                nextRoute = '/assessment/result';
+                nextRoute = '/success';
             } else if (data.assessment_retry_locked) {
                 nextRoute = '/assessment/result';
             } else if (!data.has_passed_assessment) {
-                nextRoute = '/assessment/select';
-            } else if (!data.has_documents) {
-                nextRoute = '/onboarding/documentation';
+                if (!data.assessment_can_start) {
+                    nextRoute = '/success';
+                } else if (isAssessmentDeviceBlocked()) {
+                    nextRoute = '/assessment/device-required';
+                } else {
+                    nextRoute = '/assessment/select';
+                }
             } else {
                 nextRoute = '/success';
             }

@@ -1,219 +1,477 @@
-import { useState, useEffect, useRef } from 'react';
-import Webcam from 'react-webcam';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import BrandLogo from '../../components/BrandLogo';
+import { createSession } from '../../services/api';
+import { getAssessmentCategory, summarizeSelectedServices } from './assessmentCatalog';
+import { normalizeAssessmentDomainLabel } from './domainLabels';
+import { isAssessmentDeviceBlocked } from '../../utils/devicePolicy';
 
-const PreFlightCheck = ({ onComplete, onCancel }) => {
-    const [timeLeft, setTimeLeft] = useState(10);
+const BLACK_FRAME_MEAN_THRESHOLD = 8;
+const BLACK_FRAME_VARIANCE_THRESHOLD = 10;
+const SILENCE_RMS_THRESHOLD = 0.0015;
+const AUDIO_SAMPLE_MS = 700;
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const PreFlightCheck = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const selectedTests = useMemo(
+        () => (Array.isArray(location.state?.selectedTests) ? location.state.selectedTests : []),
+        [location.state?.selectedTests]
+    );
+    const previewVideoRef = useRef(null);
+    const previewCanvasRef = useRef(null);
+    const mediaStreamRef = useRef(null);
+    const audioContextRef = useRef(null);
     const [checks, setChecks] = useState({
-        browser: 'pending',
-        webcam: 'pending',
-        mic: 'pending',
-        network: 'pending',
+        camera: 'pending',
+        microphone: 'pending',
+        network: navigator?.onLine === false ? 'failed' : 'pending',
     });
-    const [errorMsg, setErrorMsg] = useState('');
+    const [deviceBlocked, setDeviceBlocked] = useState(false);
+    const [deviceBlockMessage, setDeviceBlockMessage] = useState('');
+    const [checkError, setCheckError] = useState('');
+    const [startError, setStartError] = useState('');
+    const [checking, setChecking] = useState(true);
+    const [starting, setStarting] = useState(false);
 
-    const webcamRef = useRef(null);
+    const selectedCategorySummaries = useMemo(() => {
+        return selectedTests.map((test) => {
+            const category = getAssessmentCategory(test?.slug || test?.name);
+            const selectedServiceIds = Array.isArray(test?.selectedServiceIds) ? test.selectedServiceIds : [];
+            const summary = summarizeSelectedServices(category || test?.slug || test?.name, selectedServiceIds, 4);
+            return {
+                key: test.id || test.slug || test.name,
+                label: normalizeAssessmentDomainLabel(test?.category?.name || test?.name),
+                preview: summary.preview,
+                remainingCount: summary.remainingCount,
+            };
+        });
+    }, [selectedTests]);
 
-    useEffect(() => {
-        let mounted = true;
-        
-        const runChecks = async () => {
-            // 1. Browser Check
-            const isSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.indexedDB);
-            setChecks(c => ({ ...c, browser: isSupported ? 'passed' : 'failed' }));
-            if (!isSupported) {
-                setErrorMsg('Your browser is not supported. Please use recent versions of Chrome, Edge, or Firefox.');
-                return;
-            }
-
-            // 2. Microphone Check
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                stream.getTracks().forEach(t => t.stop());
-                if (mounted) setChecks(c => ({ ...c, mic: 'passed' }));
-            } catch (err) {
-                if (mounted) {
-                    setChecks(c => ({ ...c, mic: 'failed' }));
-                    setErrorMsg('Microphone access denied or unavailable. You must allow microphone access to proceed.');
-                }
-                return;
-            }
-
-            // 3. Network Check (Simulate ping/speed)
-            try {
-                const start = Date.now();
-                await fetch('https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js', { mode: 'no-cors' });
-                const end = Date.now();
-                if (end - start > 5000) {
-                    if (mounted) {
-                        setChecks(c => ({ ...c, network: 'failed' }));
-                        setErrorMsg('Your network connection is too slow to reliably upload videos and answers.');
-                    }
-                    return;
-                }
-                if (mounted) setChecks(c => ({ ...c, network: 'passed' }));
-            } catch (err) {
-                if (mounted) {
-                    setChecks(c => ({ ...c, network: 'failed' }));
-                    setErrorMsg('Network check failed. Please ensure you have a stable internet connection.');
-                }
-                return;
-            }
-        };
-
-        runChecks();
-
-        return () => { mounted = false; };
+    const stopMediaResources = useCallback(() => {
+        if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
+        }
+        if (previewVideoRef.current) {
+            previewVideoRef.current.srcObject = null;
+        }
+        if (audioContextRef.current) {
+            audioContextRef.current.close().catch(() => { });
+            audioContextRef.current = null;
+        }
     }, []);
 
-    // 4. Webcam is checked implicitly by the <Webcam> component's onUserMedia callback
-    const handleWebcamSuccess = () => {
-        setChecks(c => ({ ...c, webcam: 'passed' }));
-    };
+    const waitForVideoFrame = useCallback(async () => {
+        const video = previewVideoRef.current;
+        if (!video) return false;
 
-    const handleWebcamError = () => {
-        setChecks(c => ({ ...c, webcam: 'failed' }));
-        if (!errorMsg) setErrorMsg('Webcam access denied or unavailable. You must allow camera access to proceed.');
-    };
+        const hasLoadedFrame = await new Promise((resolve) => {
+            let done = false;
+            const finalize = (result) => {
+                if (done) return;
+                done = true;
+                video.removeEventListener('loadeddata', onLoadedData);
+                clearTimeout(timeoutId);
+                resolve(result);
+            };
+            const onLoadedData = () => finalize(true);
+            const timeoutId = setTimeout(() => finalize(false), 2500);
 
-    // Countdown Timer only runs if all checks are passed
-    useEffect(() => {
-        const allPassed = checks.browser === 'passed' && checks.mic === 'passed' && checks.network === 'passed' && checks.webcam === 'passed';
-        const hasFailed = Object.values(checks).includes('failed');
+            if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                finalize(true);
+                return;
+            }
+            video.addEventListener('loadeddata', onLoadedData);
+        });
 
-        if (allPassed && timeLeft > 0) {
-            const timer = setTimeout(() => setTimeLeft(l => l - 1), 1000);
-            return () => clearTimeout(timer);
-        } else if (allPassed && timeLeft <= 0) {
-            onComplete();
+        if (!hasLoadedFrame) return false;
+        await wait(120);
+        return true;
+    }, []);
+
+    const validateVideoIsNotBlack = useCallback(() => {
+        const video = previewVideoRef.current;
+        if (!video || video.videoWidth === 0 || video.videoHeight === 0) return false;
+
+        const canvas = previewCanvasRef.current || document.createElement('canvas');
+        previewCanvasRef.current = canvas;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return false;
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        if (!imageData?.length) return false;
+
+        let luminanceSum = 0;
+        let luminanceSqSum = 0;
+        let sampledPixels = 0;
+        for (let i = 0; i < imageData.length; i += 16) {
+            const r = imageData[i];
+            const g = imageData[i + 1];
+            const b = imageData[i + 2];
+            const luminance = (0.299 * r) + (0.587 * g) + (0.114 * b);
+            luminanceSum += luminance;
+            luminanceSqSum += luminance * luminance;
+            sampledPixels += 1;
         }
-    }, [checks, timeLeft, onComplete]);
 
-    const isFailed = Object.values(checks).includes('failed');
+        if (sampledPixels === 0) return false;
+        const mean = luminanceSum / sampledPixels;
+        const variance = (luminanceSqSum / sampledPixels) - (mean * mean);
+        const appearsBlack = mean < BLACK_FRAME_MEAN_THRESHOLD && variance < BLACK_FRAME_VARIANCE_THRESHOLD;
+        return !appearsBlack;
+    }, []);
+
+    const validateMicrophoneSignal = useCallback(async (stream) => {
+        const audioTracks = stream?.getAudioTracks?.() || [];
+        const hasLiveAudioTrack = audioTracks.some((track) => track.readyState === 'live' && track.enabled);
+        if (!hasLiveAudioTrack) return false;
+
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+            return hasLiveAudioTrack;
+        }
+
+        const context = new AudioContextCtor();
+        audioContextRef.current = context;
+        const source = context.createMediaStreamSource(stream);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        const timeDomainData = new Uint8Array(analyser.fftSize);
+
+        try {
+            if (context.state === 'suspended') {
+                await context.resume().catch(() => { });
+            }
+
+            if (context.state !== 'running') {
+                return hasLiveAudioTrack;
+            }
+
+            const endAt = Date.now() + AUDIO_SAMPLE_MS;
+            let maxRms = 0;
+            while (Date.now() < endAt) {
+                analyser.getByteTimeDomainData(timeDomainData);
+                let sumSquares = 0;
+                for (let i = 0; i < timeDomainData.length; i += 1) {
+                    const normalized = (timeDomainData[i] - 128) / 128;
+                    sumSquares += normalized * normalized;
+                }
+                const rms = Math.sqrt(sumSquares / timeDomainData.length);
+                if (rms > maxRms) maxRms = rms;
+                await wait(80);
+            }
+
+            return maxRms > SILENCE_RMS_THRESHOLD;
+        } finally {
+            if (audioContextRef.current === context) {
+                await context.close().catch(() => { });
+                audioContextRef.current = null;
+            }
+        }
+    }, []);
+
+    const runChecks = useCallback(async () => {
+        setChecking(true);
+        setCheckError('');
+        setStartError('');
+        stopMediaResources();
+
+        const online = navigator?.onLine !== false;
+        setChecks({
+            camera: 'pending',
+            microphone: 'pending',
+            network: online ? 'passed' : 'failed',
+        });
+
+        if (isAssessmentDeviceBlocked()) {
+            setDeviceBlocked(true);
+            setDeviceBlockMessage('This assessment requires a desktop or laptop computer.');
+            setChecks((prev) => ({
+                ...prev,
+                camera: 'failed',
+                microphone: 'failed',
+            }));
+            setChecking(false);
+            return;
+        }
+
+        setDeviceBlocked(false);
+        setDeviceBlockMessage('');
+
+        if (!navigator?.mediaDevices?.getUserMedia) {
+            setChecks((prev) => ({ ...prev, camera: 'failed', microphone: 'failed' }));
+            setCheckError('Camera and microphone checks are not supported in this browser. Please use Chrome, Edge, or Firefox.');
+            setChecking(false);
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            mediaStreamRef.current = stream;
+            if (previewVideoRef.current) {
+                previewVideoRef.current.srcObject = stream;
+                await previewVideoRef.current.play().catch(() => { });
+            }
+
+            const hasLiveVideoTrack = stream.getVideoTracks().some((track) => track.readyState === 'live' && track.enabled);
+            const hasVideoFrame = await waitForVideoFrame();
+            const videoValid = hasLiveVideoTrack && hasVideoFrame && validateVideoIsNotBlack();
+            const microphoneValid = await validateMicrophoneSignal(stream);
+
+            setChecks((prev) => ({
+                ...prev,
+                camera: videoValid ? 'passed' : 'failed',
+                microphone: microphoneValid ? 'passed' : 'failed',
+            }));
+
+            if (!videoValid || !microphoneValid) {
+                const issueMessages = [];
+                if (!videoValid) issueMessages.push('Camera stream is inactive or appears fully black.');
+                if (!microphoneValid) issueMessages.push('Microphone stream appears inactive or fully silent.');
+                setCheckError(`${issueMessages.join(' ')} Please allow permissions and ensure no other app is using these devices.`);
+            }
+        } catch (err) {
+            const errorName = String(err?.name || '').toLowerCase();
+            let message = 'Camera/microphone access failed. Please allow access and retry.';
+            if (errorName.includes('notallowed') || errorName.includes('permission')) {
+                message = 'Camera/microphone permission denied. Please allow access in your browser settings and retry.';
+            } else if (errorName.includes('notfound') || errorName.includes('devicesnotfound')) {
+                message = 'No camera or microphone device was found. Please connect required hardware and retry.';
+            }
+
+            setChecks((prev) => ({ ...prev, camera: 'failed', microphone: 'failed' }));
+            setCheckError(message);
+        } finally {
+            stopMediaResources();
+            setChecking(false);
+        }
+    }, [stopMediaResources, validateMicrophoneSignal, validateVideoIsNotBlack, waitForVideoFrame]);
+
+    useEffect(() => {
+        if (selectedTests.length === 0) {
+            navigate('/assessment/select');
+            return undefined;
+        }
+        runChecks();
+        return () => {
+            stopMediaResources();
+        };
+    }, [navigate, runChecks, selectedTests.length, stopMediaResources]);
+
+    useEffect(() => {
+        const onNetworkChange = () => {
+            setChecks((prev) => ({
+                ...prev,
+                network: navigator?.onLine === false ? 'failed' : 'passed',
+            }));
+        };
+
+        window.addEventListener('online', onNetworkChange);
+        window.addEventListener('offline', onNetworkChange);
+        onNetworkChange();
+
+        return () => {
+            window.removeEventListener('online', onNetworkChange);
+            window.removeEventListener('offline', onNetworkChange);
+        };
+    }, []);
+
+    const allChecksPassed = checks.camera === 'passed' && checks.microphone === 'passed' && checks.network === 'passed' && !deviceBlocked;
+
+    const handleStartTest = async () => {
+        if (!allChecksPassed || starting) return;
+        setStarting(true);
+        setStartError('');
+        try {
+            const session = await createSession({
+                selected_tests: selectedTests.map((test) => test.slug || test.name),
+                selected_test_details: selectedTests.map((test) => ({
+                    slug: test.slug || test.name,
+                    selected_service_ids: Array.isArray(test.selectedServiceIds) ? test.selectedServiceIds : [],
+                })),
+            });
+
+            navigate('/assessment/test', {
+                state: {
+                    session,
+                    preflight: {
+                        mediaReady: true,
+                        checkedAt: new Date().toISOString(),
+                    },
+                },
+            });
+        } catch (err) {
+            const errorCode = String(err?.response?.data?.code || '');
+            if (errorCode === 'ASSESSMENT_SESSION_EXPIRED_RESELECT') {
+                navigate('/assessment/select', {
+                    replace: true,
+                    state: {
+                        sessionNotice: err?.response?.data?.error || 'Your previous assessment window expired. Please select categories again.',
+                    },
+                });
+                return;
+            }
+            setStartError(err?.response?.data?.error || 'Failed to start session.');
+        } finally {
+            setStarting(false);
+        }
+    };
+
+    const checklistRows = [
+        { key: 'camera', label: '\u{1F4F7} Camera Access', status: checks.camera },
+        { key: 'microphone', label: '\u{1F3A4} Microphone Access', status: checks.microphone },
+        { key: 'network', label: '\u{1F310} Network Connection', status: checks.network },
+    ];
 
     return (
-        <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center justify-center p-6 text-[#1A202C]">
-            <div className="absolute top-6 left-6">
+        <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.06)', height: 56, display: 'flex', alignItems: 'center', padding: '0 24px' }}>
                 <BrandLogo />
-            </div>
+            </header>
 
-            <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl overflow-hidden p-8 border border-gray-100">
-                <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-500 to-emerald-600">
-                        System Pre-flight Check
-                    </h2>
-                    <p className="mt-2 text-gray-500 text-lg">
-                        Ensuring your system is perfectly ready for the assessment.
+            <main style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 48px' }}>
+                <div style={{ marginBottom: 18 }}>
+                    <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Pre-flight System Check</h1>
+                    <p style={{ margin: '8px 0 0', color: '#475569', fontSize: 14, lineHeight: 1.6 }}>
+                        Complete the required checks before starting the assessment.
                     </p>
                 </div>
 
-                <div className="space-y-4 mb-8">
-                    <CheckRow label="Browser Compatibility" status={checks.browser} />
-                    <CheckRow label="Network Stability" status={checks.network} />
-                    <CheckRow label="Microphone Access" status={checks.mic} />
-                    <CheckRow label="Webcam Access" status={checks.webcam} />
-                </div>
-
-                {isFailed && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-r-md">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-red-700 font-medium">{errorMsg}</p>
-                            </div>
+                {selectedCategorySummaries.length > 0 && (
+                    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 8 }}>Selected categories</div>
+                        <div style={{ display: 'grid', gap: 10 }}>
+                            {selectedCategorySummaries.map((item) => (
+                                <div key={item.key} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', background: '#f8fafc' }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{item.label}</div>
+                                    {item.preview.length > 0 && (
+                                        <p style={{ margin: '5px 0 0', fontSize: 12, color: '#475569', lineHeight: 1.55 }}>
+                                            {item.preview.join(', ')}
+                                            {item.remainingCount > 0 ? ` +${item.remainingCount} more` : ''}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
 
-                {!isFailed && checks.webcam === 'pending' && (
-                    <div className="w-0 h-0 overflow-hidden opacity-0">
-                        <Webcam
-                            ref={webcamRef}
-                            audio={false}
-                            onUserMedia={handleWebcamSuccess}
-                            onUserMediaError={handleWebcamError}
-                        />
+                {deviceBlocked && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 16px', marginBottom: 16, color: '#991b1b', fontSize: 14, fontWeight: 700 }}>
+                        {deviceBlockMessage}
                     </div>
                 )}
 
-                {/* Only visually show the webcam once it connects to avoid flickering */}
-                {!isFailed && checks.webcam === 'passed' && (
-                    <div className="relative w-full h-48 bg-gray-900 rounded-xl overflow-hidden mb-8 shadow-inner border border-gray-200">
-                        <Webcam
-                            audio={false}
-                            className="w-full h-full object-cover"
-                            mirrored={true}
-                        />
-                        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
-                            Live
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex items-center justify-between border-t border-gray-100 pt-6">
-                    <button
-                        onClick={onCancel}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 font-medium transition-colors"
-                    >
-                        Cancel
-                    </button>
-
-                    <div className="flex items-center space-x-4">
-                        {!isFailed && (
-                            <div className="text-sm text-gray-500 font-medium">
-                                Starting in <span className="text-emerald-600 font-bold text-lg w-6 inline-block text-center">{timeLeft}</span>s
-                            </div>
-                        )}
-                        <button
-                            disabled={isFailed || timeLeft > 0}
-                            onClick={onComplete}
-                            className={`px-8 py-3 rounded-xl font-bold transition-all shadow-md ${
-                                isFailed 
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                                : timeLeft > 0 
-                                    ? 'bg-teal-100 text-teal-400 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:shadow-lg hover:-translate-y-0.5'
-                            }`}
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+                    {checklistRows.map((row, index) => (
+                        <div
+                            key={row.key}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 12,
+                                padding: '14px 16px',
+                                borderBottom: index < checklistRows.length - 1 ? '1px solid #e2e8f0' : 'none',
+                            }}
                         >
-                            Start Assessment
-                        </button>
-                    </div>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{row.label}</span>
+                            <StatusPill status={row.status} />
+                        </div>
+                    ))}
                 </div>
-            </div>
+
+                {checkError && (
+                    <div style={{ marginTop: 14, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#9a3412', lineHeight: 1.55 }}>
+                        {checkError}
+                    </div>
+                )}
+
+                {startError && (
+                    <div style={{ marginTop: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#b91c1c', lineHeight: 1.55 }}>
+                        {startError}
+                    </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap' }}>
+                    <button
+                        className="tp-btn"
+                        onClick={() => navigate('/assessment/instructions', { state: { selectedTests } })}
+                        style={{
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#334155',
+                            borderRadius: 10,
+                            padding: '11px 16px',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Back
+                    </button>
+                    <button
+                        className="tp-btn"
+                        onClick={runChecks}
+                        disabled={checking}
+                        style={{
+                            border: '1px solid #bbf7d0',
+                            background: checking ? '#ecfdf5' : '#dcfce7',
+                            color: '#166534',
+                            borderRadius: 10,
+                            padding: '11px 16px',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            cursor: checking ? 'not-allowed' : 'pointer',
+                            opacity: checking ? 0.8 : 1,
+                        }}
+                    >
+                        {checking ? 'Checking...' : 'Run Checks Again'}
+                    </button>
+                    <button
+                        className="tp-btn"
+                        onClick={handleStartTest}
+                        disabled={!allChecksPassed || checking || starting}
+                        style={{
+                            marginLeft: 'auto',
+                            border: 'none',
+                            background: (!allChecksPassed || checking || starting) ? '#94a3b8' : '#059669',
+                            color: '#ffffff',
+                            borderRadius: 10,
+                            padding: '11px 20px',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            cursor: (!allChecksPassed || checking || starting) ? 'not-allowed' : 'pointer',
+                            minWidth: 140,
+                        }}
+                    >
+                        {starting ? 'Starting...' : 'Start Test'}
+                    </button>
+                </div>
+            </main>
+
+            <video ref={previewVideoRef} autoPlay playsInline muted style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
         </div>
     );
 };
 
-const CheckRow = ({ label, status }) => {
-    return (
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-            <span className="font-medium text-gray-700">{label}</span>
-            <div className="flex items-center">
-                {status === 'pending' && (
-                    <svg className="animate-spin h-5 w-5 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                )}
-                {status === 'passed' && (
-                    <div className="flex items-center text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-sm font-bold">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                        Passed
-                    </div>
-                )}
-                {status === 'failed' && (
-                    <div className="flex items-center text-red-600 bg-red-50 px-3 py-1 rounded-full text-sm font-bold">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        Failed
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+const StatusPill = ({ status }) => {
+    const normalized = String(status || 'pending');
+    if (normalized === 'passed') {
+        return <span style={{ fontSize: 12, fontWeight: 700, color: '#065f46', background: '#d1fae5', borderRadius: 999, padding: '4px 10px' }}>Passed</span>;
+    }
+    if (normalized === 'failed') {
+        return <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', background: '#fee2e2', borderRadius: 999, padding: '4px 10px' }}>Failed</span>;
+    }
+    return <span style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', borderRadius: 999, padding: '4px 10px' }}>Checking</span>;
 };
 
 export default PreFlightCheck;

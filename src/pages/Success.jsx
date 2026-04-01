@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getLatestResult } from '../services/api';
 import BrandLogo from '../components/BrandLogo';
+import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
 
 const formatRetryUnlockAt = (value) => {
     if (!value) return '';
@@ -40,6 +41,7 @@ const formatRetryCountdown = (totalSeconds) => {
 const Success = () => {
     const { user, stepFlags, checkAuth, updateStepFlags } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [assessmentPassed, setAssessmentPassed] = useState(stepFlags?.has_passed_assessment || false);
     const [assessmentStatus, setAssessmentStatus] = useState(null);
     const [assessmentReviewPending, setAssessmentReviewPending] = useState(stepFlags?.assessment_review_pending || false);
@@ -68,7 +70,7 @@ const Success = () => {
                 assessment_can_retry_now: Boolean(data?.can_retry_now),
             });
             return data;
-        } catch (error) {
+        } catch (_error) {
             return null;
         }
     }, [updateStepFlags]);
@@ -117,6 +119,14 @@ const Success = () => {
     const isFlagged = assessmentStatus === 'flagged';
     const underReview = assessmentReviewPending || assessmentStatus === 'review_pending';
     const disqualified = isFlagged || isDisqualified;
+    const recentAssessmentSubmission = Boolean(location.state?.assessment_submitted);
+    const assessmentEntryRoute = isAssessmentDeviceBlocked() ? '/assessment/device-required' : '/assessment/select';
+    const showReviewCompletionBanner = Boolean(
+        (recentAssessmentSubmission || underReview)
+        && stepFlags?.has_documents
+        && isVerified
+        && hasIdentity
+    );
     const retryUnlockText = formatRetryUnlockAt(retryAvailableAt);
     const retryCountdownText = formatRetryCountdown(retrySecondsRemaining);
 
@@ -125,17 +135,27 @@ const Success = () => {
         { label: 'Identity Verification', desc: 'Upload government-issued ID', done: hasIdentity, action: () => navigate('/onboarding/identity'), icon: '\u{1FAAA}' },
         { label: 'Face Verification', desc: 'Verify your identity via camera', done: isVerified, requires: hasIdentity, action: () => navigate('/onboarding/face-verification'), icon: '\u{1F4F8}' },
         {
+            label: 'Qualification Upload',
+            desc: stepFlags?.has_documents
+                ? 'Qualification documents uploaded successfully.'
+                : 'Upload your degree certificates and additional qualifications.',
+            done: stepFlags?.has_documents,
+            requires: isVerified,
+            action: () => navigate('/onboarding/documentation'),
+            icon: '\u{1F4C4}',
+        },
+        {
             label: disqualified ? 'Assessment Disqualified' : underReview ? 'Assessment Under Review' : retryLocked ? 'Assessment Retry Locked' : 'Domain Assessment',
             desc: disqualified
                 ? 'Maximum attempts exceeded or violations detected.'
                 : underReview
-                    ? 'We are reviewing your video responses before unlocking the next step.'
+                    ? 'We are reviewing your assessment and will email you within 48 hours.'
                     : retryLocked
                         ? `Your next assessment attempt unlocks on ${retryUnlockText || 'the next available slot'}. Time remaining: ${retryCountdownText}.`
                         : '50 MCQs plus video questions',
             done: assessmentPassed || stepFlags?.has_passed_assessment,
-            requires: isVerified && !disqualified,
-            action: disqualified || underReview || retryLocked ? null : () => navigate('/assessment/select'),
+            requires: isVerified && stepFlags?.has_documents && !disqualified,
+            action: disqualified || underReview || retryLocked ? null : () => navigate(assessmentEntryRoute),
             icon: disqualified ? '\u{1F6AB}' : underReview ? '\u23F3' : '\u{1F4DD}',
             customStatus: disqualified
                 ? <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '6px 14px', borderRadius: 20, border: '1px solid #fecaca' }}>Disqualified</span>
@@ -144,14 +164,6 @@ const Success = () => {
                 : retryLocked
                         ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>{retryCountdownText}</span>
                     : null,
-        },
-        {
-            label: 'Qualification Upload',
-            desc: 'Upload certificates and degrees',
-            done: stepFlags?.has_documents,
-            requires: assessmentPassed || stepFlags?.has_passed_assessment,
-            action: () => navigate(stepFlags?.has_documents ? '/onboarding/complete' : '/onboarding/documentation'),
-            icon: '\u{1F4C4}',
         },
     ];
 
@@ -185,6 +197,17 @@ const Success = () => {
                     <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111827', margin: 0 }}>{`Welcome back, ${user?.first_name || user?.email?.split('@')[0]}`}</h1>
                     <p style={{ fontSize: 15, color: '#6b7280', marginTop: 6 }}>Complete the steps below to finish your consultant onboarding.</p>
                 </div>
+
+                {showReviewCompletionBanner && (
+                    <div style={{ marginBottom: 22, background: '#ecfdf5', borderRadius: 12, padding: 22, border: '1px solid #bbf7d0' }}>
+                        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#065f46', margin: '0 0 8px' }}>
+                            Congratulations, you have completed all onboarding steps.
+                        </h2>
+                        <p style={{ fontSize: 14, color: '#047857', margin: 0, lineHeight: 1.65 }}>
+                            We are currently reviewing your assessment. You will receive an email update within 48 hours once the review is complete.
+                        </p>
+                    </div>
+                )}
 
                 <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
                     {steps.map((step, i) => {

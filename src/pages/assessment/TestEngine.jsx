@@ -38,6 +38,7 @@ const SNAPSHOT_QUEUE_STORE_NAME = 'snapshot-upload-queue';
 const VIDEO_QUEUE_STORE_NAME = 'video-upload-queue';
 const MAX_QUEUED_SNAPSHOTS = 120;
 const MAX_QUEUED_VIDEOS = 25;
+const MAX_SILENT_FAILURES = 5;
 const SNAPSHOT_MAX_RETRIES = 8;
 const SNAPSHOT_RETRY_BASE_MS = 2000;
 const SNAPSHOT_RETRY_MAX_MS = 60000;
@@ -118,6 +119,17 @@ const snapshotQueueDelete = async (snapshotId) => {
     }
 };
 
+const snapshotQueueClearForSession = async (sessionId) => {
+    if (!sessionId) return;
+    const allItems = await snapshotQueueGetAll();
+    const matchingItems = allItems.filter((item) => item?.session_id === sessionId);
+    for (const item of matchingItems) {
+        if (item?.snapshot_id) {
+            await snapshotQueueDelete(item.snapshot_id);
+        }
+    }
+};
+
 const videoQueueGetAll = async () => {
     const db = await openSnapshotQueueDb();
     try {
@@ -151,10 +163,23 @@ const videoQueueDelete = async (uploadId) => {
     }
 };
 
+const videoQueueClearForSession = async (sessionId) => {
+    if (!sessionId) return;
+    const allItems = await videoQueueGetAll();
+    const matchingItems = allItems.filter((item) => item?.session_id === sessionId);
+    for (const item of matchingItems) {
+        if (item?.upload_id) {
+            await videoQueueDelete(item.upload_id);
+        }
+    }
+};
+
 const TestEngine = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { session } = location.state || {};
+    const sessionRecoveryMode = String(session?.session_recovery?.mode || '').trim();
+    const preflightMediaReady = Boolean(location.state?.preflight?.mediaReady);
     const [questions, setQuestions] = useState([]);
     const [videoQuestions, setVideoQuestions] = useState([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -166,6 +191,7 @@ const TestEngine = () => {
     const [showVideoPrepScreen, setShowVideoPrepScreen] = useState(false);
     const [showWarningModal, setShowWarningModal] = useState(false);
     const [violationMessage, setViolationMessage] = useState('');
+    const [sessionRecoveryNotice, setSessionRecoveryNotice] = useState('');
     const [proctoringPolicy, setProctoringPolicy] = useState(DEFAULT_PROCTORING_POLICY);
     const [serverViolationCount, setServerViolationCount] = useState(0);
     const [serverViolationCounters, setServerViolationCounters] = useState({});
@@ -178,7 +204,7 @@ const TestEngine = () => {
         lastClientTimestamp: null,
         audioDetected: false,
         audioLevel: 0,
-        micStatus: 'idle',
+        micStatus: preflightMediaReady ? 'ready' : 'idle',
         gazeViolation: null,
         poseYaw: null,
         posePitch: null,
@@ -206,15 +232,17 @@ const TestEngine = () => {
     const [pendingSnapshotUploads, setPendingSnapshotUploads] = useState(0);
     const [failedSnapshotUploads, setFailedSnapshotUploads] = useState(0);
     const [snapshotRecordedCount, setSnapshotRecordedCount] = useState(0);
+    const [isProctoringBlocked, setIsProctoringBlocked] = useState(false);
     const [proctoringSuspended, setProctoringSuspended] = useState(false);
     const [proctoringSuspendReason, setProctoringSuspendReason] = useState('');
     const [isOnline, setIsOnline] = useState(() => navigator?.onLine !== false);
-    const [webcamStatus, setWebcamStatus] = useState('idle');
+    const [webcamStatus, setWebcamStatus] = useState(preflightMediaReady ? 'ready' : 'idle');
     const [permissionRetrying, setPermissionRetrying] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(() => !!document.fullscreenElement);
     const [submissionResult] = useState(null);
     const lastViolationTime = useRef(0);
     const hasStartedAssessmentRef = useRef(false);
+    const hasSessionExpiryRedirectedRef = useRef(false);
     const fullscreenGraceTimerRef = useRef(null);
     const mcqAutosaveTimerRef = useRef(null);
     const mcqAutosaveLastPayloadRef = useRef('');
@@ -230,6 +258,7 @@ const TestEngine = () => {
     const faceLandmarkerRef = useRef(null);
     const faceLandmarkerInitPromiseRef = useRef(null);
     const lastSnapshotDurationRef = useRef(0);
+    const deferInitialMicProbeRef = useRef(preflightMediaReady);
     const snapshotCaptureInFlightRef = useRef(false);
     const videoSnapshotGetterRef = useRef(null);
     const isVideoUploadWorkerRunningRef = useRef(false);
@@ -293,6 +322,8 @@ const TestEngine = () => {
         let mounted = true;
         const initializeSession = async () => {
             if (!session) { navigate('/assessment/select'); return; }
+            const isMcqRestart = sessionRecoveryMode === 'mcq_restart';
+            const isVideoRestart = sessionRecoveryMode === 'video_restart';
             if (session.question_set) setQuestions(session.question_set);
             else if (session.questions) setQuestions(session.questions);
             if (session.video_question_set) setVideoQuestions(session.video_question_set);
@@ -303,18 +334,78 @@ const TestEngine = () => {
                 setServerViolationCounters(session.violation_counters);
             }
 
-            // Restore offline answers if any exist
             if (session.id) {
-                const cachedAnswers = await getAnswersLocally(session.id);
-                if (mounted && cachedAnswers && Object.keys(cachedAnswers).length > 0) {
-                    setAnswers(cachedAnswers);
+                if (supportsIndexedDb() && (isMcqRestart || isVideoRestart)) {
+                    await snapshotQueueClearForSession(session.id).catch(() => { });
+                    await videoQueueClearForSession(session.id).catch(() => { });
+                }
+
+                if (isMcqRestart) {
+                    await clearAnswersLocally(session.id).catch(() => { });
+                    if (mounted) {
+                        setAnswers({});
+                        setCurrentQuestionIndex(0);
+                        setQuestionTimeLeft(30);
+                    }
+                } else {
+                    // Restore offline answers if any exist.
+                    const cachedAnswers = await getAnswersLocally(session.id);
+                    if (mounted && cachedAnswers && Object.keys(cachedAnswers).length > 0) {
+                        setAnswers(cachedAnswers);
+                    }
                 }
             }
-            if (mounted) setLoading(false);
+
+            if (mounted && (isVideoRestart || session?.status === 'mcq_completed')) {
+                setShowVideoPrepScreen(true);
+                setIsVideoSection(false);
+                setCurrentVideoQuestionIndex(0);
+                setCurrentVideoDeadlineAt(null);
+                setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
+                setVideoCompleted(false);
+            }
+
+            if (mounted && isMcqRestart) {
+                setShowVideoPrepScreen(false);
+                setIsVideoSection(false);
+                setCurrentVideoQuestionIndex(0);
+                setVideoCompleted(false);
+                setCurrentVideoDeadlineAt(null);
+                setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
+            }
+
+            if (mounted && (isMcqRestart || isVideoRestart)) {
+                setViolationEvents([]);
+                setLastServerViolationReason('');
+                setLastServerViolationAt(null);
+                setLastViolationType('');
+                setLastViolationTypeCount(0);
+                setPendingSnapshotUploads(0);
+                setPendingVideoUploads(0);
+                setFailedSnapshotUploads(0);
+                setFailedVideoUploads(0);
+                setIsProctoringBlocked(false);
+                setProctoringSuspended(false);
+                setProctoringSuspendReason('');
+                setSnapshotRecordedCount(0);
+                setDebugTelemetry(prev => ({
+                    ...prev,
+                    lastSnapshotStatus: 'idle',
+                    lastError: null,
+                    lastReason: null,
+                    lastViolationCount: 0,
+                }));
+            }
+
+            if (mounted) {
+                const recoveryMessage = String(session?.session_recovery?.message || '').trim();
+                setSessionRecoveryNotice(recoveryMessage);
+                setLoading(false);
+            }
         };
         initializeSession();
         return () => { mounted = false; };
-    }, [session, navigate]);
+    }, [session, navigate, sessionRecoveryMode]);
 
     const startVideoQuestion = useCallback(() => {
         const deadline = Date.now() + (VIDEO_QUESTION_TIME_SECONDS * 1000);
@@ -461,12 +552,31 @@ const TestEngine = () => {
 
     useEffect(() => {
         if (!submissionResult) {
-            initAudioDetector();
+            if (deferInitialMicProbeRef.current) {
+                deferInitialMicProbeRef.current = false;
+            } else {
+                initAudioDetector();
+            }
         }
         return () => {
             stopAudioDetector();
         };
     }, [submissionResult, initAudioDetector, stopAudioDetector]);
+
+    useEffect(() => {
+        if (!submissionResult && preflightMediaReady) {
+            setDebugTelemetry(prev => ({
+                ...prev,
+                micStatus: prev.micStatus === 'idle' ? 'ready' : prev.micStatus,
+            }));
+        }
+    }, [preflightMediaReady, submissionResult]);
+
+    useEffect(() => {
+        if (!submissionResult && preflightMediaReady) {
+            setWebcamStatus(prev => (prev === 'idle' ? 'ready' : prev));
+        }
+    }, [preflightMediaReady, submissionResult]);
 
     // Continuous audio telemetry: lightweight client-side VAD sampling (works across browsers via WebAudio).
     useEffect(() => {
@@ -716,7 +826,40 @@ const TestEngine = () => {
         return String(err?.response?.data?.error || err?.message || '').trim();
     }, []);
 
+    const isSessionExpiredError = useCallback((err) => {
+        const errorCode = String(err?.response?.data?.code || '').trim().toUpperCase();
+        return errorCode === 'ASSESSMENT_SESSION_EXPIRED_RESELECT';
+    }, []);
+
+    const redirectToCategoryReselect = useCallback((err) => {
+        if (hasSessionExpiryRedirectedRef.current) {
+            return;
+        }
+        hasSessionExpiryRedirectedRef.current = true;
+        if (snapshotIntervalRef.current) {
+            clearInterval(snapshotIntervalRef.current);
+        }
+        if (fullscreenGraceTimerRef.current) {
+            clearTimeout(fullscreenGraceTimerRef.current);
+            fullscreenGraceTimerRef.current = null;
+        }
+        setProctoringSuspended(true);
+        setIsProctoringBlocked(false);
+        const message = String(
+            err?.response?.data?.error
+            || 'Your assessment session expired. Please select categories again to continue.'
+        ).trim();
+        navigate('/assessment/select', {
+            replace: true,
+            state: { sessionNotice: message },
+        });
+    }, [navigate]);
+
     const handleProctoringSessionInactive = useCallback((err) => {
+        if (isSessionExpiredError(err)) {
+            redirectToCategoryReselect(err);
+            return true;
+        }
         const msg = getSnapshotErrorMessage(err).toLowerCase();
         const inactive = msg.includes('session not active');
         if (!inactive) return false;
@@ -727,7 +870,7 @@ const TestEngine = () => {
         }));
         // Keep proctoring active and allow retry/queue flow to proceed.
         return false;
-    }, [getSnapshotErrorMessage, setSnapshotDebugTelemetry]);
+    }, [getSnapshotErrorMessage, isSessionExpiredError, redirectToCategoryReselect, setSnapshotDebugTelemetry]);
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -781,7 +924,12 @@ const TestEngine = () => {
                         Number(item.durationSeconds)
                     );
                     await videoQueueDelete(item.upload_id);
-                } catch {
+                } catch (err) {
+                    if (isSessionExpiredError(err)) {
+                        await videoQueueDelete(item.upload_id);
+                        redirectToCategoryReselect(err);
+                        break;
+                    }
                     const nextRetries = (Number(item.retries) || 0) + 1;
                     if (nextRetries <= 5) {
                         await videoQueueUpsert({ ...item, retries: nextRetries });
@@ -799,7 +947,7 @@ const TestEngine = () => {
             isVideoUploadWorkerRunningRef.current = false;
             await refreshVideoQueueStats();
         }
-    }, [session?.id, refreshVideoQueueStats]);
+    }, [session?.id, refreshVideoQueueStats, isSessionExpiredError, redirectToCategoryReselect]);
 
     const enqueueVideoUpload = useCallback(async (uploadPayload) => {
         if (!uploadPayload?.blob || !uploadPayload?.questionId) return;
@@ -854,14 +1002,18 @@ const TestEngine = () => {
     const refreshSnapshotQueueStats = useCallback(async () => {
         if (!supportsIndexedDb() || !session?.id) {
             setPendingSnapshotUploads(0);
+            setIsProctoringBlocked(false);
             return;
         }
         try {
             const allItems = await snapshotQueueGetAll();
             const pending = allItems.filter((item) => item?.session_id === session.id).length;
-            setPendingSnapshotUploads(pending + (isSnapshotUploadWorkerRunningRef.current ? 1 : 0));
+            const pendingWithWorker = pending + (isSnapshotUploadWorkerRunningRef.current ? 1 : 0);
+            setPendingSnapshotUploads(pendingWithWorker);
+            setIsProctoringBlocked(pendingWithWorker >= MAX_SILENT_FAILURES);
         } catch {
             setPendingSnapshotUploads(0);
+            setIsProctoringBlocked(false);
         }
     }, [session?.id]);
 
@@ -1115,14 +1267,21 @@ const TestEngine = () => {
         const pingInterval = setInterval(() => {
             if (navigator?.onLine !== false) {
                 pingAssessment(session.id, { client_timestamp: new Date().toISOString() })
-                    .catch(e => console.error("Heartbeat failed", e));
+                    .catch(e => {
+                        if (isSessionExpiredError(e)) {
+                            redirectToCategoryReselect(e);
+                            return;
+                        }
+                        console.error("Heartbeat failed", e);
+                    });
             }
         }, 10000);
         return () => clearInterval(pingInterval);
-    }, [session?.id, submissionResult, loading]);
+    }, [session?.id, submissionResult, loading, isSessionExpiredError, redirectToCategoryReselect]);
 
     // MCQ next
     const handleNext = useCallback(() => {
+        if (isProctoringBlocked) return;
         if (currentQuestionIndex < questions.length - 1) {
             setCurrentQuestionIndex(prev => prev + 1);
             setQuestionTimeLeft(30);
@@ -1137,15 +1296,19 @@ const TestEngine = () => {
             // Synchronous save of MCQ progress when transitioning to video
             if (session?.id) {
                 submitMcq(session.id, { answers }).catch(err => {
+                    if (isSessionExpiredError(err)) {
+                        redirectToCategoryReselect(err);
+                        return;
+                    }
                     console.error("Failed to submit MCQ intermediate progress:", err);
                 });
             }
         }
-    }, [currentQuestionIndex, questions.length, session?.id, answers, openVideoPrepScreen, videoQuestions.length]);
+    }, [currentQuestionIndex, isProctoringBlocked, questions.length, session?.id, answers, openVideoPrepScreen, videoQuestions.length, isSessionExpiredError, redirectToCategoryReselect]);
 
     // MCQ 30s timer
     useEffect(() => {
-        if (loading || isVideoSection || showVideoPrepScreen || questions.length === 0 || submissionResult) return;
+        if (loading || isVideoSection || showVideoPrepScreen || questions.length === 0 || submissionResult || isProctoringBlocked) return;
         setQuestionTimeLeft(30);
         const t = setInterval(() => {
             setQuestionTimeLeft(prev => {
@@ -1154,15 +1317,15 @@ const TestEngine = () => {
             });
         }, 1000);
         return () => clearInterval(t);
-    }, [currentQuestionIndex, isVideoSection, showVideoPrepScreen, questions.length, loading, submissionResult]);
+    }, [currentQuestionIndex, isVideoSection, isProctoringBlocked, showVideoPrepScreen, questions.length, loading, submissionResult]);
 
     // MCQ timeout → next
     useEffect(() => {
-        if (!isVideoSection && !showVideoPrepScreen && questionTimeLeft === 0 && questions.length > 0 && !loading && !submissionResult) handleNext();
-    }, [questionTimeLeft, isVideoSection, showVideoPrepScreen, questions.length, loading, handleNext, submissionResult]);
+        if (!isVideoSection && !showVideoPrepScreen && questionTimeLeft === 0 && questions.length > 0 && !loading && !submissionResult && !isProctoringBlocked) handleNext();
+    }, [questionTimeLeft, isVideoSection, showVideoPrepScreen, questions.length, loading, handleNext, isProctoringBlocked, submissionResult]);
 
     useEffect(() => {
-        if (!isVideoSection || showVideoPrepScreen || videoCompleted || !currentVideoDeadlineAt || submissionResult) return;
+        if (!isVideoSection || showVideoPrepScreen || videoCompleted || !currentVideoDeadlineAt || submissionResult || isProctoringBlocked) return;
 
         const updateVideoCountdown = () => {
             const remainingMs = Math.max(0, currentVideoDeadlineAt - Date.now());
@@ -1172,7 +1335,7 @@ const TestEngine = () => {
         updateVideoCountdown();
         const timer = setInterval(updateVideoCountdown, 250);
         return () => clearInterval(timer);
-    }, [isVideoSection, showVideoPrepScreen, videoCompleted, currentVideoDeadlineAt, submissionResult]);
+    }, [isVideoSection, showVideoPrepScreen, videoCompleted, currentVideoDeadlineAt, isProctoringBlocked, submissionResult]);
 
     useEffect(() => {
         if (!hasStartedAssessmentRef.current && !showVideoPrepScreen && !isVideoSection) return;
@@ -1198,7 +1361,7 @@ const TestEngine = () => {
 
     // Snapshot loop for both MCQ and video sections.
     useEffect(() => {
-        if (loading || submissionResult || !session?.id || proctoringSuspended) return undefined;
+        if (loading || submissionResult || !session?.id || proctoringSuspended || isProctoringBlocked) return undefined;
         const cadenceMs = withSnapshotJitter(getAdaptiveSnapshotCadenceMs());
         setSnapshotDebugTelemetry(prev => ({ ...prev, snapshotCadenceMs: cadenceMs }));
 
@@ -1207,10 +1370,11 @@ const TestEngine = () => {
         }, cadenceMs);
 
         return () => clearInterval(timerId);
-    }, [isVideoSection, loading, proctoringSuspended, submissionResult, session?.id, getAdaptiveSnapshotCadenceMs, setSnapshotDebugTelemetry]);
+    }, [isVideoSection, loading, proctoringSuspended, isProctoringBlocked, submissionResult, session?.id, getAdaptiveSnapshotCadenceMs, setSnapshotDebugTelemetry]);
 
     const captureAndAnalyzeSnapshot = async () => {
         if (proctoringSuspended) return;
+        if (isProctoringBlocked) return;
         if (snapshotCaptureInFlightRef.current) return;
         const imageSrcFromMcq = webcamRef.current?.getScreenshot?.() || null;
         const imageSrcFromVideo = typeof videoSnapshotGetterRef.current === 'function'
@@ -1225,6 +1389,9 @@ const TestEngine = () => {
         const blob = await (await fetch(imageSrc)).blob();
 
         // Backward-compatible snapshot metadata contract (Task 2)
+        if (!analyserRef.current && !proctoringSuspended) {
+            await initAudioDetector();
+        }
         const audioSignal = getAudioSignal();
         const visualSignal = await getVisualTelemetry(blob);
         const audioDetected = audioSignal.detected;
@@ -1343,7 +1510,11 @@ const TestEngine = () => {
         if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
         if (fullscreenGraceTimerRef.current) clearTimeout(fullscreenGraceTimerRef.current);
         if (session?.id) {
-            saveMcqProgress(session.id, { answers }).catch(() => { });
+            saveMcqProgress(session.id, { answers }).catch((err) => {
+                if (isSessionExpiredError(err)) {
+                    redirectToCategoryReselect(err);
+                }
+            });
         }
         handleSubmitTest();
     };
@@ -1361,6 +1532,10 @@ const TestEngine = () => {
         mcqAutosaveTimerRef.current = setTimeout(() => {
             mcqAutosaveLastPayloadRef.current = payload;
             saveMcqProgress(session.id, { answers }).catch(err => {
+                if (isSessionExpiredError(err)) {
+                    redirectToCategoryReselect(err);
+                    return;
+                }
                 console.error('MCQ autosave failed:', err);
             });
         }, 600);
@@ -1368,7 +1543,7 @@ const TestEngine = () => {
         return () => {
             if (mcqAutosaveTimerRef.current) clearTimeout(mcqAutosaveTimerRef.current);
         };
-    }, [answers, session?.id, loading, isVideoSection, submissionResult, questions?.length]);
+    }, [answers, session?.id, loading, isVideoSection, submissionResult, questions?.length, isSessionExpiredError, redirectToCategoryReselect]);
 
     // Client-side Proctoring (Tab switch, etc.)
     useEffect(() => {
@@ -1505,6 +1680,7 @@ const TestEngine = () => {
     };
 
     const handleAnswer = (optionKey) => {
+        if (isProctoringBlocked) return;
         setAnswers(prev => {
             const nextAnswers = { ...prev, [questions[currentQuestionIndex].id]: optionKey };
             if (session?.id) {
@@ -1538,16 +1714,20 @@ const TestEngine = () => {
             }
 
             setSubmitStatusText('Submitting answers…');
-            const res = await submitTest(session.id, { answers });
+            await submitTest(session.id, { answers });
             
             if (session?.id) {
                 await clearAnswersLocally(session.id);
             }
             
-            navigate('/assessment/result', {
-                state: { result: { ...res, passed: res.passed ?? (res.score >= 0) } }
+            navigate('/success', {
+                state: { assessment_submitted: true }
             });
         } catch (err) {
+            if (isSessionExpiredError(err)) {
+                redirectToCategoryReselect(err);
+                return;
+            }
             console.error('Failed to submit test:', err);
             alert('Submission failed. Please try again.');
             setIsSubmitting(false);
@@ -1630,6 +1810,7 @@ const TestEngine = () => {
 
     const topContentOffset = 56
         + (lastServerViolationReason ? 32 : 0)
+        + (sessionRecoveryNotice ? 38 : 0)
         + (permissionIssues.length > 0 ? 38 : 0)
         + (showEyeTrackingFallbackNotice ? 38 : 0);
 
@@ -2019,6 +2200,60 @@ const TestEngine = () => {
                 </div>
             )}
 
+            {sessionRecoveryNotice && (
+                <div style={{
+                    position: 'fixed',
+                    top: lastServerViolationReason ? 92 : 60,
+                    left: 0,
+                    right: 0,
+                    zIndex: 35,
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    borderBottom: '1px solid #bbf7d0',
+                    padding: '8px 24px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                }}>
+                    {sessionRecoveryNotice}
+                </div>
+            )}
+
+            {isProctoringBlocked && !submissionResult && !isSubmitting && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(15, 23, 42, 0.62)',
+                    backdropFilter: 'blur(9px)',
+                    zIndex: 75,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 24,
+                }}>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: 620,
+                        background: '#ffffff',
+                        borderRadius: 18,
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 28px 80px rgba(15,23,42,0.28)',
+                        padding: '28px 24px',
+                        textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: 40, marginBottom: 12 }}>Warning</div>
+                        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#0f172a' }}>
+                            Assessment paused
+                        </h2>
+                        <p style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.65, color: '#334155' }}>
+                            Proctoring connection lost. Please check your camera and internet connection. The test has been paused.
+                        </p>
+                        <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                            Auto-resume will start once queued proctoring snapshots fall below {MAX_SILENT_FAILURES}.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Main content */}
             <main style={{ flex: 1, marginTop: topContentOffset, padding: '40px 24px', maxWidth: 920, margin: `${topContentOffset}px auto 0`, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: `calc(100vh - ${topContentOffset}px)` }}>
 
@@ -2033,7 +2268,16 @@ const TestEngine = () => {
                             selectedAnswer={answers[questions[currentQuestionIndex]?.id]}
                         />
                         <div style={{ marginTop: 28, display: 'flex', justifyContent: 'flex-end' }}>
-                            <button className="tp-btn" onClick={handleNext} style={s.btnPrimary}>
+                            <button
+                                className="tp-btn"
+                                onClick={handleNext}
+                                disabled={isProctoringBlocked}
+                                style={{
+                                    ...s.btnPrimary,
+                                    opacity: isProctoringBlocked ? 0.6 : 1,
+                                    cursor: isProctoringBlocked ? 'not-allowed' : 'pointer',
+                                }}
+                            >
                                 {currentQuestionIndex === questions.length - 1 ? 'Proceed to Video' : 'Next Question'}
                             </button>
                         </div>

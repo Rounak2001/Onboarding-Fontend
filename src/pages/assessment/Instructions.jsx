@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createSession, getProctoringPolicy } from '../../services/api';
+import { getProctoringPolicy } from '../../services/api';
 import BrandLogo from '../../components/BrandLogo';
 import { getAssessmentCategory, summarizeSelectedServices } from './assessmentCatalog';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
@@ -164,22 +164,12 @@ const Instructions = () => {
         }
     }, [stopDeviceTest]);
 
-    const handleStart = async () => {
-        setLoading(true); setError('');
-        try {
-            const data = await createSession({
-                selected_tests: selectedTests.map((test) => test.slug || test.name),
-                selected_test_details: selectedTests.map((test) => ({
-                    slug: test.slug || test.name,
-                    selected_service_ids: Array.isArray(test.selectedServiceIds) ? test.selectedServiceIds : [],
-                })),
-            });
-            navigate('/assessment/test', { state: { session: data } });
-        } catch (err) {
-            setError(err.response?.data?.error || 'Failed to start session.');
-            console.error(err);
-        }
-        finally { setLoading(false); }
+    const handleStart = () => {
+        setError('');
+        setLoading(true);
+        navigate('/assessment/preflight', {
+            state: { selectedTests },
+        });
     };
 
     const rules = [
@@ -316,7 +306,7 @@ const Instructions = () => {
                         <span style={{ fontSize: 16, marginTop: 2 }}>⚠️</span>
                         <div>
                             <p style={{ fontSize: 14, fontWeight: 600, color: '#92400e', margin: 0 }}>Important</p>
-                            <p style={{ fontSize: 13, color: '#a16207', margin: '4px 0 0' }}>Once you start, you cannot pause or restart. Ensure stable internet and camera access.</p>
+                            <p style={{ fontSize: 13, color: '#a16207', margin: '4px 0 0' }}>Your assessment window is 2 hours. If interrupted, MCQ/video may restart within this window; after expiry, you must reselect categories.</p>
                         </div>
                     </div>
                 </div>

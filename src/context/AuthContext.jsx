@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getUserProfile, logout as logoutApi } from '../services/api';
+import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
 
 const AuthContext = createContext(null);
 let pendingProfileRequest = null;
@@ -179,17 +180,23 @@ export const AuthProvider = ({ children }) => {
         if (!targetUser?.is_verified) {
             return '/onboarding/face-verification';
         }
+        if (!targetFlags.has_documents) {
+            return '/onboarding/documentation';
+        }
         if (targetFlags.assessment_review_pending) {
-            return '/assessment/result';
+            return '/success';
         }
         if (targetFlags.assessment_retry_locked) {
             return '/assessment/result';
         }
         if (!targetFlags.has_passed_assessment) {
+            if (!targetFlags.assessment_can_start) {
+                return '/success';
+            }
+            if (isAssessmentDeviceBlocked()) {
+                return '/assessment/device-required';
+            }
             return '/assessment/select';
-        }
-        if (!targetFlags.has_documents) {
-            return '/onboarding/documentation';
         }
         return '/success';
     }, [isAuthenticated, stepFlags, user]);
