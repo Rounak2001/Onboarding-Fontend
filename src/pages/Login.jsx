@@ -101,11 +101,13 @@ const Login = () => {
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-                        <img
-                            src={taxplanAdvisorDarkLogo}
-                            alt="Taxplan Advisor"
-                            style={{ height: 56, width: 'auto', display: 'block', objectFit: 'contain' }}
-                        />
+                        <a href="https://taxplanadvisor.in" target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
+                            <img
+                                src={taxplanAdvisorDarkLogo}
+                                alt="Taxplan Advisor"
+                                style={{ height: 56, width: 'auto', display: 'block', objectFit: 'contain' }}
+                            />
+                        </a>
                     </div>
                     <p style={{ fontSize: 14, color: '#9ca3af', marginTop: 4 }}>Consultant Onboarding Portal</p>
                 </div>

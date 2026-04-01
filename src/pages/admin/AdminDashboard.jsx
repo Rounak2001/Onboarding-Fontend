@@ -1,13 +1,16 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
 import { readResponsePayload } from '../../utils/http';
 import BrandLogo from '../../components/BrandLogo';
 
+const PAGE_SIZE = 50;
+
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [consultants, setConsultants] = useState([]);
+    const [stats, setStats] = useState({ total: 0, completed: 0, ongoing: 0, flagged: 0, working: 0 });
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -16,30 +19,57 @@ const AdminDashboard = () => {
     const [verificationFilter, setVerificationFilter] = useState('all');
     const [sortKey, setSortKey] = useState('created_at');
     const [sortDir, setSortDir] = useState('desc');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
 
     const token = localStorage.getItem('admin_token');
+    const searchRef = useRef(search);
 
-    useEffect(() => {
-        if (!token && !import.meta.env.DEV) { navigate(adminUrl()); return; }
-        fetchConsultants();
-    }, []);
-
-    const fetchConsultants = async () => {
+    const fetchConsultants = async (pg = 1, currentSearch = search, currentStatus = statusFilter, currentVerification = verificationFilter) => {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(apiUrl('/admin-panel/consultants/'), {
+            const params = new URLSearchParams({ page: pg, page_size: PAGE_SIZE });
+            if (currentSearch.trim()) params.set('search', currentSearch.trim());
+            if (currentStatus !== 'all') params.set('status', currentStatus);
+            if (currentVerification !== 'all') params.set('verification', currentVerification);
+
+            const res = await fetch(apiUrl(`/admin-panel/consultants/?${params}`), {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             });
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             const data = await res.json();
             setConsultants(data.consultants || []);
+            setStats(data.stats || { total: 0, completed: 0, ongoing: 0, flagged: 0, working: 0 });
+            setTotalPages(data.total_pages || 1);
+            setTotalCount(data.total || 0);
+            setPage(pg);
         } catch {
             setError('Failed to load consultants');
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!token && !import.meta.env.DEV) { navigate(adminUrl()); return; }
+        fetchConsultants(1);
+    }, []);
+
+    // Debounced search re-fetch
+    useEffect(() => {
+        searchRef.current = search;
+        const timer = setTimeout(() => {
+            if (searchRef.current === search) fetchConsultants(1, search, statusFilter, verificationFilter);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    // Immediate re-fetch on filter change
+    useEffect(() => {
+        fetchConsultants(1, search, statusFilter, verificationFilter);
+    }, [statusFilter, verificationFilter]);
 
     const handleDeleteConsultant = async (consultantId, consultantName) => {
         if (!window.confirm(`Delete ${consultantName || 'this consultant'} permanently? This cannot be undone.`)) return;
@@ -67,69 +97,18 @@ const AdminDashboard = () => {
         }
     };
 
-    const stats = useMemo(() => {
-        const all = Array.isArray(consultants) ? consultants : [];
-        const byStatus = all.reduce((acc, c) => {
-            const s = String(c?.assessment_status || 'Unknown');
-            acc[s] = (acc[s] || 0) + 1;
-            return acc;
-        }, {});
-        return {
-            total: all.length,
-            completed: byStatus.Completed || 0,
-            ongoing: byStatus.Ongoing || 0,
-            flagged: (byStatus.Flagged || 0) + (byStatus.Violated || 0),
-            working: all.filter((c) => !!c?.has_credentials).length,
-        };
-    }, [consultants]);
-
-    const filtered = useMemo(() => {
-        const q = String(search || '').trim().toLowerCase();
-        const rows = (Array.isArray(consultants) ? consultants : []).filter(c => {
-            const name = String(c?.full_name || '').toLowerCase();
-            const email = String(c?.email || '').toLowerCase();
-            const phone = String(c?.phone_number || '');
-            const matchesQuery = !q || name.includes(q) || email.includes(q) || phone.includes(q);
-
-            const status = String(c?.assessment_status || 'Unknown');
-            const matchesStatus = statusFilter === 'all' || status === statusFilter;
-
-            const face = String(c?.face_verification_status || '');
-            const docs = String(c?.doc_verification_status || '');
-            const isVerified = face === 'Matched' || face === 'All Verified' || docs === 'All Verified';
-            const matchesVerification = verificationFilter === 'all'
-                || (verificationFilter === 'verified' ? isVerified : !isVerified);
-
-            return matchesQuery && matchesStatus && matchesVerification;
-        });
-
-        const toNum = (v) => {
-            const n = Number(v);
-            return Number.isFinite(n) ? n : null;
-        };
-        const toDate = (v) => {
-            const d = v ? new Date(v) : null;
-            return d && !Number.isNaN(d.getTime()) ? d.getTime() : null;
-        };
-
+    // Filtering is server-side; only sort the current page client-side
+    const sorted = useMemo(() => {
+        const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+        const toDate = (v) => { const d = v ? new Date(v) : null; return d && !Number.isNaN(d.getTime()) ? d.getTime() : null; };
         const dir = sortDir === 'asc' ? 1 : -1;
-        return [...rows].sort((a, b) => {
-            if (sortKey === 'name') {
-                return String(a?.full_name || a?.email || '').localeCompare(String(b?.full_name || b?.email || '')) * dir;
-            }
-            if (sortKey === 'score') {
-                const av = toNum(a?.assessment_score) ?? -1;
-                const bv = toNum(b?.assessment_score) ?? -1;
-                return (av - bv) * dir;
-            }
-            if (sortKey === 'status') {
-                return String(a?.assessment_status || '').localeCompare(String(b?.assessment_status || '')) * dir;
-            }
-            const ad = toDate(a?.created_at) ?? 0;
-            const bd = toDate(b?.created_at) ?? 0;
-            return (ad - bd) * dir;
+        return [...consultants].sort((a, b) => {
+            if (sortKey === 'name') return String(a?.full_name || a?.email || '').localeCompare(String(b?.full_name || b?.email || '')) * dir;
+            if (sortKey === 'score') return ((toNum(a?.assessment_score) ?? -1) - (toNum(b?.assessment_score) ?? -1)) * dir;
+            if (sortKey === 'status') return String(a?.assessment_status || '').localeCompare(String(b?.assessment_status || '')) * dir;
+            return ((toDate(a?.created_at) ?? 0) - (toDate(b?.created_at) ?? 0)) * dir;
         });
-    }, [consultants, search, sortKey, sortDir, statusFilter, verificationFilter]);
+    }, [consultants, sortKey, sortDir]);
 
     const handleLogout = () => {
         localStorage.removeItem('admin_token');
@@ -245,9 +224,9 @@ const AdminDashboard = () => {
                             background: 'rgba(16,185,129,0.15)', color: '#34d399',
                             border: '1px solid rgba(16,185,129,0.25)',
                         }}>
-                            Showing {filtered.length}/{consultants.length}
+                            Showing {totalCount} total
                         </span>
-                        <button className="tp-btn" onClick={fetchConsultants} disabled={loading} style={{
+                        <button className="tp-btn" onClick={() => fetchConsultants(page)} disabled={loading} style={{
                             padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                             background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
                             border: '1px solid rgba(148,163,184,0.18)',
@@ -442,7 +421,7 @@ const AdminDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((c, i) => (
+                                {sorted.map((c, i) => (
                                     <tr
                                         key={c.id}
                                         onClick={() => navigate(adminUrl(`consultant/${c.id}`))}
@@ -530,7 +509,7 @@ const AdminDashboard = () => {
                                         </td>
                                     </tr>
                                 ))}
-                                {filtered.length === 0 && (
+                                {sorted.length === 0 && (
                                     <tr>
                                         <td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 14 }}>
                                             {(search || statusFilter !== 'all' || verificationFilter !== 'all')
@@ -550,8 +529,70 @@ const AdminDashboard = () => {
                             alignItems: 'center',
                             color: '#64748b',
                             fontSize: 12,
+                            flexWrap: 'wrap',
+                            gap: 8,
                         }}>
-                            <span>Showing <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{filtered.length}</span> of {consultants.length}</span>
+                            <span>
+                                Page <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{page}</span> of <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{totalPages}</span>
+                                {' · '}{totalCount} result{totalCount !== 1 ? 's' : ''}
+                            </span>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                <button
+                                    onClick={() => fetchConsultants(1, search, statusFilter, verificationFilter)}
+                                    disabled={page <= 1 || loading}
+                                    style={{
+                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                        background: 'rgba(148,163,184,0.08)', color: page <= 1 ? '#334155' : '#94a3b8',
+                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                                    }}
+                                >«</button>
+                                <button
+                                    onClick={() => fetchConsultants(page - 1, search, statusFilter, verificationFilter)}
+                                    disabled={page <= 1 || loading}
+                                    style={{
+                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                        background: 'rgba(148,163,184,0.08)', color: page <= 1 ? '#334155' : '#94a3b8',
+                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                                    }}
+                                >‹ Prev</button>
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                                    const p = start + i;
+                                    return p <= totalPages ? (
+                                        <button
+                                            key={p}
+                                            onClick={() => fetchConsultants(p, search, statusFilter, verificationFilter)}
+                                            disabled={loading}
+                                            style={{
+                                                padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                                background: p === page ? 'rgba(16,185,129,0.2)' : 'rgba(148,163,184,0.08)',
+                                                color: p === page ? '#34d399' : '#94a3b8',
+                                                border: `1px solid ${p === page ? 'rgba(16,185,129,0.35)' : 'rgba(148,163,184,0.15)'}`,
+                                                cursor: loading ? 'not-allowed' : 'pointer',
+                                                minWidth: 32,
+                                            }}
+                                        >{p}</button>
+                                    ) : null;
+                                })}
+                                <button
+                                    onClick={() => fetchConsultants(page + 1, search, statusFilter, verificationFilter)}
+                                    disabled={page >= totalPages || loading}
+                                    style={{
+                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                        background: 'rgba(148,163,184,0.08)', color: page >= totalPages ? '#334155' : '#94a3b8',
+                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                                    }}
+                                >Next ›</button>
+                                <button
+                                    onClick={() => fetchConsultants(totalPages, search, statusFilter, verificationFilter)}
+                                    disabled={page >= totalPages || loading}
+                                    style={{
+                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                        background: 'rgba(148,163,184,0.08)', color: page >= totalPages ? '#334155' : '#94a3b8',
+                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                                    }}
+                                >»</button>
+                            </div>
                             <span style={{ color: '#94a3b8' }}>Tip: click headers to sort</span>
                         </div>
                     </div>
