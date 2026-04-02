@@ -10,7 +10,7 @@ const PAGE_SIZE = 50;
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [consultants, setConsultants] = useState([]);
-    const [stats, setStats] = useState({ total: 0, completed: 0, ongoing: 0, flagged: 0, violated: 0, working: 0 });
+    const [stats, setStats] = useState({ total: 0, completed: 0, ongoing: 0, violated: 0, working: 0 });
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -43,7 +43,7 @@ const AdminDashboard = () => {
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             const data = await res.json();
             setConsultants(data.consultants || []);
-            setStats(data.stats || { total: 0, completed: 0, ongoing: 0, flagged: 0, violated: 0, working: 0 });
+            setStats(data.stats || { total: 0, completed: 0, ongoing: 0, violated: 0, working: 0 });
             setTotalPages(data.total_pages || 1);
             setTotalCount(data.total || 0);
             setPage(pg);
@@ -176,7 +176,6 @@ const AdminDashboard = () => {
             Ongoing: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
             Pending: { bg: 'rgba(250,204,21,0.12)', color: '#facc15' },
             Failed: { bg: 'rgba(251,113,133,0.12)', color: '#fb7185' },
-            Flagged: { bg: 'rgba(249,115,22,0.16)', color: '#fb923c' },
             Violated: { bg: 'rgba(239,68,68,0.14)', color: '#f87171' },
             'Not Started': { bg: 'rgba(100,116,139,0.12)', color: '#64748b' },
         };
@@ -306,7 +305,6 @@ const AdminDashboard = () => {
                     {metricCard('Total', stats.total, 'slate')}
                     {metricCard('Completed', stats.completed, 'blue')}
                     {metricCard('Ongoing', stats.ongoing, 'amber')}
-                    {metricCard('Flagged', stats.flagged, 'rose')}
                     {metricCard('Violated', stats.violated, 'red')}
                     {metricCard('Consultants', stats.working, 'emerald')}
                 </div>
@@ -351,7 +349,6 @@ const AdminDashboard = () => {
                         <option value="all">All statuses</option>
                         <option value="Completed">Completed</option>
                         <option value="Ongoing">Ongoing</option>
-                        <option value="Flagged">Flagged</option>
                         <option value="Violated">Violated</option>
                         <option value="Failed">Failed</option>
                         <option value="Pending">Pending</option>

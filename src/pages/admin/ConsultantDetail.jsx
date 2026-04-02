@@ -128,7 +128,7 @@ const ConsultantDetail = () => {
     };
 
     const handleRestoreAssessment = async (sessionId) => {
-        if (!window.confirm('Restore this flagged session and reset violation count to 0?')) return;
+        if (!window.confirm('Restore this violated session and reset violation count to 0?')) return;
         setRestoringSessionId(sessionId);
         try {
             const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/restore-assessment/`), {
@@ -565,9 +565,9 @@ const ConsultantDetail = () => {
                                             {s.test_type || 'Unknown Test'}
                                         </span>
                                         {(() => {
-                                            const isViolated = s.violation_count > 0 && s.status !== 'flagged';
+                                            const isViolated = s.violation_count > 0 || s.status === 'flagged';
                                             const displayStatus = isViolated ? 'Violated' : s.status?.charAt(0).toUpperCase() + s.status?.slice(1);
-                                            const isRed = s.status === 'flagged' || isViolated;
+                                            const isRed = isViolated;
                                             const isGreen = s.status === 'completed' && !isViolated;
                                             const isYellow = s.status === 'ongoing' && !isViolated;
 
