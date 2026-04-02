@@ -1,15 +1,27 @@
 import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+import { Analytics } from '@vercel/analytics/react'
 import './index.css'
 import App from './App.jsx'
 
 Sentry.init({
-  dsn:
-    import.meta.env.VITE_SENTRY_DSN ||
-    'https://61f9150ec43c1683b563db8d2476d57a@o4510925533741056.ingest.us.sentry.io/4511137473232896',
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  environment: import.meta.env.MODE,
   sendDefaultPii: true,
+  tracesSampleRate: 1.0,
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,
+  integrations: [
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration(),
+  ],
 })
 
 createRoot(document.getElementById('root')).render(
-  <App />,
+  <>
+    <Sentry.ErrorBoundary fallback={<p>Something went wrong</p>}>
+      <App />
+    </Sentry.ErrorBoundary>
+    <Analytics />
+  </>,
 )
