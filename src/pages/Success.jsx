@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getLatestResult } from '../services/api';
 import BrandLogo from '../components/BrandLogo';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
+import { useIsNarrowScreen } from '../utils/useViewport';
 
 const formatRetryUnlockAt = (value) => {
     if (!value) return '';
@@ -42,6 +43,9 @@ const Success = () => {
     const { user, stepFlags, checkAuth, updateStepFlags } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const isCompactScreen = useIsNarrowScreen(900);
+    const isPhoneScreen = useIsNarrowScreen(640);
+    const pageHorizontalPadding = isPhoneScreen ? 16 : (isCompactScreen ? 20 : 32);
     const [assessmentPassed, setAssessmentPassed] = useState(stepFlags?.has_passed_assessment || false);
     const [assessmentStatus, setAssessmentStatus] = useState(null);
     const [assessmentReviewPending, setAssessmentReviewPending] = useState(stepFlags?.assessment_review_pending || false);
@@ -158,11 +162,62 @@ const Success = () => {
             action: disqualified || underReview || retryLocked ? null : () => navigate(assessmentEntryRoute),
             icon: disqualified ? '\u{1F6AB}' : underReview ? '\u23F3' : '\u{1F4DD}',
             customStatus: disqualified
-                ? <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '6px 14px', borderRadius: 20, border: '1px solid #fecaca' }}>Disqualified</span>
+                ? (
+                    <span
+                        style={{
+                            fontSize: 12,
+                            color: '#dc2626',
+                            fontWeight: 600,
+                            background: '#fef2f2',
+                            padding: '6px 14px',
+                            borderRadius: 20,
+                            border: '1px solid #fecaca',
+                            display: isCompactScreen ? 'inline-flex' : 'inline-flex',
+                            width: isCompactScreen ? '100%' : 'auto',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        Disqualified
+                    </span>
+                )
                 : underReview
-                    ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>Under Review</span>
+                    ? (
+                        <span
+                            style={{
+                                fontSize: 12,
+                                color: '#9a3412',
+                                fontWeight: 600,
+                                background: '#fff7ed',
+                                padding: '6px 14px',
+                                borderRadius: 20,
+                                border: '1px solid #fdba74',
+                                display: isCompactScreen ? 'inline-flex' : 'inline-flex',
+                                width: isCompactScreen ? '100%' : 'auto',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            Under Review
+                        </span>
+                    )
                     : retryLocked
-                        ? <span style={{ fontSize: 12, color: '#9a3412', fontWeight: 600, background: '#fff7ed', padding: '6px 14px', borderRadius: 20, border: '1px solid #fdba74' }}>{retryCountdownText}</span>
+                        ? (
+                            <span
+                                style={{
+                                    fontSize: 12,
+                                    color: '#9a3412',
+                                    fontWeight: 600,
+                                    background: '#fff7ed',
+                                    padding: '6px 14px',
+                                    borderRadius: 20,
+                                    border: '1px solid #fdba74',
+                                    display: isCompactScreen ? 'inline-flex' : 'inline-flex',
+                                    width: isCompactScreen ? '100%' : 'auto',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                {retryCountdownText}
+                            </span>
+                        )
                         : null,
         },
     ];
@@ -187,19 +242,19 @@ const Success = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: `0 ${pageHorizontalPadding}px`, height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BrandLogo />
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 32px' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: `${isPhoneScreen ? 22 : (isCompactScreen ? 28 : 40)}px ${pageHorizontalPadding}px` }}>
                 <div style={{ marginBottom: 32 }}>
-                    <h1 style={{ fontSize: 26, fontWeight: 700, color: '#111827', margin: 0 }}>{`Welcome back, ${user?.first_name || user?.email?.split('@')[0]}`}</h1>
-                    <p style={{ fontSize: 15, color: '#6b7280', marginTop: 6 }}>Complete the steps below to finish your consultant onboarding.</p>
+                    <h1 style={{ fontSize: isPhoneScreen ? 22 : (isCompactScreen ? 24 : 26), fontWeight: 700, color: '#111827', margin: 0, lineHeight: 1.25 }}>{`Welcome back, ${user?.first_name || user?.email?.split('@')[0]}`}</h1>
+                    <p style={{ fontSize: 15, color: '#6b7280', marginTop: 8, lineHeight: 1.6 }}>Complete the steps below to finish your consultant onboarding.</p>
                 </div>
 
                 {showReviewCompletionBanner && (
-                    <div style={{ marginBottom: 22, background: '#ecfdf5', borderRadius: 12, padding: 22, border: '1px solid #bbf7d0' }}>
+                    <div style={{ marginBottom: 22, background: '#ecfdf5', borderRadius: 12, padding: isPhoneScreen ? 16 : 22, border: '1px solid #bbf7d0' }}>
                         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#065f46', margin: '0 0 8px' }}>
                             Congratulations, you have completed all onboarding steps.
                         </h2>
@@ -219,13 +274,14 @@ const Success = () => {
                                 key={i}
                                 style={{
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 20,
-                                    padding: '20px 28px',
+                                    alignItems: isCompactScreen ? 'stretch' : 'center',
+                                    gap: isCompactScreen ? 12 : 20,
+                                    padding: isCompactScreen ? '16px 14px' : '20px 28px',
                                     borderTop: i > 0 ? '1px solid #f3f4f6' : 'none',
                                     background: isActive ? '#f0fdf4' : '#fff',
-                                    opacity: isLocked ? 0.45 : 1,
+                                    opacity: isLocked ? 0.82 : 1,
                                     transition: 'all 0.2s',
+                                    flexDirection: isCompactScreen ? 'column' : 'row',
                                 }}
                             >
                                 <div
@@ -246,7 +302,7 @@ const Success = () => {
                                     {step.done ? '✓' : i + 1}
                                 </div>
 
-                                <span style={{ fontSize: 24, flexShrink: 0 }}>{step.icon}</span>
+                                {!isCompactScreen && <span style={{ fontSize: 24, flexShrink: 0 }}>{step.icon}</span>}
 
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <h3
@@ -254,19 +310,19 @@ const Success = () => {
                                             fontSize: 15,
                                             fontWeight: 600,
                                             margin: 0,
-                                            color: step.done ? '#16a34a' : isActive ? '#111827' : '#9ca3af',
+                                            color: step.done ? '#166534' : isActive ? '#111827' : '#475569',
                                         }}
                                     >
                                         {step.label}
                                     </h3>
-                                    <p style={{ fontSize: 13, color: step.done ? '#86efac' : '#9ca3af', margin: '2px 0 0' }}>
+                                    <p style={{ fontSize: 13, color: step.done ? '#166534' : '#64748b', margin: '4px 0 0', lineHeight: 1.55 }}>
                                         {step.desc}
                                     </p>
                                 </div>
 
-                                <div style={{ flexShrink: 0 }}>
+                                <div style={{ flexShrink: 0, width: isCompactScreen ? '100%' : 'auto' }}>
                                     {step.done ? (
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 14px', borderRadius: 20 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 14px', borderRadius: 20, display: isCompactScreen ? 'inline-flex' : 'inline-flex', width: isCompactScreen ? '100%' : 'auto', justifyContent: 'center' }}>
                                             Complete
                                         </span>
                                     ) : isActive && step.action ? (
@@ -282,6 +338,7 @@ const Success = () => {
                                                 border: 'none',
                                                 cursor: 'pointer',
                                                 transition: 'background 0.2s',
+                                                width: isCompactScreen ? '100%' : 'auto',
                                             }}
                                             onMouseEnter={(e) => { e.target.style.background = '#047857'; }}
                                             onMouseLeave={(e) => { e.target.style.background = '#059669'; }}
@@ -289,7 +346,20 @@ const Success = () => {
                                             Start →
                                         </button>
                                     ) : (
-                                        step.customStatus || <span style={{ fontSize: 12, color: '#d1d5db', fontWeight: 500 }}>Locked</span>
+                                        step.customStatus || (
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: '#64748b',
+                                                    fontWeight: 600,
+                                                    display: isCompactScreen ? 'inline-flex' : 'inline',
+                                                    width: isCompactScreen ? '100%' : 'auto',
+                                                    justifyContent: 'center',
+                                                }}
+                                            >
+                                                Locked
+                                            </span>
+                                        )
                                     )}
                                 </div>
                             </div>
@@ -298,7 +368,7 @@ const Success = () => {
                 </div>
 
                 {stepFlags?.has_documents && assessmentPassed && isVerified && hasIdentity && (
-                    <div style={{ marginTop: 32, textAlign: 'center', background: '#ecfdf5', borderRadius: 12, padding: 24, border: '1px solid #d1fae5' }}>
+                    <div style={{ marginTop: 32, textAlign: 'center', background: '#ecfdf5', borderRadius: 12, padding: isPhoneScreen ? 18 : 24, border: '1px solid #d1fae5' }}>
                         <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
                         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#065f46', margin: '0 0 8px' }}>Onboarding Complete!</h2>
                         <p style={{ fontSize: 15, color: '#047857', margin: 0, lineHeight: 1.6 }}>

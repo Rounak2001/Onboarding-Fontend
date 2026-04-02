@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import taxplanAdvisorDarkLogo from '../assets/TAXPLANDARK.png';
 import EmailConflictDialog from '../components/EmailConflictDialog';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
+import { useIsNarrowScreen, useViewportWidth } from '../utils/useViewport';
 
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
@@ -14,6 +15,8 @@ const Login = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { syncAuthData } = useAuth();
+    const isPhoneScreen = useIsNarrowScreen(640);
+    const viewportWidth = useViewportWidth();
     const [error, setError] = useState('');
     const [conflictMessage, setConflictMessage] = useState('');
     const [showConflictDialog, setShowConflictDialog] = useState(false);
@@ -27,6 +30,7 @@ const Login = () => {
             googleButtonRef.current?.focus?.();
         });
     };
+    const googleButtonWidth = String(Math.max(220, Math.min(350, viewportWidth - (isPhoneScreen ? 48 : 96))));
 
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
@@ -96,16 +100,16 @@ const Login = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isPhoneScreen ? 14 : 24, fontFamily: "'Inter', system-ui, sans-serif" }}>
             <div style={{ width: '100%', maxWidth: 420 }}>
                 {/* Logo */}
-                <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                <div style={{ textAlign: 'center', marginBottom: isPhoneScreen ? 22 : 32 }}>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
                         <a href="https://taxplanadvisor.in" target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
                             <img
                                 src={taxplanAdvisorDarkLogo}
                                 alt="Taxplan Advisor"
-                                style={{ height: 56, width: 'auto', display: 'block', objectFit: 'contain' }}
+                            style={{ height: isPhoneScreen ? 46 : 56, width: 'auto', display: 'block', objectFit: 'contain' }}
                             />
                         </a>
                     </div>
@@ -113,9 +117,9 @@ const Login = () => {
                 </div>
 
                 {/* Card */}
-                <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 32, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: isPhoneScreen ? 20 : 32, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                     <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', textAlign: 'center', margin: '0 0 4px' }}>Welcome</h2>
-                    <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', marginBottom: 28 }}>Sign in with your Google account to get started</p>
+                    <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', marginBottom: isPhoneScreen ? 20 : 28 }}>Sign in with your Google account to get started</p>
 
                     {GOOGLE_OAUTH_ENABLED ? (
                         <div
@@ -133,7 +137,7 @@ const Login = () => {
                                 theme="outline"
                                 shape="rectangular"
                                 size="large"
-                                width="350"
+                                width={googleButtonWidth}
                             />
                         </div>
                     ) : (

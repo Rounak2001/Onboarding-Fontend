@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { acceptDeclaration, getProctoringPolicy } from '../services/api';
 import BrandLogo from '../components/BrandLogo';
+import { useIsNarrowScreen } from '../utils/useViewport';
 
 const DEFAULT_PROCTORING_DECLARATION_POLICY = {
     TAB_WARNINGS_LIMIT: 3,
@@ -13,6 +14,7 @@ const DEFAULT_PROCTORING_DECLARATION_POLICY = {
 const Declaration = () => {
     const navigate = useNavigate();
     const { syncAuthData, getNextRoute } = useAuth();
+    const isPhoneScreen = useIsNarrowScreen(640);
 
     const [agreements, setAgreements] = useState({
         accuracy: null,
@@ -81,20 +83,21 @@ const Declaration = () => {
 
     const titleStyle = { fontWeight: 600, color: '#111827', marginBottom: 4, fontSize: 15 };
     const descStyle = { fontSize: 13, color: '#6b7280', lineHeight: 1.5 };
+    const pageHorizontalPadding = isPhoneScreen ? 16 : 32;
 
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ maxWidth: 900, margin: '0 auto', padding: `0 ${pageHorizontalPadding}px`, height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BrandLogo />
                 </div>
             </header>
 
-            <div style={{ maxWidth: 800, margin: '0 auto', padding: '40px 32px 60px' }}>
+            <div style={{ maxWidth: 800, margin: '0 auto', padding: `${isPhoneScreen ? 20 : 40}px ${pageHorizontalPadding}px 60px` }}>
                 <div style={{ marginBottom: 32 }}>
                     <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Required Step</span>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Consultant Declaration</h1>
-                    <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Please read and carefully agree to all terms before proceeding to the assessment platform.</p>
+                    <h1 style={{ fontSize: isPhoneScreen ? 21 : 24, fontWeight: 700, color: '#111827', margin: 0 }}>Consultant Declaration</h1>
+                    <p style={{ fontSize: 14, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>Please read and carefully agree to all terms before proceeding to the assessment platform.</p>
                 </div>
 
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', padding: '12px 16px', borderRadius: 8, marginBottom: 24, fontSize: 13, lineHeight: 1.6 }}>
@@ -125,7 +128,7 @@ const Declaration = () => {
                         <div style={titleStyle}>1. Accuracy of Information</div>
                         <div style={descStyle}>I declare that all personal information, identity documents, and qualifications I have uploaded or will upload are true, accurate, and belong entirely to me. I understand that submitting forged or altered documents will lead to immediate disqualification.</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 24, marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 24, marginTop: 4, flexWrap: 'wrap' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                             <input type="radio" name="accuracy" checked={agreements.accuracy === true} onChange={() => handleRadioChange('accuracy', true)} style={{ width: 18, height: 18, accentColor: '#059669', cursor: 'pointer' }} />
                             <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>Yes</span>
@@ -142,7 +145,7 @@ const Declaration = () => {
                         <div style={titleStyle}>2. Assessment Integrity</div>
                         <div style={descStyle}>I agree to complete the assessment entirely on my own, without the assistance of any other person, external devices, AI tools, or unauthorized materials.</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 24, marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 24, marginTop: 4, flexWrap: 'wrap' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                             <input type="radio" name="integrity" checked={agreements.integrity === true} onChange={() => handleRadioChange('integrity', true)} style={{ width: 18, height: 18, accentColor: '#059669', cursor: 'pointer' }} />
                             <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>Yes</span>
@@ -159,7 +162,7 @@ const Declaration = () => {
                         <div style={titleStyle}>3. Proctoring Consent</div>
                         <div style={descStyle}>I consent to video, audio, and screen-monitoring (proctoring) during the assessment. I understand that any attempts to switch tabs, minimize the window, or obscure my webcam will be logged as violations and may result in my test being flagged or rejected.</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 24, marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 24, marginTop: 4, flexWrap: 'wrap' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                             <input type="radio" name="proctoring" checked={agreements.proctoring === true} onChange={() => handleRadioChange('proctoring', true)} style={{ width: 18, height: 18, accentColor: '#059669', cursor: 'pointer' }} />
                             <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>Yes</span>
@@ -176,7 +179,7 @@ const Declaration = () => {
                         <div style={titleStyle}>4. Final Decision</div>
                         <div style={descStyle}>I acknowledge that the evaluation of my assessment, including video analysis and document verification, is at the sole discretion of the TaxPlan Advisor administrative team, and their passing or disqualification decisions are final.</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 24, marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 24, marginTop: 4, flexWrap: 'wrap' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                             <input type="radio" name="finalDecision" checked={agreements.finalDecision === true} onChange={() => handleRadioChange('finalDecision', true)} style={{ width: 18, height: 18, accentColor: '#059669', cursor: 'pointer' }} />
                             <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>Yes</span>
@@ -189,7 +192,7 @@ const Declaration = () => {
                 </div>
             </div>
 
-            <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end', paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
+            <div style={{ marginTop: 32, display: 'flex', justifyContent: isPhoneScreen ? 'stretch' : 'flex-end', paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
                 <button
                     onClick={handleSubmit}
                     disabled={!allAgreed || loading}
@@ -205,7 +208,9 @@ const Declaration = () => {
                         transition: 'background 0.2s',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 8
+                        gap: 8,
+                        width: isPhoneScreen ? '100%' : 'auto',
+                        justifyContent: 'center',
                     }}
                 >
                     {loading ? 'Submitting...' : 'I Agree & Proceed'}

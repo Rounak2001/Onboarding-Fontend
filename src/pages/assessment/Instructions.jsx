@@ -4,11 +4,22 @@ import { getProctoringPolicy } from '../../services/api';
 import BrandLogo from '../../components/BrandLogo';
 import { getAssessmentCategory, summarizeSelectedServices } from './assessmentCatalog';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
+import {
+    loadSelectedTests,
+    saveSelectedTests,
+    sanitizeSelectedTests,
+} from './selectionPersistence';
 
 const Instructions = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const selectedTests = location.state?.selectedTests || [];
+    const selectedTests = useMemo(() => {
+        const fromRouteState = sanitizeSelectedTests(location.state?.selectedTests);
+        if (fromRouteState.length > 0) {
+            return fromRouteState;
+        }
+        return loadSelectedTests();
+    }, [location.state?.selectedTests]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [deviceChecking, setDeviceChecking] = useState(false);
@@ -33,6 +44,12 @@ const Instructions = () => {
             navigate('/assessment/select');
         }
     }, [navigate, selectedTests]);
+
+    useEffect(() => {
+        if (selectedTests.length > 0) {
+            saveSelectedTests(selectedTests);
+        }
+    }, [selectedTests]);
 
     const selectedCategorySummaries = useMemo(() => {
         return selectedTests.map((test) => {
@@ -167,6 +184,7 @@ const Instructions = () => {
     const handleStart = () => {
         setError('');
         setLoading(true);
+        saveSelectedTests(selectedTests);
         navigate('/assessment/preflight', {
             state: { selectedTests },
         });

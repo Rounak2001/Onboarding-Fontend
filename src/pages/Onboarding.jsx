@@ -5,6 +5,39 @@ import { completeOnboarding, sendOnboardingPhoneOtp, uploadOnboardingDocument, v
 import FileDropzone from '../components/FileDropzone';
 import BrandLogo from '../components/BrandLogo';
 import PhoneOtpVerificationModal from '../components/PhoneOtpVerificationModal';
+import { useIsNarrowScreen } from '../utils/useViewport';
+
+const HIGHEST_QUALIFICATION_OPTIONS = [
+    'Chartered Accountant (CA)',
+    'Cost and Management Accountant (CMA)',
+    'Company Secretary (CS)',
+    'B.Com (Bachelor of Commerce)',
+    'M.Com (Master of Commerce)',
+    'BBA (Finance)',
+    'MBA (Finance)',
+    'BMS (Finance)',
+    'BAF (Bachelor of Accounting and Finance)',
+    'BFM (Bachelor of Financial Markets)',
+    'BBA (Banking and Insurance)',
+    'Bachelor in Economics',
+    'Master in Economics',
+    'B.Sc (Finance)',
+    'M.Sc (Finance)',
+    'Certified Public Accountant (CPA)',
+    'Association of Chartered Certified Accountants (ACCA)',
+    'CFA (Chartered Financial Analyst)',
+    'FRM (Financial Risk Manager)',
+    'LLB (Taxation)',
+    'LLM (Taxation)',
+    'Diploma in Taxation',
+    'Diploma in Financial Accounting',
+];
+
+const getQualificationOptionMatch = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return HIGHEST_QUALIFICATION_OPTIONS.find((opt) => opt.toLowerCase() === normalized) || null;
+};
 
 const Onboarding = () => {
     const navigate = useNavigate();
@@ -23,9 +56,16 @@ const Onboarding = () => {
     const cityRef = useRef(null);
     const stateRef = useRef(null);
     const pincodeRef = useRef(null);
+    const qualificationRef = useRef(null);
+    const qualificationOtherRef = useRef(null);
+    const qualificationMenuRef = useRef(null);
     const yearsExpRef = useRef(null);
     const isDetailsEdit = location.pathname === '/onboarding/details';
     const identityMismatchNotice = location.state?.identityMismatchMessage || '';
+    const isNarrowScreen = useIsNarrowScreen(900);
+    const isPhoneScreen = useIsNarrowScreen(640);
+    const currentQualification = String(user?.qualification || '').trim();
+    const matchedQualification = getQualificationOptionMatch(currentQualification);
 
     const [formData, setFormData] = useState({
         first_name: user?.first_name || '',
@@ -39,9 +79,15 @@ const Onboarding = () => {
         city: user?.city || '',
         state: user?.state || '',
         pincode: user?.pincode || '',
+        qualification: matchedQualification ? matchedQualification : (currentQualification ? 'Other' : ''),
+        qualification_other: matchedQualification ? '' : currentQualification,
         practice_type: user?.practice_type || 'Individual',
-        years_of_experience: user?.years_of_experience || '',
+        experience_years: user?.experience_years || user?.years_of_experience || '',
     });
+    const [qualificationQuery, setQualificationQuery] = useState(
+        matchedQualification ? matchedQualification : (currentQualification ? 'Other' : '')
+    );
+    const [qualificationMenuOpen, setQualificationMenuOpen] = useState(false);
 
     const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
     const [otpSent, setOtpSent] = useState(false);
@@ -75,6 +121,11 @@ const Onboarding = () => {
 
     const otpValue = otpDigits.join('');
     const otpComplete = otpDigits.every((d) => /^\d$/.test(d));
+    const filteredQualificationOptions = useMemo(() => {
+        const query = String(qualificationQuery || '').trim().toLowerCase();
+        if (!query) return HIGHEST_QUALIFICATION_OPTIONS;
+        return HIGHEST_QUALIFICATION_OPTIONS.filter((option) => option.toLowerCase().includes(query));
+    }, [qualificationQuery]);
 
     useEffect(() => {
         if (resendCooldown <= 0) return;
@@ -89,6 +140,17 @@ const Onboarding = () => {
         const id = setTimeout(() => setOtpMessage(''), 4500);
         return () => clearTimeout(id);
     }, [otpMessage]);
+
+    useEffect(() => {
+        const onPointerDown = (event) => {
+            if (!qualificationMenuRef.current) return;
+            if (!qualificationMenuRef.current.contains(event.target)) {
+                setQualificationMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onPointerDown);
+        return () => document.removeEventListener('mousedown', onPointerDown);
+    }, []);
 
     const calculateAge = (dob) => {
         if (!dob) return '';
@@ -134,6 +196,50 @@ const Onboarding = () => {
         if (name === 'state') stateManuallyEditedRef.current = true;
     };
 
+    const handleQualificationSearchChange = (e) => {
+        const value = e.target.value;
+        setQualificationQuery(value);
+        setQualificationMenuOpen(true);
+
+        const directMatch = getQualificationOptionMatch(value);
+        if (directMatch) {
+            setFormData((prev) => ({ ...prev, qualification: directMatch, qualification_other: '' }));
+            if (errors.qualification || errors.qualification_other) {
+                setErrors((prev) => ({ ...prev, qualification: null, qualification_other: null }));
+            }
+            return;
+        }
+
+        if (!String(value || '').trim()) {
+            setFormData((prev) => ({ ...prev, qualification: '', qualification_other: '' }));
+        } else {
+            setFormData((prev) => {
+                if (prev.qualification === 'Other') return prev;
+                return { ...prev, qualification: '', qualification_other: '' };
+            });
+        }
+
+        if (errors.qualification) setErrors((prev) => ({ ...prev, qualification: null }));
+    };
+
+    const selectQualification = (value) => {
+        if (value === 'Other') {
+            setFormData((prev) => ({ ...prev, qualification: 'Other' }));
+            setQualificationQuery('Other');
+            setQualificationMenuOpen(false);
+            if (errors.qualification) setErrors((prev) => ({ ...prev, qualification: null }));
+            setTimeout(() => qualificationOtherRef.current?.focus(), 0);
+            return;
+        }
+
+        setFormData((prev) => ({ ...prev, qualification: value, qualification_other: '' }));
+        setQualificationQuery(value);
+        setQualificationMenuOpen(false);
+        if (errors.qualification || errors.qualification_other) {
+            setErrors((prev) => ({ ...prev, qualification: null, qualification_other: null }));
+        }
+    };
+
     const validate = () => {
         const e = {};
         if (!formData.first_name?.trim() || formData.first_name.trim().length < 2) e.first_name = 'First name required (min 2 chars)';
@@ -153,7 +259,9 @@ const Onboarding = () => {
         if (!formData.city?.trim()) e.city = 'City required';
         if (!formData.state?.trim()) e.state = 'State required';
         if (!formData.pincode?.trim() || !/^\d{6}$/.test(String(formData.pincode).trim())) e.pincode = 'Valid pincode required (6 digits)';
-        if (!formData.years_of_experience || Number(formData.years_of_experience) < 1) e.years_of_experience = 'Years of experience is required';
+        if (!formData.qualification?.trim()) e.qualification = 'Highest qualification is required';
+        if (formData.qualification === 'Other' && !formData.qualification_other?.trim()) e.qualification_other = 'Please specify your highest qualification';
+        if (!formData.experience_years || Number(formData.experience_years) < 1) e.experience_years = 'Years of experience is required';
         return e;
     };
 
@@ -166,7 +274,9 @@ const Onboarding = () => {
         ['city', cityRef],
         ['state', stateRef],
         ['pincode', pincodeRef],
-        ['years_of_experience', yearsExpRef],
+        ['qualification', qualificationRef],
+        ['qualification_other', qualificationOtherRef],
+        ['experience_years', yearsExpRef],
     ]), []);
 
     const focusFirstError = (errs) => {
@@ -347,7 +457,16 @@ const Onboarding = () => {
         }
         setLoading(true);
         try {
-            const data = await completeOnboarding(formData);
+            const resolvedQualification = formData.qualification === 'Other'
+                ? String(formData.qualification_other || '').trim()
+                : String(formData.qualification || '').trim();
+            const onboardingPayload = {
+                ...formData,
+                qualification: resolvedQualification,
+            };
+            delete onboardingPayload.qualification_other;
+
+            const data = await completeOnboarding(onboardingPayload);
             if (!isDetailsEdit) {
                 if (experienceLetter) {
                     const letterData = new FormData();
@@ -394,21 +513,28 @@ const Onboarding = () => {
 
     const labelStyle = { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 };
     const errorStyle = { fontSize: 12, color: '#ef4444', marginTop: 4 };
+    const pageHorizontalPadding = isPhoneScreen ? 16 : (isNarrowScreen ? 20 : 32);
+    const sectionPadding = isPhoneScreen ? 16 : 24;
+    const threeColumnGrid = isPhoneScreen
+        ? '1fr'
+        : (isNarrowScreen ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))');
+    const twoColumnGrid = isPhoneScreen ? '1fr' : 'repeat(2, minmax(0, 1fr))';
+    const headingSize = isPhoneScreen ? 21 : 24;
 
     return (
         <>
             <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
                 <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                    <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ maxWidth: 900, margin: '0 auto', padding: `0 ${pageHorizontalPadding}px`, height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                         <BrandLogo />
                     </div>
                 </header>
 
-                <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 32px 60px' }}>
+                <div style={{ maxWidth: 900, margin: '0 auto', padding: `${isPhoneScreen ? 20 : 32}px ${pageHorizontalPadding}px 60px` }}>
                     <div style={{ marginBottom: 28 }}>
                         <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 1 of 6</span>
-                        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Complete Your Profile</h1>
-                        <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Fill in your details accurately. This information is used for verification.</p>
+                        <h1 style={{ fontSize: headingSize, fontWeight: 700, color: '#111827', margin: 0 }}>Complete Your Profile</h1>
+                        <p style={{ fontSize: 14, color: '#6b7280', marginTop: 6, lineHeight: 1.55 }}>Fill in your details accurately. This information is used for verification.</p>
                     </div>
 
                     {identityMismatchNotice && (
@@ -425,9 +551,9 @@ const Onboarding = () => {
 
                     <form onSubmit={handleSubmit}>
                         {/* Personal Information */}
-                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: sectionPadding, marginBottom: 16 }}>
                             <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Personal Information</h2>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: threeColumnGrid, gap: 16 }}>
                                 <div>
                                     <label style={labelStyle}>First Name <span style={{ color: '#ef4444' }}>*</span></label>
                                     <input ref={firstNameRef} name="first_name" value={formData.first_name} onChange={handleChange} placeholder="Enter first name" style={inputStyle(errors.first_name)} />
@@ -443,7 +569,7 @@ const Onboarding = () => {
                                     {errors.last_name && <p style={errorStyle}>{errors.last_name}</p>}
                                 </div>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: threeColumnGrid, gap: 16, marginTop: 16 }}>
                                 <div>
                                     <label style={labelStyle}>Date of Birth <span style={{ color: '#ef4444' }}>*</span></label>
                                     <input ref={dobRef} type="date" name="dob" value={formData.dob} onChange={handleChange}
@@ -462,7 +588,7 @@ const Onboarding = () => {
                                     {errors.phone_number && <p style={errorStyle}>{errors.phone_number}</p>}
 
                                     <div aria-live="polite" style={{ marginTop: 8 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                        <div style={{ display: 'flex', alignItems: isPhoneScreen ? 'flex-start' : 'center', gap: 10, flexWrap: 'wrap', flexDirection: isPhoneScreen ? 'column' : 'row' }}>
                                             <span style={{
                                                 fontSize: 12,
                                                 fontWeight: 700,
@@ -480,7 +606,7 @@ const Onboarding = () => {
                                                     type="button"
                                                     onClick={() => phoneInputRef.current?.focus()}
                                                     style={{
-                                                        marginLeft: 'auto',
+                                                        marginLeft: isPhoneScreen ? 0 : 'auto',
                                                         background: 'transparent',
                                                         border: 'none',
                                                         padding: 0,
@@ -494,7 +620,7 @@ const Onboarding = () => {
                                                     Change number
                                                 </button>
                                             ) : (
-                                                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                <div style={{ marginLeft: isPhoneScreen ? 0 : 'auto', display: 'flex', alignItems: isPhoneScreen ? 'stretch' : 'center', gap: 10, flexWrap: 'wrap', justifyContent: isPhoneScreen ? 'flex-start' : 'flex-end', width: isPhoneScreen ? '100%' : 'auto' }}>
                                                     {!otpSent ? (
                                                         <button
                                                             type="button"
@@ -502,7 +628,7 @@ const Onboarding = () => {
                                                             onClick={handleSendOtp}
                                                             disabled={!currentPhoneE164 || otpSending}
                                                             style={{
-                                                                padding: '6px 10px',
+                                                                padding: '8px 12px',
                                                                 borderRadius: 9,
                                                                 border: '1px solid #059669',
                                                                 background: otpSending ? '#d1fae5' : '#059669',
@@ -510,12 +636,13 @@ const Onboarding = () => {
                                                                 fontWeight: 800,
                                                                 color: otpSending ? '#065f46' : '#fff',
                                                                 cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
+                                                                width: isPhoneScreen ? '100%' : 'auto',
                                                             }}
                                                         >
                                                             {otpSending ? 'Sending…' : 'Send OTP'}
                                                         </button>
                                                     ) : (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.1 }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isPhoneScreen ? 'flex-start' : 'flex-end', lineHeight: 1.1 }}>
                                                             <span style={{ fontSize: 11, color: '#6b7280' }}>
                                                                 {otpPhoneDisplay ? `Sent to ${otpPhoneDisplay}` : 'OTP sent to WhatsApp'}
                                                             </span>
@@ -559,6 +686,7 @@ const Onboarding = () => {
                                                                 color: '#111827',
                                                                 cursor: 'pointer',
                                                                 textDecoration: 'underline',
+                                                                alignSelf: isPhoneScreen ? 'flex-start' : 'auto',
                                                             }}
                                                         >
                                                             Enter OTP
@@ -578,10 +706,114 @@ const Onboarding = () => {
                                     </div>
                                 </div>
                             </div>
+                            <div style={{ marginTop: 16 }}>
+                                <label style={labelStyle}>Highest Qualification <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div ref={qualificationMenuRef} style={{ position: 'relative' }}>
+                                    <input
+                                        ref={qualificationRef}
+                                        value={qualificationQuery}
+                                        onChange={handleQualificationSearchChange}
+                                        onFocus={() => setQualificationMenuOpen(true)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Escape') {
+                                                setQualificationMenuOpen(false);
+                                                return;
+                                            }
+                                            if (e.key !== 'Enter') return;
+                                            const exactMatch = getQualificationOptionMatch(qualificationQuery);
+                                            if (exactMatch) {
+                                                e.preventDefault();
+                                                selectQualification(exactMatch);
+                                                return;
+                                            }
+                                            if (filteredQualificationOptions.length === 1) {
+                                                e.preventDefault();
+                                                selectQualification(filteredQualificationOptions[0]);
+                                            }
+                                        }}
+                                        placeholder="Type to search qualifications"
+                                        autoComplete="off"
+                                        style={inputStyle(errors.qualification)}
+                                    />
+                                    {qualificationMenuOpen && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: 'calc(100% + 6px)',
+                                            left: 0,
+                                            right: 0,
+                                            background: '#fff',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: 10,
+                                            boxShadow: '0 12px 24px rgba(15,23,42,0.12)',
+                                            maxHeight: 220,
+                                            overflowY: 'auto',
+                                            zIndex: 20,
+                                        }}>
+                                            {filteredQualificationOptions.length > 0 ? (
+                                                filteredQualificationOptions.map((option) => (
+                                                    <button
+                                                        key={option}
+                                                        type="button"
+                                                        onClick={() => selectQualification(option)}
+                                                        style={{
+                                                            width: '100%',
+                                                            border: 'none',
+                                                            background: formData.qualification === option ? '#ecfdf5' : '#fff',
+                                                            color: '#111827',
+                                                            textAlign: 'left',
+                                                            padding: '10px 12px',
+                                                            fontSize: 13,
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        {option}
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div style={{ padding: '10px 12px', fontSize: 12, color: '#6b7280' }}>
+                                                    No match found. Choose "Other" below.
+                                                </div>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => selectQualification('Other')}
+                                                style={{
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    borderTop: '1px solid #e5e7eb',
+                                                    background: formData.qualification === 'Other' ? '#ecfdf5' : '#fff',
+                                                    color: '#065f46',
+                                                    textAlign: 'left',
+                                                    padding: '10px 12px',
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                Other (specify manually)
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                {errors.qualification && <p style={errorStyle}>{errors.qualification}</p>}
+                                {formData.qualification === 'Other' && (
+                                    <div style={{ marginTop: 10 }}>
+                                        <input
+                                            ref={qualificationOtherRef}
+                                            name="qualification_other"
+                                            value={formData.qualification_other}
+                                            onChange={handleChange}
+                                            placeholder="Enter your highest qualification"
+                                            style={inputStyle(errors.qualification_other)}
+                                        />
+                                        {errors.qualification_other && <p style={errorStyle}>{errors.qualification_other}</p>}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Address */}
-                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: sectionPadding, marginBottom: 16 }}>
                             <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Address Details</h2>
                             <div style={{ marginBottom: 16 }}>
                                 <label style={labelStyle}>Address Line 1 <span style={{ color: '#ef4444' }}>*</span></label>
@@ -592,7 +824,7 @@ const Onboarding = () => {
                                 <label style={labelStyle}>Address Line 2</label>
                                 <input name="address_line2" value={formData.address_line2} onChange={handleChange} placeholder="Apartment, suite, unit (optional)" style={inputStyle(false)} />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: threeColumnGrid, gap: 16 }}>
                                 <div>
                                     <label style={labelStyle}>City <span style={{ color: '#ef4444' }}>*</span></label>
                                     <input ref={cityRef} name="city" value={formData.city} onChange={handleChange} placeholder="Enter city" style={inputStyle(errors.city)} />
@@ -629,9 +861,9 @@ const Onboarding = () => {
                         </div>
 
                         {/* Practice */}
-                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 24 }}>
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: sectionPadding, marginBottom: 24 }}>
                             <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 20px' }}>Practice Details</h2>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: twoColumnGrid, gap: 16 }}>
                                 <div>
                                     <label style={labelStyle}>Practice Type</label>
                                     <select name="practice_type" value={formData.practice_type} onChange={handleChange} style={inputStyle(false)}>
@@ -640,8 +872,8 @@ const Onboarding = () => {
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Years of Experience</label>
-                                    <input ref={yearsExpRef} name="years_of_experience" value={formData.years_of_experience} onChange={handleChange} type="number" min="1" placeholder="e.g. 5" style={inputStyle(errors.years_of_experience)} />
-                                    {errors.years_of_experience && <p style={errorStyle}>{errors.years_of_experience}</p>}
+                                    <input ref={yearsExpRef} name="experience_years" value={formData.experience_years} onChange={handleChange} type="number" min="1" placeholder="e.g. 5" style={inputStyle(errors.experience_years)} />
+                                    {errors.experience_years && <p style={errorStyle}>{errors.experience_years}</p>}
                                 </div>
                             </div>
                             {!isDetailsEdit && (
@@ -668,7 +900,8 @@ const Onboarding = () => {
                                 padding: '12px 32px', borderRadius: 8, fontWeight: 600, fontSize: 14,
                                 border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
                                 background: loading ? '#e5e7eb' : '#059669', color: loading ? '#9ca3af' : '#fff',
-                                transition: 'background 0.2s'
+                                transition: 'background 0.2s',
+                                width: isPhoneScreen ? '100%' : 'auto',
                             }}>
                                 {loading ? 'Submitting...' : 'Submit & Continue →'}
                             </button>

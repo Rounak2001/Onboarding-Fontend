@@ -13,10 +13,12 @@ import {
     summarizeSelectedServices,
 } from './assessmentCatalog';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
-
-const createEmptySelectionMatrix = () => Object.fromEntries(
-    ASSESSMENT_CATEGORIES.map((category) => [category.slug, []])
-);
+import {
+    loadSelectionMatrix,
+    saveSelectionMatrix,
+    saveSelectedTests,
+    selectedTestsFromSelectionMatrix,
+} from './selectionPersistence';
 
 const sortServiceIds = (category, serviceIds) => {
     const selectedLookup = new Set(serviceIds);
@@ -33,7 +35,7 @@ const TestList = () => {
     const location = useLocation();
     const { stepFlags } = useAuth();
     const [testTypes, setTestTypes] = useState([]);
-    const [selectedServiceMatrix, setSelectedServiceMatrix] = useState(createEmptySelectionMatrix);
+    const [selectedServiceMatrix, setSelectedServiceMatrix] = useState(() => loadSelectionMatrix());
     const [activeCategorySlug, setActiveCategorySlug] = useState('');
     const [draftSelection, setDraftSelection] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -209,6 +211,16 @@ const TestList = () => {
         }
     }, [activeCategorySlug, hasRegistrationPrerequisite, isExpansionMode, selectedServiceMatrix]);
 
+    useEffect(() => {
+        saveSelectionMatrix(selectedServiceMatrix);
+        saveSelectedTests(
+            selectedTestsFromSelectionMatrix(
+                selectedServiceMatrix,
+                visibleCategories.map((category) => category.slug)
+            )
+        );
+    }, [selectedServiceMatrix, visibleCategories]);
+
     const openCategoryModal = (category) => {
         if (disqualified) {
             return;
@@ -297,6 +309,7 @@ const TestList = () => {
             return;
         }
 
+        saveSelectedTests(selectedCategories);
         navigate('/assessment/instructions', {
             state: {
                 selectedTests: selectedCategories,

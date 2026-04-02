@@ -343,6 +343,7 @@ const ConsultantDetail = () => {
                                     {fieldRow('State', p.state)}
                                     {fieldRow('Pincode', p.pincode)}
                                     {fieldRow('Practice Type', p.practice_type)}
+                                    {fieldRow('Highest Qualification', p.qualification)}
                                     {fieldRow('Experience', p.years_of_experience ? `${p.years_of_experience} years` : null)}
                                 </div>
                             </div>
@@ -1131,8 +1132,10 @@ const ConsultantDetail = () => {
                                                                     </div>
 
                                                                     {(() => {
-                                                                        if (String(d.document_type || '').toLowerCase() !== 'bachelors_degree') return null;
+                                                                        const docType = String(d.document_type || '').toLowerCase();
+                                                                        if (docType !== 'bachelors_degree' && docType !== 'ca_degree') return null;
                                                                         if (String(d.verification_status || '').toLowerCase() === 'verified') return null;
+                                                                        const degreeLabel = docType === 'ca_degree' ? 'CA degree' : "Bachelor's degree";
                                                                         try {
                                                                             const parsed = d.gemini_raw_response ? JSON.parse(d.gemini_raw_response) : {};
                                                                             const reason = parsed?.rejection_reason || 'Not a valid degree';
@@ -1140,7 +1143,7 @@ const ConsultantDetail = () => {
                                                                                 <div style={{ marginTop: 2 }}>
                                                                                     <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Validation:</div>
                                                                                     <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>
-                                                                                        Not a valid degree ({reason})
+                                                                                        {degreeLabel} validation failed ({reason})
                                                                                     </div>
                                                                                 </div>
                                                                             );
@@ -1149,7 +1152,7 @@ const ConsultantDetail = () => {
                                                                                 <div style={{ marginTop: 2 }}>
                                                                                     <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Validation:</div>
                                                                                     <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>
-                                                                                        Not a valid degree
+                                                                                        {degreeLabel} validation failed
                                                                                     </div>
                                                                                 </div>
                                                                             );

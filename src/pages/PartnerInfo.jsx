@@ -16,7 +16,7 @@ const steps = [
     },
     {
         title: 'Qualification upload',
-        detail: "Submit your Bachelor's degree and any optional supporting certificates.",
+        detail: "Submit either your Bachelor's degree or CA degree, plus any optional supporting certificates.",
     },
     {
         title: 'Review',
@@ -29,7 +29,7 @@ const checklist = [
     'Phone number for WhatsApp OTP',
     'Date of birth and address details',
     'Years of professional experience',
-    "Bachelor's degree certificate",
+    "Bachelor's degree certificate or CA degree certificate",
     "Optional master's degree or additional certificates",
     'Optional experience letter',
     'Desktop/laptop with webcam and microphone',

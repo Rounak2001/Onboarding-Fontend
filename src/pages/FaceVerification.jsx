@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { verifyFace } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
+import { useIsNarrowScreen } from '../utils/useViewport';
 
 const FaceVerification = () => {
     const navigate = useNavigate();
@@ -13,6 +14,8 @@ const FaceVerification = () => {
     const [capturedImage, setCapturedImage] = useState(null);
     const [verifying, setVerifying] = useState(false);
     const [error, setError] = useState('');
+    const isPhoneScreen = useIsNarrowScreen(640);
+    const pageHorizontalPadding = isPhoneScreen ? 16 : 32;
 
     const capture = useCallback(() => {
         const imageSrc = webcamRef.current?.getScreenshot();
@@ -66,6 +69,7 @@ const FaceVerification = () => {
         color: disabled ? '#9ca3af' : '#fff',
         boxShadow: disabled ? 'none' : '0 14px 30px rgba(5,150,105,0.18)',
         transition: 'transform 140ms ease, box-shadow 180ms ease, background 180ms ease, opacity 180ms ease',
+        width: isPhoneScreen ? '100%' : 'auto',
     });
 
     const btnSecondary = {
@@ -80,25 +84,26 @@ const FaceVerification = () => {
         cursor: 'pointer',
         boxShadow: '0 8px 20px rgba(15, 23, 42, 0.04)',
         transition: 'transform 140ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease',
+        width: isPhoneScreen ? '100%' : 'auto',
     };
 
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ maxWidth: 700, margin: '0 auto', padding: `0 ${pageHorizontalPadding}px`, height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BrandLogo />
                 </div>
             </header>
 
-            <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 32px 60px' }}>
+            <div style={{ maxWidth: 700, margin: '0 auto', padding: `${isPhoneScreen ? 20 : 32}px ${pageHorizontalPadding}px 60px` }}>
                 <div style={{ marginBottom: 28 }}>
                     <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 3 of 6</span>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Face Verification</h1>
-                    <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Now take a live photo using your webcam to verify your identity against the ID you uploaded.</p>
+                    <h1 style={{ fontSize: isPhoneScreen ? 21 : 24, fontWeight: 700, color: '#111827', margin: 0 }}>Face Verification</h1>
+                    <p style={{ fontSize: 14, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>Now take a live photo using your webcam to verify your identity against the ID you uploaded.</p>
                 </div>
 
-            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: isPhoneScreen ? 16 : 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isPhoneScreen ? 'flex-start' : 'center', marginBottom: 16, gap: 10, flexDirection: isPhoneScreen ? 'column' : 'row' }}>
                     <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>{'\u{1F4F8} Live Capture'}</h2>
                     <button
                         className="tp-btn"
@@ -114,6 +119,8 @@ const FaceVerification = () => {
                             padding: '10px 14px',
                             boxShadow: '0 8px 20px rgba(5,150,105,0.08)',
                             transition: 'transform 140ms ease, box-shadow 180ms ease, background 180ms ease',
+                            width: isPhoneScreen ? '100%' : 'auto',
+                            justifyContent: 'center',
                         }}
                     >
                         {'\u2190 Change Uploaded ID'}
@@ -144,7 +151,7 @@ const FaceVerification = () => {
                         </button>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ display: 'flex', gap: 12, flexDirection: isPhoneScreen ? 'column' : 'row' }}>
                         <button className="tp-btn" onClick={() => { setCapturedImage(null); setError(''); }} style={btnSecondary}>Retake</button>
                         <button className="tp-btn" onClick={handleVerify} disabled={verifying} style={btnPrimary(verifying)}>
                             {verifying ? 'Verifying...' : 'Verify Face \u2192'}

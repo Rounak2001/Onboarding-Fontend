@@ -5,6 +5,11 @@ import { createSession } from '../../services/api';
 import { getAssessmentCategory, summarizeSelectedServices } from './assessmentCatalog';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
 import { isAssessmentDeviceBlocked } from '../../utils/devicePolicy';
+import {
+    loadSelectedTests,
+    saveSelectedTests,
+    sanitizeSelectedTests,
+} from './selectionPersistence';
 
 const BLACK_FRAME_MEAN_THRESHOLD = 8;
 const BLACK_FRAME_VARIANCE_THRESHOLD = 10;
@@ -17,7 +22,13 @@ const PreFlightCheck = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const selectedTests = useMemo(
-        () => (Array.isArray(location.state?.selectedTests) ? location.state.selectedTests : []),
+        () => {
+            const fromRouteState = sanitizeSelectedTests(location.state?.selectedTests);
+            if (fromRouteState.length > 0) {
+                return fromRouteState;
+            }
+            return loadSelectedTests();
+        },
         [location.state?.selectedTests]
     );
     const previewVideoRef = useRef(null);
@@ -260,11 +271,12 @@ const PreFlightCheck = () => {
             navigate('/assessment/select');
             return undefined;
         }
+        saveSelectedTests(selectedTests);
         runChecks();
         return () => {
             stopMediaResources();
         };
-    }, [navigate, runChecks, selectedTests.length, stopMediaResources]);
+    }, [navigate, runChecks, selectedTests, stopMediaResources]);
 
     useEffect(() => {
         const onNetworkChange = () => {
@@ -291,6 +303,7 @@ const PreFlightCheck = () => {
         setStarting(true);
         setStartError('');
         try {
+            saveSelectedTests(selectedTests);
             const session = await createSession({
                 selected_tests: selectedTests.map((test) => test.slug || test.name),
                 selected_test_details: selectedTests.map((test) => ({
