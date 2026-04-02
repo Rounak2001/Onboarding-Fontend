@@ -12,6 +12,7 @@ const ConsultantDetail = () => {
     const [generating, setGenerating] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [restoringSessionId, setRestoringSessionId] = useState(null);
+    const [restoringVideoSessionId, setRestoringVideoSessionId] = useState(null);
     const [credentialsPopup, setCredentialsPopup] = useState(null);
     const [error, setError] = useState('');
     const [openSections, setOpenSections] = useState({
@@ -157,6 +158,40 @@ const ConsultantDetail = () => {
             alert('Failed to connect to server');
         } finally {
             setRestoringSessionId(null);
+        }
+    };
+
+    const handleRestoreVideoAssessment = async (sessionId) => {
+        if (!window.confirm('Restore video stage for this session? This will clear existing video responses and reopen video upload from Question 1.')) return;
+        setRestoringVideoSessionId(sessionId);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/restore-video-assessment/`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ session_id: sessionId }),
+            });
+            const payload = await readResponsePayload(res);
+
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                navigate(adminUrl());
+                return;
+            }
+
+            if (!res.ok) {
+                alert(`Error: ${payload.error || 'Failed to restore video stage'}`);
+                return;
+            }
+
+            alert(payload.message || 'Video stage restored successfully.');
+            fetchDetail();
+        } catch {
+            alert('Failed to connect to server');
+        } finally {
+            setRestoringVideoSessionId(null);
         }
     };
 
@@ -550,24 +585,46 @@ const ConsultantDetail = () => {
                                                 </span>
                                             );
                                         })()}
-                                        {s.status === 'flagged' && (
-                                            <button
-                                                onClick={() => handleRestoreAssessment(s.id)}
-                                                disabled={restoringSessionId === s.id}
-                                                style={{
-                                                    marginLeft: 'auto',
-                                                    padding: '6px 12px',
-                                                    borderRadius: 8,
-                                                    fontSize: 11,
-                                                    fontWeight: 700,
-                                                    background: restoringSessionId === s.id ? 'rgba(148,163,184,0.2)' : 'rgba(59,130,246,0.16)',
-                                                    color: restoringSessionId === s.id ? '#94a3b8' : '#93c5fd',
-                                                    border: '1px solid rgba(59,130,246,0.35)',
-                                                    cursor: restoringSessionId === s.id ? 'not-allowed' : 'pointer',
-                                                }}
-                                            >
-                                                {restoringSessionId === s.id ? 'Restoring...' : 'Restore Attempt'}
-                                            </button>
+                                        {(s.status === 'flagged' || s.can_video_restore) && (
+                                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                {s.can_video_restore && (
+                                                    <button
+                                                        onClick={() => handleRestoreVideoAssessment(s.id)}
+                                                        disabled={restoringVideoSessionId === s.id}
+                                                        title={s.video_restore_reason || 'Reopen video stage for this session'}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: 8,
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            background: restoringVideoSessionId === s.id ? 'rgba(148,163,184,0.2)' : 'rgba(16,185,129,0.16)',
+                                                            color: restoringVideoSessionId === s.id ? '#94a3b8' : '#6ee7b7',
+                                                            border: '1px solid rgba(16,185,129,0.4)',
+                                                            cursor: restoringVideoSessionId === s.id ? 'not-allowed' : 'pointer',
+                                                        }}
+                                                    >
+                                                        {restoringVideoSessionId === s.id ? 'Restoring Video...' : 'Restore Video Stage'}
+                                                    </button>
+                                                )}
+                                                {s.status === 'flagged' && (
+                                                    <button
+                                                        onClick={() => handleRestoreAssessment(s.id)}
+                                                        disabled={restoringSessionId === s.id}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: 8,
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            background: restoringSessionId === s.id ? 'rgba(148,163,184,0.2)' : 'rgba(59,130,246,0.16)',
+                                                            color: restoringSessionId === s.id ? '#94a3b8' : '#93c5fd',
+                                                            border: '1px solid rgba(59,130,246,0.35)',
+                                                            cursor: restoringSessionId === s.id ? 'not-allowed' : 'pointer',
+                                                        }}
+                                                    >
+                                                        {restoringSessionId === s.id ? 'Restoring...' : 'Restore Attempt'}
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
 
