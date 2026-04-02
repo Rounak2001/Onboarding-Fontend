@@ -23,6 +23,8 @@ const AdminDashboard = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
+    const [exporting, setExporting] = useState(false);
+
     const token = localStorage.getItem('admin_token');
     const searchRef = useRef(search);
 
@@ -109,6 +111,36 @@ const AdminDashboard = () => {
             return ((toDate(a?.created_at) ?? 0) - (toDate(b?.created_at) ?? 0)) * dir;
         });
     }, [consultants, sortKey, sortDir]);
+
+    const handleExportExcel = async () => {
+        setExporting(true);
+        try {
+            const params = new URLSearchParams();
+            if (search.trim()) params.set('search', search.trim());
+            if (statusFilter !== 'all') params.set('status', statusFilter);
+            if (verificationFilter !== 'all') params.set('verification', verificationFilter);
+
+            const res = await fetch(apiUrl(`/admin-panel/consultants/export/?${params}`), {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
+            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
+            if (!res.ok) { alert('Export failed'); return; }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `consultants_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch {
+            alert('Failed to export');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('admin_token');
@@ -240,6 +272,15 @@ const AdminDashboard = () => {
                         }}>
                             Showing {totalCount} total
                         </span>
+                        <button className="tp-btn" onClick={handleExportExcel} disabled={exporting || loading} style={{
+                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)',
+                            color: exporting ? '#64748b' : '#34d399',
+                            border: '1px solid rgba(16,185,129,0.25)',
+                            cursor: (exporting || loading) ? 'not-allowed' : 'pointer',
+                        }}>
+                            {exporting ? 'Exporting…' : 'Export Excel'}
+                        </button>
                         <button className="tp-btn" onClick={() => fetchConsultants(page)} disabled={loading} style={{
                             padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                             background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
