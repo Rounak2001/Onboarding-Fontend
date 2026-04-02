@@ -285,6 +285,7 @@ const ConsultantDetail = () => {
     const identityDocs = data?.identity_documents || [];
     const faceRecords = data?.face_verification || [];
     const sessions = data?.assessment_sessions || [];
+    const isCandidateDisqualified = Boolean(data?.assessment_summary?.disqualified);
     const qualDocs = data?.documents?.qualification_documents || [];
     const consultDocs = data?.documents?.consultant_documents || [];
 
@@ -565,7 +566,7 @@ const ConsultantDetail = () => {
                                             {s.test_type || 'Unknown Test'}
                                         </span>
                                         {(() => {
-                                            const isViolated = s.violation_count > 0 || s.status === 'flagged';
+                                            const isViolated = isCandidateDisqualified && (s.violation_count > 0 || s.status === 'flagged');
                                             const displayStatus = isViolated ? 'Violated' : s.status?.charAt(0).toUpperCase() + s.status?.slice(1);
                                             const isRed = isViolated;
                                             const isGreen = s.status === 'completed' && !isViolated;

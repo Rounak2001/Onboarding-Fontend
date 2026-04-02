@@ -17,6 +17,7 @@ const AdminDashboard = () => {
     const [deletingId, setDeletingId] = useState(null);
     const [statusFilter, setStatusFilter] = useState('all');
     const [verificationFilter, setVerificationFilter] = useState('all');
+    const [credentialsFilter, setCredentialsFilter] = useState('all');
     const [sortKey, setSortKey] = useState('created_at');
     const [sortDir, setSortDir] = useState('desc');
     const [page, setPage] = useState(1);
@@ -28,7 +29,13 @@ const AdminDashboard = () => {
     const token = localStorage.getItem('admin_token');
     const searchRef = useRef(search);
 
-    const fetchConsultants = async (pg = 1, currentSearch = search, currentStatus = statusFilter, currentVerification = verificationFilter) => {
+    const fetchConsultants = async (
+        pg = 1,
+        currentSearch = search,
+        currentStatus = statusFilter,
+        currentVerification = verificationFilter,
+        currentCredentials = credentialsFilter,
+    ) => {
         setLoading(true);
         setError('');
         try {
@@ -36,6 +43,7 @@ const AdminDashboard = () => {
             if (currentSearch.trim()) params.set('search', currentSearch.trim());
             if (currentStatus !== 'all') params.set('status', currentStatus);
             if (currentVerification !== 'all') params.set('verification', currentVerification);
+            if (currentCredentials !== 'all') params.set('credentials', currentCredentials);
 
             const res = await fetch(apiUrl(`/admin-panel/consultants/?${params}`), {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
@@ -63,15 +71,15 @@ const AdminDashboard = () => {
     useEffect(() => {
         searchRef.current = search;
         const timer = setTimeout(() => {
-            if (searchRef.current === search) fetchConsultants(1, search, statusFilter, verificationFilter);
+            if (searchRef.current === search) fetchConsultants(1, search, statusFilter, verificationFilter, credentialsFilter);
         }, 350);
         return () => clearTimeout(timer);
     }, [search]);
 
     // Immediate re-fetch on filter change
     useEffect(() => {
-        fetchConsultants(1, search, statusFilter, verificationFilter);
-    }, [statusFilter, verificationFilter]);
+        fetchConsultants(1, search, statusFilter, verificationFilter, credentialsFilter);
+    }, [statusFilter, verificationFilter, credentialsFilter]);
 
     const handleDeleteConsultant = async (consultantId, consultantName) => {
         if (!window.confirm(`Delete ${consultantName || 'this consultant'} permanently? This cannot be undone.`)) return;
@@ -119,6 +127,7 @@ const AdminDashboard = () => {
             if (search.trim()) params.set('search', search.trim());
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (verificationFilter !== 'all') params.set('verification', verificationFilter);
+            if (credentialsFilter !== 'all') params.set('credentials', credentialsFilter);
 
             const res = await fetch(apiUrl(`/admin-panel/consultants/export/?${params}`), {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
@@ -182,7 +191,8 @@ const AdminDashboard = () => {
         return statusColors[status] || statusColors['Not Started'];
     };
 
-    const metricCard = (label, value, tint = 'emerald') => {
+    const metricCard = (label, value, tint = 'emerald', options = {}) => {
+        const { active = false, onClick = null } = options;
         const tints = {
             emerald: { edge: 'rgba(16,185,129,0.28)', bg: 'rgba(16,185,129,0.08)', fg: '#34d399' },
             blue: { edge: 'rgba(59,130,246,0.28)', bg: 'rgba(59,130,246,0.08)', fg: '#60a5fa' },
@@ -193,16 +203,25 @@ const AdminDashboard = () => {
         };
         const c = tints[tint] || tints.slate;
         return (
-            <div style={{
+            <button
+                type="button"
+                onClick={onClick || undefined}
+                style={{
                 padding: 14,
                 borderRadius: 14,
-                background: 'rgba(15,23,42,0.45)',
-                border: `1px solid ${c.edge}`,
-                boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+                background: active ? 'rgba(15,23,42,0.72)' : 'rgba(15,23,42,0.45)',
+                border: `1px solid ${active ? c.fg : c.edge}`,
+                boxShadow: active ? `0 0 0 2px ${c.bg}, 0 8px 30px rgba(0,0,0,0.25)` : '0 8px 30px rgba(0,0,0,0.25)',
                 position: 'relative',
                 overflow: 'hidden',
                 minHeight: 70,
-            }}>
+                textAlign: 'left',
+                cursor: onClick ? 'pointer' : 'default',
+                width: '100%',
+                color: 'inherit',
+                transition: 'all 0.16s ease',
+            }}
+            >
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', color: '#64748b' }}>
                     {label}
                 </div>
@@ -225,9 +244,45 @@ const AdminDashboard = () => {
                     background: c.fg,
                     boxShadow: `0 0 0 6px ${c.bg}`,
                 }} />
-            </div>
+            </button>
         );
     };
+
+    const handleMetricCardClick = (cardKey) => {
+        if (cardKey === 'Total') {
+            setStatusFilter('all');
+            setCredentialsFilter('all');
+            return;
+        }
+        if (cardKey === 'Completed') {
+            setStatusFilter('Completed');
+            setCredentialsFilter('all');
+            return;
+        }
+        if (cardKey === 'Ongoing') {
+            setStatusFilter('Ongoing');
+            setCredentialsFilter('all');
+            return;
+        }
+        if (cardKey === 'Violated') {
+            setStatusFilter('Violated');
+            setCredentialsFilter('all');
+            return;
+        }
+        if (cardKey === 'Consultants') {
+            setStatusFilter('all');
+            setCredentialsFilter('sent');
+        }
+    };
+
+    const activeMetricCard = useMemo(() => {
+        if (credentialsFilter === 'sent' && statusFilter === 'all') return 'Consultants';
+        if (statusFilter === 'Completed' && credentialsFilter === 'all') return 'Completed';
+        if (statusFilter === 'Ongoing' && credentialsFilter === 'all') return 'Ongoing';
+        if (statusFilter === 'Violated' && credentialsFilter === 'all') return 'Violated';
+        if (statusFilter === 'all' && credentialsFilter === 'all') return 'Total';
+        return null;
+    }, [statusFilter, credentialsFilter]);
 
     const setSort = (key) => {
         setSortKey(prev => {
@@ -302,11 +357,11 @@ const AdminDashboard = () => {
 
             <div style={{ maxWidth: 1300, margin: '0 auto', padding: '28px 32px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
-                    {metricCard('Total', stats.total, 'slate')}
-                    {metricCard('Completed', stats.completed, 'blue')}
-                    {metricCard('Ongoing', stats.ongoing, 'amber')}
-                    {metricCard('Violated', stats.violated, 'red')}
-                    {metricCard('Consultants', stats.working, 'emerald')}
+                    {metricCard('Total', stats.total, 'slate', { active: activeMetricCard === 'Total', onClick: () => handleMetricCardClick('Total') })}
+                    {metricCard('Completed', stats.completed, 'blue', { active: activeMetricCard === 'Completed', onClick: () => handleMetricCardClick('Completed') })}
+                    {metricCard('Ongoing', stats.ongoing, 'amber', { active: activeMetricCard === 'Ongoing', onClick: () => handleMetricCardClick('Ongoing') })}
+                    {metricCard('Violated', stats.violated, 'red', { active: activeMetricCard === 'Violated', onClick: () => handleMetricCardClick('Violated') })}
+                    {metricCard('Consultants', stats.working, 'emerald', { active: activeMetricCard === 'Consultants', onClick: () => handleMetricCardClick('Consultants') })}
                 </div>
 
                 <div style={{
@@ -370,8 +425,8 @@ const AdminDashboard = () => {
                         <option value="not_verified">Not verified</option>
                     </select>
 
-                    {(search || statusFilter !== 'all' || verificationFilter !== 'all') && (
-                        <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilter('all'); setVerificationFilter('all'); }} style={{
+                    {(search || statusFilter !== 'all' || verificationFilter !== 'all' || credentialsFilter !== 'all') && (
+                        <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilter('all'); setVerificationFilter('all'); setCredentialsFilter('all'); }} style={{
                             padding: '10px 12px',
                             borderRadius: 12,
                             background: 'rgba(148,163,184,0.1)',
@@ -444,8 +499,8 @@ const AdminDashboard = () => {
                                     <th style={{
                                         padding: '14px 16px', textAlign: 'left', fontSize: 11,
                                         fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 70,
-                                    }}>Docs</th>
+                                        width: 120,
+                                    }}>Credentials</th>
                                     <th style={{
                                         padding: '14px 16px', textAlign: 'left', fontSize: 11,
                                         fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
@@ -459,8 +514,8 @@ const AdminDashboard = () => {
                                     <th style={{
                                         padding: '14px 16px', textAlign: 'left', fontSize: 11,
                                         fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 120,
-                                    }}>Credentials</th>
+                                        width: 70,
+                                    }}>Docs</th>
                                     <th onClick={() => setSort('created_at')} style={{
                                         padding: '14px 16px', textAlign: 'left', fontSize: 11,
                                         fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
@@ -532,9 +587,6 @@ const AdminDashboard = () => {
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.assessment_score != null ? `${c.assessment_score}/50` : '-'}</td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '-'}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.document_count}</td>
-                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.face_verification_status)}</td>
-                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.doc_verification_status)}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{
                                                 padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
@@ -546,6 +598,9 @@ const AdminDashboard = () => {
                                                 {c.has_credentials ? 'Sent' : '-'}
                                             </span>
                                         </td>
+                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.face_verification_status)}</td>
+                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.doc_verification_status)}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.document_count}</td>
                                         <td style={{ padding: '14px 16px', fontSize: 12, color: '#64748b' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <button
@@ -571,7 +626,7 @@ const AdminDashboard = () => {
                                 {sorted.length === 0 && (
                                     <tr>
                                         <td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 14 }}>
-                                            {(search || statusFilter !== 'all' || verificationFilter !== 'all')
+                                            {(search || statusFilter !== 'all' || verificationFilter !== 'all' || credentialsFilter !== 'all')
                                                 ? 'No consultants match your current filters.'
                                                 : 'No consultants found.'}
                                         </td>
