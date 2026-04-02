@@ -8,19 +8,23 @@ const steps = [
     },
     {
         title: 'Identity verification',
-        detail: 'Upload a government ID and complete live face verification.',
+        detail: 'Upload a government ID so your onboarding details can be verified.',
     },
     {
-        title: 'Assessment',
-        detail: 'Complete the domain assessment on desktop with camera and microphone access.',
+        title: 'Face verification',
+        detail: 'Complete a live webcam check to match your face with the uploaded ID.',
     },
     {
         title: 'Qualification upload',
         detail: "Submit either your Bachelor's degree or CA degree, plus any optional supporting certificates.",
     },
     {
+        title: 'Assessment',
+        detail: 'Complete the domain assessment on desktop with camera and microphone access.',
+    },
+    {
         title: 'Review',
-        detail: 'Your application is checked before consultant access is issued.',
+        detail: 'Your assessment and documents are reviewed before consultant access is issued.',
     },
 ];
 
@@ -233,10 +237,10 @@ const PartnerInfo = () => {
                                 marginTop: 22,
                             }}
                         >
-                            {[
+                                {[
                                 { label: 'What to expect', value: '5 stages' },
                                 { label: 'Steps overview', value: '6 steps' },
-                                { label: 'Time', value: '10-15 min setup + assessment' },
+                                { label: 'Time', value: '10-15 min setup, then assessment + review' },
                             ].map((item) => (
                                 <div
                                     key={item.label}

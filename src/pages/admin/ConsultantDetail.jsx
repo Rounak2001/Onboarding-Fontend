@@ -191,12 +191,12 @@ const ConsultantDetail = () => {
     const fieldRow = (label, value) => {
         const isEmpty = value === null || value === undefined || value === '';
         return (
-        <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
-            <span style={{ width: 180, fontSize: 13, color: '#64748b', fontWeight: 500, flexShrink: 0 }}>{label}</span>
-            <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 500, wordBreak: 'break-all' }}>
-                {isEmpty ? <span style={{ color: '#475569' }}>—</span> : value}
-            </span>
-        </div>
+            <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
+                <span style={{ width: 180, fontSize: 13, color: '#64748b', fontWeight: 500, flexShrink: 0 }}>{label}</span>
+                <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 500, wordBreak: 'break-all' }}>
+                    {isEmpty ? <span style={{ color: '#475569' }}>—</span> : value}
+                </span>
+            </div>
         );
     };
 
@@ -875,7 +875,10 @@ const ConsultantDetail = () => {
                                             <div style={{ fontSize: 12, fontWeight: 700, color: '#60a5fa', marginBottom: 8 }}>Video Responses</div>
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                                                 {s.video_question_set.map((q, qi) => {
-                                                    const response = s.video_responses?.find(v => v.question_identifier === q.id);
+                                                    // Find the latest response for this question (highest ID)
+                                                    const response = s.video_responses
+                                                        ?.filter(v => v.question_identifier === q.id)
+                                                        ?.sort((a, b) => (b.id || 0) - (a.id || 0))[0];
                                                     return (
                                                         <div key={qi} style={{
                                                             padding: 12, borderRadius: 10,
