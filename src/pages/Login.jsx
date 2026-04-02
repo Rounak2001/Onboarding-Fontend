@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import taxplanAdvisorDarkLogo from '../assets/TAXPLANDARK.png';
 import EmailConflictDialog from '../components/EmailConflictDialog';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
+import { isFaceVerificationSatisfied } from '../utils/devBypass';
 import { useIsNarrowScreen, useViewportWidth } from '../utils/useViewport';
 
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
@@ -64,7 +65,7 @@ const Login = () => {
                 nextRoute = '/onboarding';
             } else if (!data.has_identity_doc) {
                 nextRoute = '/onboarding/identity';
-            } else if (!targetUser?.is_verified) {
+            } else if (!isFaceVerificationSatisfied(targetUser)) {
                 nextRoute = '/onboarding/face-verification';
             } else if (!data.has_documents) {
                 nextRoute = '/onboarding/documentation';

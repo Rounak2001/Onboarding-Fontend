@@ -4,6 +4,7 @@ import { uploadIdentityDocument } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import FileDropzone from '../components/FileDropzone';
 import BrandLogo from '../components/BrandLogo';
+import { DEV_FACE_VERIFICATION_BYPASS } from '../utils/devBypass';
 import { useIsNarrowScreen } from '../utils/useViewport';
 
 const IdentityVerification = () => {
@@ -54,7 +55,7 @@ const IdentityVerification = () => {
 
             if (response.verification?.status === 'Verified') {
                 updateStepFlags({ has_identity_doc: true });
-                navigate('/onboarding/face-verification');
+                navigate(DEV_FACE_VERIFICATION_BYPASS ? '/onboarding/documentation' : '/onboarding/face-verification');
             } else {
                 const status = response?.verification?.status || 'Invalid';
                 setError(`Document verification failed (${status}). Please upload a valid Government ID.`);

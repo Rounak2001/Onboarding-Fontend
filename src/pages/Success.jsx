@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getLatestResult } from '../services/api';
 import BrandLogo from '../components/BrandLogo';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
+import { isFaceVerificationSatisfied } from '../utils/devBypass';
 import { useIsNarrowScreen } from '../utils/useViewport';
 
 const formatRetryUnlockAt = (value) => {
@@ -119,7 +120,7 @@ const Success = () => {
     }, [retryLocked, retryAvailableAt, checkAuth, refreshAssessmentState]);
 
     const hasIdentity = stepFlags?.has_identity_doc;
-    const isVerified = user?.is_verified;
+    const isVerified = isFaceVerificationSatisfied(user);
     const isFlagged = assessmentStatus === 'flagged';
     const underReview = assessmentReviewPending || assessmentStatus === 'review_pending';
     const disqualified = isFlagged || isDisqualified;

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getUserProfile, logout as logoutApi } from '../services/api';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
+import { isFaceVerificationSatisfied } from '../utils/devBypass';
 
 const AuthContext = createContext(null);
 let pendingProfileRequest = null;
@@ -177,7 +178,7 @@ export const AuthProvider = ({ children }) => {
         if (!targetFlags.has_identity_doc) {
             return '/onboarding/identity';
         }
-        if (!targetUser?.is_verified) {
+        if (!isFaceVerificationSatisfied(targetUser)) {
             return '/onboarding/face-verification';
         }
         if (!targetFlags.has_documents) {

@@ -22,6 +22,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
+import { isFaceVerificationSatisfied } from './utils/devBypass';
 import './index.css';
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
@@ -100,7 +101,7 @@ const StepGuard = ({ step, children }) => {
   const assessmentReviewPending = stepFlags?.assessment_review_pending;
   const assessmentRetryLocked = stepFlags?.assessment_retry_locked;
   const assessmentCanStart = stepFlags?.assessment_can_start;
-  const verified = user?.is_verified;
+  const verified = isFaceVerificationSatisfied(user);
   const hasDocuments = stepFlags?.has_documents;
   const deviceBlockedForAssessment = isAssessmentDeviceBlocked();
 

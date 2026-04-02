@@ -10,7 +10,7 @@ const PAGE_SIZE = 50;
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [consultants, setConsultants] = useState([]);
-    const [stats, setStats] = useState({ total: 0, completed: 0, ongoing: 0, flagged: 0, working: 0 });
+    const [stats, setStats] = useState({ total: 0, completed: 0, ongoing: 0, flagged: 0, violated: 0, working: 0 });
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -41,7 +41,7 @@ const AdminDashboard = () => {
             if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
             const data = await res.json();
             setConsultants(data.consultants || []);
-            setStats(data.stats || { total: 0, completed: 0, ongoing: 0, flagged: 0, working: 0 });
+            setStats(data.stats || { total: 0, completed: 0, ongoing: 0, flagged: 0, violated: 0, working: 0 });
             setTotalPages(data.total_pages || 1);
             setTotalCount(data.total || 0);
             setPage(pg);
@@ -138,11 +138,25 @@ const AdminDashboard = () => {
         );
     };
 
+    const assessmentStatusBadgeStyle = (status) => {
+        const statusColors = {
+            Completed: { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa' },
+            Ongoing: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
+            Pending: { bg: 'rgba(250,204,21,0.12)', color: '#facc15' },
+            Failed: { bg: 'rgba(251,113,133,0.12)', color: '#fb7185' },
+            Flagged: { bg: 'rgba(249,115,22,0.16)', color: '#fb923c' },
+            Violated: { bg: 'rgba(239,68,68,0.14)', color: '#f87171' },
+            'Not Started': { bg: 'rgba(100,116,139,0.12)', color: '#64748b' },
+        };
+        return statusColors[status] || statusColors['Not Started'];
+    };
+
     const metricCard = (label, value, tint = 'emerald') => {
         const tints = {
             emerald: { edge: 'rgba(16,185,129,0.28)', bg: 'rgba(16,185,129,0.08)', fg: '#34d399' },
             blue: { edge: 'rgba(59,130,246,0.28)', bg: 'rgba(59,130,246,0.08)', fg: '#60a5fa' },
             amber: { edge: 'rgba(245,158,11,0.28)', bg: 'rgba(245,158,11,0.08)', fg: '#fbbf24' },
+            rose: { edge: 'rgba(249,115,22,0.28)', bg: 'rgba(249,115,22,0.08)', fg: '#fb923c' },
             red: { edge: 'rgba(239,68,68,0.28)', bg: 'rgba(239,68,68,0.08)', fg: '#f87171' },
             slate: { edge: 'rgba(148,163,184,0.18)', bg: 'rgba(148,163,184,0.06)', fg: '#94a3b8' },
         };
@@ -247,11 +261,12 @@ const AdminDashboard = () => {
             </header>
 
             <div style={{ maxWidth: 1300, margin: '0 auto', padding: '28px 32px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
                     {metricCard('Total', stats.total, 'slate')}
                     {metricCard('Completed', stats.completed, 'blue')}
                     {metricCard('Ongoing', stats.ongoing, 'amber')}
-                    {metricCard('Flagged', stats.flagged, 'red')}
+                    {metricCard('Flagged', stats.flagged, 'rose')}
+                    {metricCard('Violated', stats.violated, 'red')}
                     {metricCard('Consultants', stats.working, 'emerald')}
                 </div>
 
@@ -297,6 +312,7 @@ const AdminDashboard = () => {
                         <option value="Ongoing">Ongoing</option>
                         <option value="Flagged">Flagged</option>
                         <option value="Violated">Violated</option>
+                        <option value="Failed">Failed</option>
                         <option value="Pending">Pending</option>
                         <option value="Not Started">Not Started</option>
                     </select>
@@ -462,14 +478,19 @@ const AdminDashboard = () => {
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.phone_number || '-'}</td>
                                         <td style={{ padding: '14px 16px' }}>
+                                            {(() => {
+                                                const statusStyle = assessmentStatusBadgeStyle(c.assessment_status);
+                                                return (
                                             <span style={{
                                                 padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                background: c.assessment_status === 'Completed' ? 'rgba(59,130,246,0.12)' : c.assessment_status === 'Ongoing' ? 'rgba(245,158,11,0.12)' : c.assessment_status === 'Violated' || c.assessment_status === 'Flagged' ? 'rgba(239,68,68,0.12)' : 'rgba(100,116,139,0.12)',
-                                                color: c.assessment_status === 'Completed' ? '#60a5fa' : c.assessment_status === 'Ongoing' ? '#fbbf24' : c.assessment_status === 'Violated' || c.assessment_status === 'Flagged' ? '#f87171' : '#64748b',
+                                                background: statusStyle.bg,
+                                                color: statusStyle.color,
                                                 whiteSpace: 'nowrap',
                                             }}>
                                                 {c.assessment_status}
                                             </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.assessment_score != null ? `${c.assessment_score}/50` : '-'}</td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '-'}</td>
