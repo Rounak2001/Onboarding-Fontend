@@ -533,7 +533,7 @@ const AdminDashboard = () => {
                                 {sorted.map((c, i) => (
                                     <tr
                                         key={c.id}
-                                        onClick={() => navigate(adminUrl(`consultant/${c.id}`))}
+                                        onClick={() => window.open(adminUrl(`consultant/${c.id}`), '_blank', 'noopener,noreferrer')}
                                         style={{
                                             borderBottom: '1px solid rgba(148,163,184,0.06)',
                                             cursor: 'pointer', transition: 'background 0.15s',
@@ -554,7 +554,18 @@ const AdminDashboard = () => {
                                                 textOverflow: 'ellipsis',
                                             }}
                                         >
-                                            {c.full_name || '-'}
+                                            <a
+                                                href={adminUrl(`consultant/${c.id}`)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{
+                                                    color: '#e2e8f0',
+                                                    textDecoration: 'none',
+                                                }}
+                                            >
+                                                {c.full_name || '-'}
+                                            </a>
                                         </td>
                                         <td
                                             title={c.email || ''}

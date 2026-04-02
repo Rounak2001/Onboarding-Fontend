@@ -3,6 +3,8 @@ import Webcam from 'react-webcam';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
 
 const TOTAL_TIME = 90; // 1 min 30 sec
+const START_RECORDING_SPEECH_RMS_THRESHOLD = 0.04;
+const START_RECORDING_SPEECH_MIN_FRAMES = 4;
 
 export default function VideoQuestion({
     question,
@@ -19,6 +21,12 @@ export default function VideoQuestion({
     const autoSubmitRef = useRef(false);
     const timeExpiryHandledRef = useRef(false);
     const recordingStartedAtRef = useRef(null);
+    const audioContextRef = useRef(null);
+    const audioSourceRef = useRef(null);
+    const audioAnalyserRef = useRef(null);
+    const audioDataArrayRef = useRef(null);
+    const speechFramesRef = useRef(0);
+    const startReminderShownRef = useRef(false);
 
     const [recording, setRecording] = useState(false);
     const [recordedBlob, setRecordedBlob] = useState(null);
@@ -26,6 +34,7 @@ export default function VideoQuestion({
     const [uploaded, setUploaded] = useState(false);
     const [error, setError] = useState('');
     const [hasStartedRecording, setHasStartedRecording] = useState(false);
+    const [showStartRecordingPrompt, setShowStartRecordingPrompt] = useState(false);
     const categoryLabel = useMemo(() => {
         const raw = String(question?.category || '').trim();
         if (raw) return raw;
@@ -38,6 +47,17 @@ export default function VideoQuestion({
             mediaRecorderRef.current.stop();
         }
         setRecording(false);
+    }, []);
+
+    const teardownSpeechMonitor = useCallback(() => {
+        speechFramesRef.current = 0;
+        audioAnalyserRef.current = null;
+        audioDataArrayRef.current = null;
+        audioSourceRef.current = null;
+        if (audioContextRef.current) {
+            audioContextRef.current.close().catch(() => { });
+            audioContextRef.current = null;
+        }
     }, []);
 
     useEffect(() => {
@@ -53,8 +73,11 @@ export default function VideoQuestion({
         setUploaded(false);
         setError('');
         setHasStartedRecording(false);
+        setShowStartRecordingPrompt(false);
+        startReminderShownRef.current = false;
         chunksRef.current = [];
-    }, [question?.id]);
+        teardownSpeechMonitor();
+    }, [question?.id, teardownSpeechMonitor]);
 
     const handleQueueAndAdvance = useCallback((blob) => {
         const uploadBlob = blob || recordedBlob;
@@ -100,16 +123,105 @@ export default function VideoQuestion({
     useEffect(() => {
         return () => {
             if (preview) URL.revokeObjectURL(preview);
+            teardownSpeechMonitor();
         };
-    }, [preview]);
+    }, [preview, teardownSpeechMonitor]);
+
+    useEffect(() => {
+        if (!hasStartedRecording || recording) return;
+        setShowStartRecordingPrompt(false);
+        teardownSpeechMonitor();
+    }, [hasStartedRecording, recording, teardownSpeechMonitor]);
+
+    useEffect(() => {
+        if (
+            hasStartedRecording
+            || recording
+            || recordedBlob
+            || uploaded
+            || timeLeft <= 0
+            || startReminderShownRef.current
+        ) {
+            return undefined;
+        }
+
+        let cancelled = false;
+
+        const ensureSpeechDetector = async () => {
+            if (audioAnalyserRef.current && audioDataArrayRef.current) return true;
+            const stream = webcamRef.current?.video?.srcObject;
+            if (!stream || !stream.getAudioTracks().some((track) => track.readyState === 'live' && track.enabled !== false)) {
+                return false;
+            }
+
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return false;
+
+            try {
+                const context = new AudioCtx();
+                const source = context.createMediaStreamSource(stream);
+                const analyser = context.createAnalyser();
+                analyser.fftSize = 2048;
+                source.connect(analyser);
+                if (context.state === 'suspended') {
+                    await context.resume().catch(() => { });
+                }
+                audioContextRef.current = context;
+                audioSourceRef.current = source;
+                audioAnalyserRef.current = analyser;
+                audioDataArrayRef.current = new Uint8Array(analyser.fftSize);
+                speechFramesRef.current = 0;
+                return true;
+            } catch {
+                teardownSpeechMonitor();
+                return false;
+            }
+        };
+
+        const intervalId = setInterval(async () => {
+            if (cancelled || startReminderShownRef.current) return;
+            const initialized = await ensureSpeechDetector();
+            if (!initialized) return;
+            const analyser = audioAnalyserRef.current;
+            const data = audioDataArrayRef.current;
+            if (!analyser || !data) return;
+
+            analyser.getByteTimeDomainData(data);
+            let sumSquares = 0;
+            for (let i = 0; i < data.length; i += 1) {
+                const centered = (data[i] - 128) / 128;
+                sumSquares += centered * centered;
+            }
+            const rms = Math.sqrt(sumSquares / data.length);
+            if (rms >= START_RECORDING_SPEECH_RMS_THRESHOLD) {
+                speechFramesRef.current += 1;
+            } else {
+                speechFramesRef.current = 0;
+            }
+
+            if (speechFramesRef.current >= START_RECORDING_SPEECH_MIN_FRAMES) {
+                startReminderShownRef.current = true;
+                setShowStartRecordingPrompt(true);
+                teardownSpeechMonitor();
+            }
+        }, 350);
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+        };
+    }, [hasStartedRecording, recording, recordedBlob, uploaded, timeLeft, question?.id, teardownSpeechMonitor]);
 
     useEffect(() => {
         if (typeof registerSnapshotGetter === 'function') {
-            registerSnapshotGetter(() => webcamRef.current?.getScreenshot?.() || null);
+            registerSnapshotGetter(() => {
+                if (!recording) return null;
+                return webcamRef.current?.getScreenshot?.() || null;
+            });
             return () => registerSnapshotGetter(null);
         }
         return undefined;
-    }, [registerSnapshotGetter]);
+    }, [registerSnapshotGetter, recording]);
 
     const startRecording = useCallback(() => {
         chunksRef.current = [];
@@ -117,6 +229,7 @@ export default function VideoQuestion({
         if (preview) URL.revokeObjectURL(preview);
         setPreview(null);
         setError('');
+        setShowStartRecordingPrompt(false);
 
         const stream = webcamRef.current?.video?.srcObject;
         if (!stream) {
@@ -229,12 +342,28 @@ export default function VideoQuestion({
                     <video src={preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} controls />
                 ) : (
                     <>
+                        {!recording && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                textAlign: 'center',
+                                padding: '0 20px',
+                                color: '#d1d5db',
+                                fontSize: 25,
+                                lineHeight: 1.5,
+                            }}>
+                                Camera preview will appear after you click Start Recording.
+                            </div>
+                        )}
                         <Webcam
                             audio={true}
                             muted={true}
                             ref={webcamRef}
                             screenshotFormat="image/jpeg"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: recording ? 'block' : 'none' }}
                             mirrored={true}
                         />
                         {recording && (
@@ -263,6 +392,68 @@ export default function VideoQuestion({
 
             {error && <div style={{ marginBottom: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#dc2626' }}>{error}</div>}
 
+            {showStartRecordingPrompt && !recording && !recordedBlob && timeLeft > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(17, 24, 39, 0.58)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    padding: 16,
+                }}>
+                    <div style={{
+                        width: 'min(92vw, 460px)',
+                        background: '#fff',
+                        borderRadius: 14,
+                        border: '1px solid #e5e7eb',
+                        boxShadow: '0 22px 50px rgba(17, 24, 39, 0.3)',
+                        padding: '18px 18px 16px',
+                    }}>
+                        <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#111827', fontWeight: 700 }}>
+                            Start recording first
+                        </h3>
+                        <p style={{ margin: '0 0 16px', fontSize: 14, color: '#374151', lineHeight: 1.6 }}>
+                            Please click Start Recording before answering, so your response is captured.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                            <button
+                                className="tp-btn"
+                                onClick={() => setShowStartRecordingPrompt(false)}
+                                style={{
+                                    padding: '10px 14px',
+                                    borderRadius: 10,
+                                    border: '1px solid #d1d5db',
+                                    background: '#fff',
+                                    color: '#374151',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Dismiss
+                            </button>
+                            <button
+                                className="tp-btn"
+                                onClick={startRecording}
+                                style={{
+                                    padding: '10px 14px',
+                                    borderRadius: 10,
+                                    border: 'none',
+                                    background: '#059669',
+                                    color: '#fff',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    
+                                }}
+                            >
+                                Start Recording
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {!uploaded && (
                 <div style={{ display: 'flex', gap: 12, width: '100%' }}>
                     {!recording && !recordedBlob && timeLeft > 0 && (
@@ -271,6 +462,7 @@ export default function VideoQuestion({
                                 ...recordingButtonStyle,
                                 background: '#059669',
                                 color: '#fff',
+                                fontSize: 16,
                             }}>
                                 Start Recording
                             </button>

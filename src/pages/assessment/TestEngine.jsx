@@ -1385,8 +1385,33 @@ const TestEngine = () => {
         snapshotCaptureInFlightRef.current = true;
         const startedAt = Date.now();
 
-        // Convert base64 to blob
-        const blob = await (await fetch(imageSrc)).blob();
+        let blob = null;
+        try {
+            // Convert base64 to blob
+            const fetched = await fetch(imageSrc);
+            blob = await fetched.blob();
+        } catch (err) {
+            console.error('Snapshot capture failed:', err);
+            setSnapshotDebugTelemetry(prev => ({
+                ...prev,
+                lastSnapshotStatus: 'capture_error',
+                lastSnapshotDurationMs: Date.now() - startedAt,
+                lastError: err?.message || 'Snapshot capture failed',
+            }));
+            snapshotCaptureInFlightRef.current = false;
+            return;
+        }
+
+        if (!blob || blob.size < 1) {
+            setSnapshotDebugTelemetry(prev => ({
+                ...prev,
+                lastSnapshotStatus: 'skipped_empty_frame',
+                lastSnapshotDurationMs: Date.now() - startedAt,
+                lastError: null,
+            }));
+            snapshotCaptureInFlightRef.current = false;
+            return;
+        }
 
         // Backward-compatible snapshot metadata contract (Task 2)
         if (!analyserRef.current && !proctoringSuspended) {
@@ -1809,7 +1834,6 @@ const TestEngine = () => {
         && debugTelemetry.detectorStatus !== 'eye_tracking_ready';
 
     const topContentOffset = 56
-        + (lastServerViolationReason ? 32 : 0)
         + (sessionRecoveryNotice ? 38 : 0)
         + (permissionIssues.length > 0 ? 38 : 0)
         + (showEyeTrackingFallbackNotice ? 38 : 0);
@@ -2120,25 +2144,6 @@ const TestEngine = () => {
                 </div>
             </header>
 
-            {lastServerViolationReason && (
-                <div style={{
-                    position: 'fixed',
-                    top: 60,
-                    left: 0,
-                    right: 0,
-                    zIndex: 35,
-                    background: '#fff7ed',
-                    color: '#9a3412',
-                    borderBottom: '1px solid #fed7aa',
-                    padding: '8px 24px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                }}>
-                    Last violation: {lastServerViolationReason}
-                    {lastServerViolationAt ? ` (${lastServerViolationAt.toLocaleTimeString()})` : ''}
-                </div>
-            )}
-
             {/* Progress bar */}
             {!isVideoSection && !showVideoPrepScreen && questions.length > 0 && (
                 <div style={{ position: 'fixed', top: topContentOffset, left: 0, right: 0, height: 4, background: '#e5e7eb', zIndex: 30 }}>
@@ -2203,7 +2208,7 @@ const TestEngine = () => {
             {sessionRecoveryNotice && (
                 <div style={{
                     position: 'fixed',
-                    top: lastServerViolationReason ? 92 : 60,
+                    top: 60,
                     left: 0,
                     right: 0,
                     zIndex: 35,
