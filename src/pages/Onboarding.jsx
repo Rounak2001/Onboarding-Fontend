@@ -29,8 +29,6 @@ const HIGHEST_QUALIFICATION_OPTIONS = [
     'FRM (Financial Risk Manager)',
     'LLB (Taxation)',
     'LLM (Taxation)',
-    'Diploma in Taxation',
-    'Diploma in Financial Accounting',
 ];
 
 const getQualificationOptionMatch = (value) => {
