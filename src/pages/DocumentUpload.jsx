@@ -135,7 +135,7 @@ const DocumentUpload = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 900, margin: '0 auto', padding: `0 ${pageHorizontalPadding}px`, height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ maxWidth: 1500, margin: '0 auto', padding: `0 ${pageHorizontalPadding}px`, height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BrandLogo />
                 </div>
             </header>
@@ -174,7 +174,7 @@ const DocumentUpload = () => {
             )}
 
             <div style={{ marginBottom: 28 }}>
-                <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 4 of 6</span>
+                <span style={{ display: 'inline-block', fontSize: 16, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>Step 4 of 6</span>
                 <h1 style={{ fontSize: isPhoneScreen ? 21 : 24, fontWeight: 700, color: '#111827', margin: 0 }}>Upload Qualifications</h1>
                 <p style={{ fontSize: 14, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>Upload your degree certificates and any additional qualifications before the assessment.</p>
             </div>

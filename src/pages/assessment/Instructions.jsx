@@ -93,7 +93,7 @@ const Instructions = () => {
             rafRef.current = null;
         }
         if (testStreamRef.current) {
-            testStreamRef.current.getTracks().forEach(track => track.stop());
+            testStreamRef.current.getTracks().forEach((track) => track.stop());
             testStreamRef.current = null;
         }
         if (audioContextRef.current) {
@@ -191,17 +191,15 @@ const Instructions = () => {
     };
 
     const rules = [
-        'The assessment contains 50 MCQ questions and video-based questions.',
+        'The assessment includes 50 MCQ questions followed by video questions.',
         'Questions are distributed evenly across your selected domains.',
         'Each MCQ has 4 options with one correct answer.',
-        'You cannot go back to a previous question.',
-        'The test must be completed in fullscreen mode.',
-        'Proctoring is active. You must keep your camera ON during the MCQ section.',
-        `${policy.max_webcam_warnings} webcam violations (multiple faces, face mismatch, no face) or ${policy.max_tab_warnings} tab switches will lead to disqualification.`,
-        'Fullscreen mode is required during the assessment.',
-        'Video questions require camera and microphone access.',
-        'Maximum 2 attempts allowed. Failing twice leads to disqualification.',
-        'Your responses are recorded and cannot be changed after submission.',
+        'You cannot go back to previous questions.',
+        `Fullscreen is mandatory. Exiting fullscreen repeatedly may disqualify your attempt (limit: ${policy.max_fullscreen_exits}).`,
+        'Proctoring is active. Keep your camera on during MCQ and allow microphone access for video questions.',
+        `${policy.max_webcam_warnings} webcam violations or ${policy.max_tab_warnings} tab switches can lead to disqualification.`,
+        'Maximum 2 attempts are allowed. Failing both attempts leads to disqualification.',
+        'Submitted responses cannot be edited or changed.',
     ];
 
     const domainLabel = selectedCategorySummaries
@@ -209,8 +207,13 @@ const Instructions = () => {
         .join(', ');
 
     const btnStyle = (primary, disabled) => ({
-        flex: 1, padding: '14px 0', borderRadius: 8, fontWeight: primary ? 600 : 500, fontSize: 14,
-        border: primary ? 'none' : '1px solid #d1d5db', cursor: disabled ? 'not-allowed' : 'pointer',
+        flex: 1,
+        padding: '15px 0',
+        borderRadius: 10,
+        fontWeight: primary ? 600 : 500,
+        fontSize: 15,
+        border: primary ? 'none' : '1px solid #d1d5db',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         background: disabled ? '#e5e7eb' : primary ? '#059669' : '#fff',
         color: disabled ? '#9ca3af' : primary ? '#fff' : '#374151',
     });
@@ -220,45 +223,42 @@ const Instructions = () => {
     }
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)', fontFamily: "'Be Vietnam Pro', 'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ maxWidth: 1500, margin: '0 auto', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BrandLogo />
                 </div>
             </header>
 
-            <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 32px 60px' }}>
-                <div style={{ marginBottom: 24 }}>
-                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>{domainLabel}</span>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Instructions</h1>
-                    <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Please read carefully before starting.</p>
-                </div>
+            <div style={{ maxWidth: 950, margin: '0 auto', padding: '30px 24px 56px' }}>
+                <section style={{ marginBottom: 24, borderBottom: '1px solid #dbe3ee', paddingBottom: 20 }}>
+                    {/* <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#64748b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{domainLabel}</p> */}
+                    <h1 style={{ fontSize: 36, lineHeight: 1.1, letterSpacing: '-0.02em', fontWeight: 800, color: '#0f172a', margin: '10px 0 0' }}>Assessment Instructions</h1>
+                    <p style={{ fontSize: 15, color: '#475569', margin: '8px 0 0', lineHeight: 1.7 }}>
+                        Read all points before you begin. These rules apply throughout the test session.
+                    </p>
+                </section>
 
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#166534', margin: '0 0 10px' }}>
+                <section style={{ marginBottom: 18 }}>
+                    <p style={{ fontSize: 13, fontWeight: 900, color: '#475569', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         Selected Categories ({selectedCategorySummaries.length})
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {selectedCategorySummaries.map((test) => (
                             <div
                                 key={test.id || test.slug || test.name}
-                                style={{
-                                    background: '#ffffff',
-                                    border: '1px solid #dcfce7',
-                                    borderRadius: 10,
-                                    padding: '11px 12px',
-                                }}
+                                style={{ borderBottom: '1px solid #dbe3ee', padding: '10px 0 12px' }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>
+                                    <span style={{ fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                                         {normalizeAssessmentDomainLabel(test?.category?.name || test.name)}
                                     </span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#047857', background: '#dcfce7', padding: '4px 8px', borderRadius: 999 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#334155', background: '#e2e8f0', padding: '4px 8px', borderRadius: 999 }}>
                                         {test.selectedServiceCount} titles
                                     </span>
                                 </div>
                                 {test.selectedServiceCount > 0 && (
-                                    <p style={{ fontSize: 12, lineHeight: 1.55, color: '#166534', margin: '8px 0 0' }}>
+                                    <p style={{ fontSize: 12, lineHeight: 1.55, color: '#475569', margin: '8px 0 0' }}>
                                         {test.preview.join(', ')}
                                         {test.remainingCount > 0 ? ` +${test.remainingCount} more` : ''}
                                     </p>
@@ -266,28 +266,27 @@ const Instructions = () => {
                             </div>
                         ))}
                     </div>
-                </div>
+                </section>
 
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24, marginBottom: 16 }}>
-                    <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <section style={{ marginBottom: 18, background: '#fffaf0', borderRadius: 10, paddingTop:15, paddingBottom: 12, border: '1px solid #f1d9aa' }}>
+                    <p style={{ fontSize: 17, fontWeight: 900, color: '#475569', margin: ' 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Rules:
+                    </p>
+                    <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', columnGap: 32 }}>
                         {rules.map((rule, i) => (
-                            <li key={i} style={{ display: 'flex', gap: 12, fontSize: 14, color: '#374151' }}>
-                                <span style={{
-                                    width: 24, height: 24, borderRadius: '50%', background: '#f3f4f6',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                                    fontSize: 12, fontWeight: 700, color: '#6b7280'
-                                }}>{i + 1}</span>
-                                <span style={{ paddingTop: 2 }}>{rule}</span>
+                            <li key={i} style={{ display: 'flex', gap: 10, fontSize: 14, lineHeight: 1.45, color: '#0f172a', padding: '8px 10px' }}>
+                                <span style={{ flexShrink: 0, fontWeight: 700, color: '#0f172a' }}>{i + 1}.</span>
+                                <span style={{ fontWeight: 800, contentjustify: 'center', margin: '10' }}>{rule}</span>
                             </li>
                         ))}
                     </ol>
-                </div>
+                </section>
 
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20, marginBottom: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12 }}>
+                <section style={{ marginBottom: 18, paddingTop: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
                         <div>
-                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827' }}>Device Check (Recommended)</p>
-                            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>Test your camera and microphone before starting.</p>
+                            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Device Check</p>
+                            {/* <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>Test your camera and microphone before starting.</p> */}
                         </div>
                         <button
                             className="tp-btn"
@@ -300,10 +299,10 @@ const Instructions = () => {
                     </div>
 
                     <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', background: '#f3f4f6', padding: '5px 10px', borderRadius: 999 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#334155', background: '#e2e8f0', padding: '5px 10px', borderRadius: 999 }}>
                             Camera: {cameraStatus}
                         </span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', background: '#f3f4f6', padding: '5px 10px', borderRadius: 999 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#334155', background: '#e2e8f0', padding: '5px 10px', borderRadius: 999 }}>
                             Microphone: {micStatus}
                         </span>
                     </div>
@@ -317,24 +316,20 @@ const Instructions = () => {
                         <div style={{ height: '100%', width: `${micLevel}%`, background: micLevel > 10 ? '#059669' : '#9ca3af', transition: 'width 120ms linear' }} />
                     </div>
                     {deviceError && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#dc2626' }}>{deviceError}</p>}
-                </div>
+                </section>
 
-                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <span style={{ fontSize: 16, marginTop: 2 }}>⚠️</span>
-                        <div>
-                            <p style={{ fontSize: 14, fontWeight: 600, color: '#92400e', margin: 0 }}>Important</p>
-                            <p style={{ fontSize: 13, color: '#a16207', margin: '4px 0 0' }}>Your assessment window is 2 hours. If interrupted, MCQ/video may restart within this window; after expiry, you must reselect categories.</p>
-                        </div>
-                    </div>
-                </div>
+                <section style={{ borderTop: '1px solid #f1d9aa', borderBottom: '1px solid #f1d9aa', background: '#fffaf0', padding: '14px 0', marginBottom: 24, borderRadius: 10 }}>
+                    <p style={{ fontSize: 15, color: '#92400e', margin: 10, lineHeight: 1.7 }}>
+                        Important: Your assessment window is 2 hours. If interrupted, MCQ/video may restart within this window; after expiry, you must reselect categories.
+                    </p>
+                </section>
 
-                {error && <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 14, color: '#dc2626' }}>{error}</div>}
+                {error && <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 16, color: '#dc2626' }}>{error}</div>}
 
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <button className="tp-btn" onClick={() => navigate('/assessment/select')} style={btnStyle(false, false)}>← Back</button>
+                <div style={{ display: 'flex', gap: 250, flexWrap: 'wrap' }}>
+                    <button className="tp-btn" onClick={() => navigate('/assessment/select')} style={btnStyle(false, false)}>Back</button>
                     <button className="tp-btn" onClick={handleStart} disabled={loading} style={btnStyle(true, loading)}>
-                        {loading ? 'Starting...' : 'Start Assessment →'}
+                        {loading ? 'Starting...' : 'Start Assessment'}
                     </button>
                 </div>
             </div>

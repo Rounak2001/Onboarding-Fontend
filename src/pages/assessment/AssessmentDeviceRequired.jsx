@@ -22,7 +22,7 @@ const AssessmentDeviceRequired = () => {
     return (
         <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{ maxWidth: 1080, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center' }}>
+                <div style={{ maxWidth: 1500, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center' }}>
                     <BrandLogo />
                 </div>
             </header>

@@ -28,10 +28,10 @@ const SHARED_CATEGORY_THEME = {
 export const ASSESSMENT_CATEGORIES = [
     {
         slug: 'itr',
-        name: 'ITR',
+        name: 'Returns - ITR',
         token: 'ITR',
         ...SHARED_CATEGORY_THEME,
-        description: 'Income-tax return work, TDS workflows, and related consultation.',
+        // description: 'Returns category focused on ITR and TDS workflows.',
         coverageSummary: ['7 ITR services', '4 TDS services', '1 consultation'],
         services: [
             createService('itr_salary_filing', 'ITR Salary Filing', 'ITR'),
@@ -50,10 +50,10 @@ export const ASSESSMENT_CATEGORIES = [
     },
     {
         slug: 'gstr',
-        name: 'GSTR',
+        name: 'Returns - GSTR',
         token: 'GST',
         ...SHARED_CATEGORY_THEME,
-        description: 'GST return operations, periodic filings, and related consultation.',
+        // description: 'Returns category focused on GST return operations and filings.',
         coverageSummary: ['7 GSTR services', '1 consultation'],
         services: [
             createService('gstr_monthly', 'GSTR-1 & GSTR-3B (Monthly)', 'GSTR'),
@@ -71,15 +71,15 @@ export const ASSESSMENT_CATEGORIES = [
         name: 'Scrutiny',
         token: 'SCN',
         ...SHARED_CATEGORY_THEME,
-        description: 'Scrutiny and assessment support grouped by income-tax and GST matters.',
-        coverageSummary: ['6 Income Tax scrutiny services', '3 GSTR scrutiny services'],
+        // description: 'Notices category for scrutiny and assessment support.',
+        coverageSummary: ['5 Income Tax scrutiny services', '3 GSTR scrutiny services'],
         services: [
             createService('itr_appeal', 'ITR Appeal', 'ITR', 'Income Tax'),
             createService('itr_regular_assessment', 'ITR Regular Assessment', 'ITR', 'Income Tax'),
             createService('itr_tribunal', 'ITR Tribunal', 'ITR', 'Income Tax'),
             createService('tds_appeal', 'TDS Appeal', 'TDS', 'Income Tax'),
             createService('tds_regular_assessment', 'TDS Regular Assessment', 'TDS', 'Income Tax'),
-            createService('tds_tribunal', 'TDS Tribunal', 'TDS', 'Income Tax'),
+            
             createService('gst_appeal', 'GST Appeal', 'GSTR', 'GSTR'),
             createService('gst_regular_assessment', 'GST Regular Assessment', 'GSTR', 'GSTR'),
             createService('gst_tribunal', 'GST Tribunal', 'GSTR', 'GSTR'),
@@ -90,7 +90,7 @@ export const ASSESSMENT_CATEGORIES = [
         name: 'Registrations',
         token: 'REG',
         ...SHARED_CATEGORY_THEME,
-        description: 'Core registration workflows unlocked after you choose at least one main category first.',
+        // description: 'Core registration workflows unlocked after you choose at least one main category first.',
         coverageSummary: ['16 registration services'],
         requiresPriorSelection: true,
         services: [

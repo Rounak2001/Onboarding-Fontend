@@ -55,6 +55,16 @@ export const googleAuth = async (token) => {
     return response.data;
 };
 
+export const sendOnboardingEmailOtp = async (email) => {
+    const response = await api.post('/auth/onboarding/send-email-otp/', { email });
+    return response.data;
+};
+
+export const verifyOnboardingEmailOtp = async (email, otp) => {
+    const response = await api.post('/auth/onboarding/verify-email-otp/', { email, otp });
+    return response.data;
+};
+
 // Complete onboarding
 export const completeOnboarding = async (data) => {
     const response = await api.post('/auth/onboarding/', data);

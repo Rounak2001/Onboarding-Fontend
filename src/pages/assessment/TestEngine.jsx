@@ -427,7 +427,8 @@ const TestEngine = () => {
         setProctoringSuspended(false);
         setProctoringSuspendReason('');
         setCurrentVideoQuestionIndex(0);
-        startVideoQuestion();
+        setCurrentVideoDeadlineAt(null);
+        setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
     };
 
     useEffect(() => {
@@ -1766,13 +1767,19 @@ const TestEngine = () => {
 
         if (currentVideoQuestionIndex < videoQuestions.length - 1) {
             setCurrentVideoQuestionIndex(prev => prev + 1);
-            startVideoQuestion();
+            setCurrentVideoDeadlineAt(null);
+            setCurrentVideoTimeLeft(VIDEO_QUESTION_TIME_SECONDS);
         } else {
             setVideoCompleted(true);
             setCurrentVideoDeadlineAt(null);
             handleSubmitTest();
         }
-    }, [currentVideoQuestionIndex, videoQuestions.length, enqueueVideoUpload, handleSubmitTest, startVideoQuestion]);
+    }, [currentVideoQuestionIndex, videoQuestions.length, enqueueVideoUpload, handleSubmitTest]);
+
+    const handleVideoRecordingStart = useCallback(() => {
+        if (currentVideoDeadlineAt) return;
+        startVideoQuestion();
+    }, [currentVideoDeadlineAt, startVideoQuestion]);
 
     // --- Styles ---
     const s = {
@@ -2066,11 +2073,12 @@ const TestEngine = () => {
 
             {/* Header */}
             <header style={s.header}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <BrandLogo />
-                </div>
+                <div style={{ maxWidth: 1500, margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <BrandLogo />
+                    </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     {/* MCQ timer only - video timer is inside VideoQuestion */}
                     {!isVideoSection && !showVideoPrepScreen && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2141,6 +2149,7 @@ const TestEngine = () => {
                                 ))}
                         </div>
                     )}
+                    </div>
                 </div>
             </header>
 
@@ -2260,7 +2269,7 @@ const TestEngine = () => {
             )}
 
             {/* Main content */}
-            <main style={{ flex: 1, marginTop: topContentOffset, padding: '40px 24px', maxWidth: 920, margin: `${topContentOffset}px auto 0`, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: `calc(100vh - ${topContentOffset}px)` }}>
+            <main style={{ flex: 1, marginTop: topContentOffset, padding: '40px 24px', maxWidth: showVideoPrepScreen ? 1300 : 920, margin: `${topContentOffset}px auto 0`, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: `calc(100vh - ${topContentOffset}px)` }}>
 
                 {/* MCQ Section */}
                 {!isVideoSection && !showVideoPrepScreen && questions.length > 0 && (
@@ -2290,63 +2299,47 @@ const TestEngine = () => {
                 )}
 
                 {showVideoPrepScreen && videoQuestions.length > 0 && (
-                    <div style={{
-                        background: '#ffffff',
-                        borderRadius: 24,
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 18px 42px rgba(15,23,42,0.06)',
-                        overflow: 'hidden',
-                    }}>
-                        <div style={{
-                            padding: '32px 32px 24px',
-                            background: '#fcfdff',
-                            borderBottom: '1px solid #eef2f7',
-                        }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: 999, background: '#f1f5f9', color: '#475569', fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>
-                                Video assessment ahead
-                            </div>
-                            <h1 style={{ margin: '0 0 10px', fontSize: 30, lineHeight: 1.12, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em' }}>
-                                Prepare for the video assessment
-                            </h1>
-                            <p style={{ margin: 0, maxWidth: 680, fontSize: 15, lineHeight: 1.75, color: '#475569' }}>
-                                Your MCQ section is complete. Next, you will answer {videoQuestions.length} video question{videoQuestions.length > 1 ? 's' : ''} using your camera and microphone.
-                                Make sure your setup is fully ready before you continue.
-                            </p>
+                    <section style={{ width: '100%' }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#64748b' }}>
+                            Video assessment ahead
+                        </p>
+                        <h1 style={{ margin: '12px 0 10px', fontSize: 34, lineHeight: 1.1, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em' }}>
+                            Prepare for the video assessment
+                        </h1>
+                        <p style={{ margin: 0, maxWidth: 900, fontSize: 16, lineHeight: 1.75, color: '#475569' }}>
+                            Your MCQ section is complete. Next, you will answer {videoQuestions.length} video question{videoQuestions.length > 1 ? 's' : ''} using your camera and microphone.
+                            Make sure your setup is fully ready before you continue.
+                        </p>
+
+                        <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0' }} />
+
+                        <h3 style={{ margin: '22px 0 12px', fontSize: 16, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Before you start
+                        </h3>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', columnGap: 42, rowGap: 0 }}>
+                            {[
+                                ['Use earphones or a headset', 'Clearer audio makes your response easier to review and reduces echo.'],
+                                ['Sit in a quiet environment', 'Avoid background voices, fan noise, traffic, or interruptions.'],
+                                ['Keep your face clearly visible', 'Stay centered in the frame with your head and shoulders in view.'],
+                                ['Use front lighting', 'Face the light source so your expressions and eye contact stay visible.'],
+                                ['Speak clearly and answer to the point', 'Think for a second, then respond in a structured way.'],
+                                ['Stay in fullscreen throughout', 'Keep the assessment open and uninterrupted while you answer.'],
+                            ].map(([title, text]) => (
+                                <div key={title} style={{ padding: '14px 0', borderBottom: '1px solid #e2e8f0' }}>
+                                    <p style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.45 }}>{title}</p>
+                                    <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: '#64748b' }}>{text}</p>
+                                </div>
+                            ))}
                         </div>
 
-                        <div style={{ padding: '28px 32px' }}>
-                            <div>
-                                <h3 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                                    Before you start
-                                </h3>
-                                <div style={{ display: 'grid', gap: 10 }}>
-                                    {[
-                                        ['Use earphones or a headset', 'Clearer audio makes your response easier to review and reduces echo.'],
-                                        ['Sit in a quiet environment', 'Avoid background voices, fan noise, traffic, or interruptions.'],
-                                        ['Keep your face clearly visible', 'Stay centered in the frame with your head and shoulders in view.'],
-                                        ['Use front lighting', 'Face the light source so your expressions and eye contact stay visible.'],
-                                        ['Speak clearly and answer to the point', 'Think for a second, then respond in a structured way.'],
-                                        ['Stay in fullscreen throughout', 'Keep the assessment open and uninterrupted while you answer.'],
-                                    ].map(([title, text], index) => (
-                                        <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                                            <div style={{ width: 24, height: 24, borderRadius: 999, background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
-                                                {index + 1}
-                                            </div>
-                                            <div>
-                                                <p style={{ margin: '0 0 3px', fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{title}</p>
-                                                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: '#64748b' }}>{text}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, padding: '0 32px 32px', flexWrap: 'wrap' }}>
-                            <button className="tp-btn" onClick={beginVideoAssessment} style={{ ...s.btnPrimary, minWidth: 260, boxShadow: '0 12px 24px rgba(5,150,105,0.18)' }}>
-                                Start video assessment
+                        <div style={{ marginTop: 26, display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button className="tp-btn" onClick={beginVideoAssessment} style={{ ...s.btnPrimary, minWidth: 390 }}>
+                                <p style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#fff',letterSpacing: '0.08em' }}>
+                               Start video assessment</p>
                             </button>
                         </div>
-                    </div>
+                    </section>
                 )}
 
                 {/* Video Section*/}
@@ -2358,6 +2351,7 @@ const TestEngine = () => {
                             questionIndex={currentVideoQuestionIndex}
                             totalVideoQuestions={videoQuestions.length}
                             registerSnapshotGetter={(getter) => { videoSnapshotGetterRef.current = getter; }}
+                            onRecordingStarted={handleVideoRecordingStart}
                             onVideoUploaded={handleVideoComplete}
                             timeLeft={currentVideoTimeLeft}
                             totalTime={VIDEO_QUESTION_TIME_SECONDS}

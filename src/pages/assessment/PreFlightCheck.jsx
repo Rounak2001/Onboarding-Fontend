@@ -346,8 +346,10 @@ const PreFlightCheck = () => {
 
     return (
         <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif" }}>
-            <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.06)', height: 56, display: 'flex', alignItems: 'center', padding: '0 24px' }}>
-                <BrandLogo />
+            <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.06)', height: 56 }}>
+                <div style={{ maxWidth: 1500, margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', padding: '0 24px' }}>
+                    <BrandLogo />
+                </div>
             </header>
 
             <main style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 48px' }}>

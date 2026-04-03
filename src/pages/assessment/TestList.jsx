@@ -346,12 +346,12 @@ const TestList = () => {
         <>
             <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif" }}>
                 <header style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30 }}>
-                    <div style={{ maxWidth: 980, margin: '0 auto', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
                         <BrandLogo />
                     </div>
                 </header>
 
-                <div style={{ maxWidth: 980, margin: '0 auto', padding: '34px 24px 60px' }}>
+                <div style={{ maxWidth: 950, margin: '0 auto', padding: '34px 24px 60px' }}>
                 <style>{`
                 @keyframes tp-spin { to { transform: rotate(360deg); } }
                 @keyframes tp-modal-fade {
@@ -421,26 +421,26 @@ const TestList = () => {
             `}</style>
 
                 <div style={{ marginBottom: 28 }}>
-                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '5px 12px', borderRadius: 999, marginBottom: 14 }}>
+                    <span style={{ display: 'inline-block', fontSize: 16, fontWeight: 700, color: '#047857', marginBottom: 14 }}>
                         {isExpansionMode ? 'Additional Unlock Assessment' : 'Step 4: MCQ'}
                     </span>
                     <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0 }}>
                         {isExpansionMode ? 'Unlock More Categories' : 'Select Assessment Categories'}
                     </h1>
-                    <p style={{ fontSize: 14, lineHeight: 1.65, color: '#64748b', marginTop: 8 }}>
+                    {/* <p style={{ fontSize: 14, lineHeight: 1.65, color: '#64748b', marginTop: 8 }}>
                         {isExpansionMode
                             ? 'Choose one or more locked categories, then confirm the exact titles you want unlocked. Registrations unlock automatically once any main category has been cleared.'
                             : 'Choose one or more categories, then select the exact titles covered inside each popup. The assessment still generates 50 MCQs, split evenly across your confirmed categories.'}
-                    </p>
+                    </p> */}
                 </div>
 
                 {isExpansionMode && (
                     <div
                         style={{
-                            background: '#ecfdf5',
-                            border: '1px solid #a7f3d0',
-                            borderRadius: 16,
-                            padding: '18px 20px',
+                            borderTop: '1px solid #a7f3d0',
+                            borderBottom: '1px solid #a7f3d0',
+                            background: '#f4fff9',
+                            padding: '14px 0',
                             marginBottom: 20,
                         }}
                     >
@@ -454,10 +454,10 @@ const TestList = () => {
                 {sessionNotice && (
                     <div
                         style={{
-                            background: '#fff7ed',
-                            border: '1px solid #fdba74',
-                            borderRadius: 12,
-                            padding: '14px 16px',
+                            borderTop: '1px solid #fdba74',
+                            borderBottom: '1px solid #fdba74',
+                            background: '#fffaf4',
+                            padding: '12px 0',
                             marginBottom: 16,
                         }}
                     >
@@ -470,43 +470,20 @@ const TestList = () => {
                 {disqualified && (
                     <div
                         style={{
-                            background: '#fef2f2',
-                            border: '1px solid #fecaca',
-                            borderRadius: 16,
-                            padding: '22px 24px',
+                            borderTop: '1px solid #fecaca',
+                            borderBottom: '1px solid #fecaca',
+                            background: '#fff5f5',
+                            padding: '16px 0',
                             marginBottom: 24,
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 16,
                         }}
                     >
-                        <div
-                            style={{
-                                width: 42,
-                                height: 42,
-                                borderRadius: 14,
-                                background: '#fee2e2',
-                                color: '#b91c1c',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 12,
-                                fontWeight: 800,
-                                letterSpacing: 0.5,
-                                flexShrink: 0,
-                            }}
-                        >
-                            STOP
-                        </div>
-                        <div>
-                            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#991b1b', margin: '0 0 6px' }}>
-                                Assessment Access Revoked
-                            </h3>
-                            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#b91c1c', margin: 0 }}>
-                                You have been disqualified from taking further assessments due to exceeding the
-                                maximum number of failed attempts or proctoring violations.
-                            </p>
-                        </div>
+                        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#991b1b', margin: '0 0 6px' }}>
+                            Assessment Access Revoked
+                        </h3>
+                        <p style={{ fontSize: 14, lineHeight: 1.6, color: '#b91c1c', margin: 0 }}>
+                            You have been disqualified from taking further assessments due to exceeding the
+                            maximum number of failed attempts or proctoring violations.
+                        </p>
                     </div>
                 )}
 
@@ -553,11 +530,11 @@ const TestList = () => {
                                 data-locked={isLocked ? 'true' : 'false'}
                                 style={{
                                     background: isLocked ? '#f8fafc' : '#ffffff',
-                                    borderRadius: 20,
+                                    borderRadius: 14,
                                     border: isLocked
                                         ? '1px solid #e2e8f0'
                                         : isSelected ? `1px solid ${category.border}` : '1px solid #e5e7eb',
-                                    padding: 20,
+                                    padding: 18,
                                     textAlign: 'left',
                                     cursor: disqualified || isLocked ? 'not-allowed' : 'pointer',
                                     boxShadow: isSelected
@@ -569,39 +546,24 @@ const TestList = () => {
                                 <div
                                     style={{
                                         display: 'flex',
-                                        alignItems: 'flex-start',
+                                        alignItems: 'center',
                                         justifyContent: 'space-between',
                                         gap: 12,
-                                        marginBottom: 18,
+                                        marginBottom: 10,
                                     }}
                                 >
-                                    <div
-                                        style={{
-                                            width: 56,
-                                            height: 56,
-                                            borderRadius: 18,
-                                            background: isLocked ? '#e2e8f0' : category.accentSoft,
-                                            color: isLocked ? '#64748b' : category.accent,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: category.token.length > 3 ? 11 : 13,
-                                            fontWeight: 800,
-                                            letterSpacing: 0.5,
-                                            flexShrink: 0,
-                                        }}
-                                    >
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: isLocked ? '#64748b' : category.accent, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                         {category.token}
-                                    </div>
+                                    </span>
                                     <span
                                         style={{
                                             fontSize: 11,
                                             fontWeight: 700,
                                             color: isLocked ? '#64748b' : isSelected ? category.accent : '#64748b',
-                                            background: isLocked ? '#ffffff' : isSelected ? category.accentSoft : '#f8fafc',
+                                            background: 'transparent',
                                             border: `1px solid ${isLocked ? '#dbe4ef' : isSelected ? category.border : '#e2e8f0'}`,
                                             borderRadius: 999,
-                                            padding: '6px 10px',
+                                            padding: '5px 9px',
                                             whiteSpace: 'nowrap',
                                         }}
                                     >
@@ -614,11 +576,11 @@ const TestList = () => {
                                 </h3>
                                 <p style={{ fontSize: 14, lineHeight: 1.6, color: '#64748b', margin: '8px 0 12px' }}>
                                     {isLocked
-                                        ? 'Select ITR, GSTR, or Scrutiny first to unlock registration selections.'
+                                        ? 'Select a Returns or Notices category first to unlock Registrations.'
                                         : category.description}
                                 </p>
 
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                                     {category.coverageSummary.map((item) => (
                                         <span
                                             key={item}
@@ -626,10 +588,10 @@ const TestList = () => {
                                                 fontSize: 11,
                                                 fontWeight: 700,
                                                 color: '#475569',
-                                                background: '#f8fafc',
-                                                border: '1px solid #e2e8f0',
+                                                background: 'transparent',
+                                                border: '1px solid #dbe4ef',
                                                 borderRadius: 999,
-                                                padding: '5px 10px',
+                                                padding: '4px 9px',
                                             }}
                                         >
                                             {item}
@@ -637,66 +599,20 @@ const TestList = () => {
                                     ))}
                                 </div>
 
-                                <div
-                                    style={{
-                                        borderRadius: 16,
-                                        border: `1px solid ${isSelected ? category.border : '#e2e8f0'}`,
-                                        background: isSelected ? category.accentSoft : '#f8fafc',
-                                        padding: '14px 14px 13px',
-                                        marginBottom: 14,
-                                        minHeight: 88,
-                                    }}
-                                >
-                                    {isLocked ? (
-                                        <p
-                                            style={{
-                                                fontSize: 13,
-                                                lineHeight: 1.55,
-                                                color: '#475569',
-                                                margin: 0,
-                                            }}
-                                        >
-                                            Registrations stays locked until at least one other category is confirmed.
-                                        </p>
-                                    ) : isSelected ? (
-                                        <>
-                                            <p
-                                                style={{
-                                                    fontSize: 12,
-                                                    fontWeight: 800,
-                                                    color: category.accent,
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: 0.45,
-                                                    margin: '0 0 7px',
-                                                }}
-                                            >
-                                                Selected Titles
-                                            </p>
-                                            <p
-                                                style={{
-                                                    fontSize: 13,
-                                                    lineHeight: 1.55,
-                                                    color: '#0f172a',
-                                                    margin: 0,
-                                                }}
-                                            >
-                                                {previewText}
-                                                {remainingCount > 0 ? ` +${remainingCount} more` : ''}
-                                            </p>
-                                        </>
-                                    ) : (
-                                        <p
-                                            style={{
-                                                fontSize: 13,
-                                                lineHeight: 1.55,
-                                                color: '#64748b',
-                                                margin: 0,
-                                            }}
-                                        >
-                                            Tap to choose the exact titles included in this category before continuing.
-                                        </p>
-                                    )}
-                                </div>
+                                {isLocked ? (
+                                    <p style={{ fontSize: 13, lineHeight: 1.55, color: '#475569', margin: '0 0 12px' }}>
+                                        Registrations stays locked until at least one other category is confirmed.
+                                    </p>
+                                ) : isSelected ? (
+                                    <p style={{ fontSize: 13, lineHeight: 1.55, color: '#0f172a', margin: '0 0 12px', fontWeight: 600 }}>
+                                        {previewText}
+                                        {remainingCount > 0 ? ` +${remainingCount} more` : ''}
+                                    </p>
+                                ) : (
+                                    <p style={{ fontSize: 13, lineHeight: 1.55, color: '#64748b', margin: '0 0 12px' }}>
+                                        Choose the exact titles included in this category before continuing.
+                                    </p>
+                                )}
 
                                 <div
                                     style={{
