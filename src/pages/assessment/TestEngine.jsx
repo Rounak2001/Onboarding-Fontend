@@ -68,7 +68,7 @@ const openSnapshotQueueDb = () => new Promise((resolve, reject) => {
         reject(new Error('IndexedDB is not supported'));
         return;
     }
-    const req = window.indexedDB.open(SNAPSHOT_QUEUE_DB_NAME, 2);
+    const req = window.indexedDB.open(SNAPSHOT_QUEUE_DB_NAME, 3);
     req.onupgradeneeded = (event) => {
         const db = event.target.result;
         if (!db.objectStoreNames.contains(SNAPSHOT_QUEUE_STORE_NAME)) {
