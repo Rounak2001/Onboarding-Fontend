@@ -106,11 +106,15 @@ const StepGuard = ({ step, children }) => {
   const deviceBlockedForAssessment = isAssessmentDeviceBlocked();
 
   let allowed = false;
-  switch (step) {
+    switch (step) {
     case 'onboarding':
       // Allow profile completion, and allow edits until face verification is completed.
       // This prevents redirect loops when identity docs exist but profile is not marked onboarded yet.
       allowed = !onboarded || !verified;
+      break;
+    case 'onboarding-details':
+      // Dedicated edit route for already-onboarded users (e.g. identity mismatch corrections).
+      allowed = Boolean(onboarded);
       break;
     case 'identity':
       allowed = onboarded && !hasIdentity;
@@ -166,6 +170,9 @@ function AppRoutes() {
         <Route path="/declaration" element={<Declaration />} />
         <Route path="/onboarding" element={
           <StepGuard step="onboarding"><Onboarding /></StepGuard>
+        } />
+        <Route path="/onboarding/details" element={
+          <StepGuard step="onboarding-details"><Onboarding /></StepGuard>
         } />
         <Route path="/success" element={
           <StepGuard step="dashboard"><Success /></StepGuard>

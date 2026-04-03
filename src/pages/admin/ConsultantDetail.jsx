@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
 import { readResponsePayload } from '../../utils/http';
@@ -21,6 +22,7 @@ const ConsultantDetail = () => {
     const [selectedImage, setSelectedImage] = useState(null);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null);
     const [selectedVideoCard, setSelectedVideoCard] = useState(null);
+    const renderInBody = (node) => (typeof document !== 'undefined' ? createPortal(node, document.body) : node);
 
     const token = localStorage.getItem('admin_token');
 
@@ -1252,7 +1254,7 @@ const ConsultantDetail = () => {
             </div>
 
             {/* Credentials Modal */}
-            {credentialsPopup && (
+            {credentialsPopup && renderInBody(
                 <div style={{
                     position: 'fixed', inset: 0, zIndex: 100,
                     background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -1288,11 +1290,12 @@ const ConsultantDetail = () => {
                         </button>
                     </div>
                 </div>
-            )}
+                )
+            }
 
             {/* Snapshot Modal */}
             {
-                selectedSnapshot && (
+                selectedSnapshot && renderInBody(
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 110,
                         background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
@@ -1493,7 +1496,7 @@ const ConsultantDetail = () => {
 
             {/* Image Modal */}
             {
-                selectedImage && (
+                selectedImage && renderInBody(
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 100,
                         background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40
@@ -1518,11 +1521,11 @@ const ConsultantDetail = () => {
                             )}
                         </div>
                     </div>
-                )
+                    )
             }
             {/* Expanded Video Card Modal */}
             {
-                selectedVideoCard && (
+                selectedVideoCard && renderInBody(
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 100,
                         background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
@@ -1603,7 +1606,7 @@ const ConsultantDetail = () => {
 
                         </div>
                     </div>
-                )
+                    )
             }
         </div >
     );

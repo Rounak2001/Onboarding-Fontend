@@ -40,7 +40,7 @@ const getQualificationOptionMatch = (value) => {
 const Onboarding = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, syncAuthData } = useAuth();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [formError, setFormError] = useState('');
@@ -474,8 +474,16 @@ const Onboarding = () => {
                     await uploadOnboardingDocument(letterData);
                 }
             }
-            updateUser(data.user);
-            navigate(isDetailsEdit ? '/onboarding/identity' : '/success');
+            if (typeof syncAuthData === 'function') {
+                syncAuthData(data);
+            } else {
+                updateUser(data.user);
+            }
+            if (isDetailsEdit) {
+                navigate(data?.has_identity_doc ? '/onboarding/face-verification' : '/onboarding/identity');
+            } else {
+                navigate('/success');
+            }
         } catch (err) {
             console.error('Onboarding failed:', err);
             if (experienceLetter && err.response?.data?.document_type) {
@@ -869,7 +877,7 @@ const Onboarding = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Years of Experience</label>
+                                    <label style={labelStyle}>Years of Experience <span style={{ color: '#ef4444' }}>*</span></label>
                                     <input ref={yearsExpRef} name="experience_years" value={formData.experience_years} onChange={handleChange} type="number" min="1" placeholder="e.g. 5" style={inputStyle(errors.experience_years)} />
                                     {errors.experience_years && <p style={errorStyle}>{errors.experience_years}</p>}
                                 </div>

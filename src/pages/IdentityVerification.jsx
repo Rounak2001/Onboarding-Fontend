@@ -4,7 +4,6 @@ import { uploadIdentityDocument } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import FileDropzone from '../components/FileDropzone';
 import BrandLogo from '../components/BrandLogo';
-import { DEV_FACE_VERIFICATION_BYPASS } from '../utils/devBypass';
 import { useIsNarrowScreen } from '../utils/useViewport';
 
 const IdentityVerification = () => {
@@ -43,6 +42,14 @@ const IdentityVerification = () => {
         setPreview(URL.createObjectURL(selected));
     };
 
+    const clearSelectedId = () => {
+        setFile(null);
+        if (preview) URL.revokeObjectURL(preview);
+        setPreview(null);
+        setMismatchDetails(null);
+        setError('');
+    };
+
     const handleUpload = async () => {
         if (!file) return;
         setUploading(true);
@@ -55,7 +62,7 @@ const IdentityVerification = () => {
 
             if (response.verification?.status === 'Verified') {
                 updateStepFlags({ has_identity_doc: true });
-                navigate(DEV_FACE_VERIFICATION_BYPASS ? '/onboarding/documentation' : '/onboarding/face-verification');
+                navigate('/onboarding/face-verification');
             } else {
                 const status = response?.verification?.status || 'Invalid';
                 setError(`Document verification failed (${status}). Please upload a valid Government ID.`);
@@ -83,9 +90,6 @@ const IdentityVerification = () => {
                 }
                 setMismatchDetails(issues);
                 setError('Your first and last name or date of birth do not match the uploaded Government ID.');
-                setFile(null);
-                if (preview) URL.revokeObjectURL(preview);
-                setPreview(null);
                 setUploading(false);
                 return;
             }
@@ -217,13 +221,7 @@ const IdentityVerification = () => {
                         files={file ? [file] : []}
                         pickerRef={fileInputRef}
                         onFilesSelected={(picked) => setIdentityFileFromFile(picked?.[0] || null)}
-                        onRemoveAt={() => {
-                            setFile(null);
-                            if (preview) URL.revokeObjectURL(preview);
-                            setPreview(null);
-                            setMismatchDetails(null);
-                            setError('');
-                        }}
+                        onRemoveAt={clearSelectedId}
                         disabled={uploading}
                         error={error}
                     />
@@ -235,13 +233,7 @@ const IdentityVerification = () => {
                         <div style={{ display: 'flex', gap: 12, flexDirection: isPhoneScreen ? 'column' : 'row' }}>
                             <button
                                 className="tp-btn"
-                                onClick={() => {
-                                    setFile(null);
-                                    if (preview) URL.revokeObjectURL(preview);
-                                    setPreview(null);
-                                    setMismatchDetails(null);
-                                    setError('');
-                                }}
+                                onClick={clearSelectedId}
                                 style={{
                                     ...actionButtonStyle,
                                     fontWeight: 500,
@@ -284,34 +276,55 @@ const IdentityVerification = () => {
                                 ))}
                             </ul>
                             <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 12px' }}>
-                                Please update your profile so the first and last name match your Government ID, then come back and upload again.
+                                Please update your profile so the first and last name match your Government ID. Re-upload is optional if you want to use a different ID image.
                             </p>
-                            <button
-                                onClick={() => navigate('/onboarding', {
-                                    state: {
-                                        identityMismatchMessage: 'Please update your details to match your Government ID exactly, then upload the ID again.',
-                                    },
-                                })}
-                                style={{
-                                    padding: '10px 20px',
-                                    borderRadius: 8,
-                                    fontWeight: 600,
-                                    fontSize: 14,
-                                    border: 'none',
-                                    background: '#f59e0b',
-                                    color: '#fff',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    transition: 'transform 140ms ease, box-shadow 180ms ease, background 180ms ease',
-                                    boxShadow: '0 10px 18px rgba(245,158,11,0.14)',
-                                    width: isPhoneScreen ? '100%' : 'auto',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                {'\u2190 Update Profile Details'}
-                            </button>
+                            <div style={{ display: 'flex', gap: 10, flexDirection: isPhoneScreen ? 'column' : 'row' }}>
+                                <button
+                                    onClick={() => navigate('/onboarding/details', {
+                                        state: {
+                                            identityMismatchMessage: 'Please update your details to match your Government ID exactly. Re-upload only if needed.',
+                                        },
+                                    })}
+                                    style={{
+                                        padding: '10px 20px',
+                                        borderRadius: 8,
+                                        fontWeight: 600,
+                                        fontSize: 14,
+                                        border: 'none',
+                                        background: '#f59e0b',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        transition: 'transform 140ms ease, box-shadow 180ms ease, background 180ms ease',
+                                        boxShadow: '0 10px 18px rgba(245,158,11,0.14)',
+                                        width: isPhoneScreen ? '100%' : 'auto',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    {'\u2190 Update Profile Details'}
+                                </button>
+                                {/* <button
+                                    onClick={clearSelectedId}
+                                    style={{
+                                        padding: '10px 20px',
+                                        borderRadius: 8,
+                                        fontWeight: 600,
+                                        fontSize: 14,
+                                        border: '1px solid #d1d5db',
+                                        background: '#fff',
+                                        color: '#374151',
+                                        cursor: 'pointer',
+                                        transition: 'transform 140ms ease, box-shadow 180ms ease, background 180ms ease',
+                                        boxShadow: '0 8px 16px rgba(15,23,42,0.08)',
+                                        width: isPhoneScreen ? '100%' : 'auto',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    Re-upload ID
+                                </button> */}
+                            </div>
                         </div>
                     )}
                 </div>
