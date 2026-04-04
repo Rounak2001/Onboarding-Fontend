@@ -11,6 +11,8 @@ import { useIsNarrowScreen, useViewportWidth } from '../utils/useViewport';
 
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
+const TERMS_URL = 'https://www.taxplanadvisor.in/terms-and-conditions';
+const PRIVACY_URL = 'https://www.taxplanadvisor.in/privacy-policy';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -413,7 +415,15 @@ const Login = () => {
                     </div>
 
                     <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.6, marginTop: 16, marginBottom: 0, textAlign: 'center' }}>
-                        By signing in, you agree to our Terms of Service and Privacy Policy.
+                        By signing in, you agree to our{' '}
+                        <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="tp-legal-link">
+                            Terms of Service
+                        </a>{' '}
+                        and{' '}
+                        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="tp-legal-link">
+                            Privacy Policy
+                        </a>
+                        .
                     </p>
                 </section>
             </div>
@@ -424,6 +434,22 @@ const Login = () => {
                 onClose={() => setShowConflictDialog(false)}
                 onTryAnotherAccount={moveFocusBackToGoogleLogin}
             />
+
+            <style>{`
+                .tp-legal-link {
+                    color: #2563eb;
+                    text-decoration: none;
+                    font-weight: 600;
+                    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+                }
+
+                .tp-legal-link:hover,
+                .tp-legal-link:focus-visible {
+                    color: #1d4ed8;
+                    text-decoration: underline;
+                    text-underline-offset: 2px;
+                }
+            `}</style>
         </div>
     );
 };

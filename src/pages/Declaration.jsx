@@ -100,7 +100,7 @@ const Declaration = () => {
                     <p style={{ fontSize: 14, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>Please read and carefully agree to all terms before proceeding to the assessment platform.</p>
                 </div>
 
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', padding: '12px 16px', borderRadius: 8, marginBottom: 24, fontSize: 13, lineHeight: 1.6 }}>
+            {/* <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', padding: '12px 16px', borderRadius: 8, marginBottom: 24, fontSize: 13, lineHeight: 1.6 }}>
                 <strong>Proctoring policy highlights:</strong>
                 <ul style={{ margin: '8px 0 0 18px', padding: 0 }}>
                     <li>Tab-switch warnings allowed: {policy.TAB_WARNINGS_LIMIT}</li>
@@ -108,7 +108,7 @@ const Declaration = () => {
                     <li>Assessment must be taken in fullscreen mode.</li>
                     <li>Violations are logged and can lead to auto-submission or disqualification.</li>
                 </ul>
-            </div>
+            </div> */}
 
             {error && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', padding: '12px 16px', borderRadius: 8, marginBottom: 24, fontSize: 14 }}>
@@ -192,7 +192,7 @@ const Declaration = () => {
                 </div>
             </div>
 
-            <div style={{ marginTop: 32, display: 'flex', justifyContent: isPhoneScreen ? 'stretch' : 'flex-end', paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
+            <div style={{ marginTop: 0, display: 'flex', justifyContent: isPhoneScreen ? 'stretch' : 'flex-end', paddingTop: 24}}>
                 <button
                     onClick={handleSubmit}
                     disabled={!allAgreed || loading}

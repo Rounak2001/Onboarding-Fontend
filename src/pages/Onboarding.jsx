@@ -252,7 +252,7 @@ const Onboarding = () => {
         }
         if (!formData.phone_number?.trim() || formData.phone_number.trim().length < 10) e.phone_number = 'Valid phone number required (10+ digits)';
         if (formData.phone_number?.trim() && !currentPhoneE164) e.phone_number = 'Please enter a valid Indian mobile number (+91 XXXXXXXXXX)';
-        if (currentPhoneE164 && !isPhoneVerified) e.phone_number = 'Please verify your phone number via OTP to continue';
+        if (currentPhoneE164 && !isPhoneVerified) e.phone_number = 'Please verify your number via Whatsaap OTP to continue';
         if (!formData.address_line1?.trim() || formData.address_line1.trim().length < 5) e.address_line1 = 'Address required (min 5 chars)';
         if (!formData.city?.trim()) e.city = 'City required';
         if (!formData.state?.trim()) e.state = 'State required';
@@ -589,7 +589,7 @@ const Onboarding = () => {
                                         style={{ ...inputStyle(false), background: '#f9fafb', color: '#9ca3af', cursor: 'not-allowed' }} />
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <label style={labelStyle}>Whatsaap Number <span style={{ color: '#ef4444' }}>*</span></label>
                                     <input ref={phoneInputRef} name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="+91 XXXXXXXXXX" type="tel" style={inputStyle(errors.phone_number)} />
                                     {errors.phone_number && <p style={errorStyle}>{errors.phone_number}</p>}
 

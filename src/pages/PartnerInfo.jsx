@@ -85,13 +85,13 @@ const PartnerInfo = () => {
                 </div>
             </header>
 
-            <main style={{ maxWidth: 1500, margin: '0 auto', padding: '42px 24px 64px' }}>
+            <main style={{ maxWidth: 1500, margin: '0 auto', padding: '37px 24px 64px' }}>
                 <section
                     style={{
                         display: 'grid',
                         gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)',
                         gap: 38,
-                        alignItems: 'center',
+                        alignItems: 'start',
                     }}
                 >
                     <div>
@@ -111,7 +111,7 @@ const PartnerInfo = () => {
                         <h1
                             style={{
                                 margin: '10px 0 14px',
-                                fontSize: 'clamp(2rem, 5vw, 4rem)',
+                                fontSize: 'clamp(2rem, 3.84vw, 4rem)',
                                 lineHeight: 1.02,
                                 letterSpacing: '-0.03em',
                                 fontWeight: 800,
@@ -157,7 +157,7 @@ const PartnerInfo = () => {
                             ))} */}
                         </div>
 
-                        <div style={{ marginTop: 30, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                             <button
                                 type="button"
                                 className="tp-btn"
@@ -202,7 +202,7 @@ const PartnerInfo = () => {
 
                     <div
                         style={{
-                            minHeight: 300,
+                            minHeight: 200,
                             borderRadius: 26,
                             background: '#fffbeb',
                             border: '1px solid #fcd34d',
@@ -216,7 +216,7 @@ const PartnerInfo = () => {
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#b45309' }}>
                             Important
                         </p>
-                        <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.2, fontWeight: 800, color: '#7c2d12' }}>
+                        <h2 style={{ margin: 0, fontSize: 20, lineHeight: 1.2, fontWeight: 800, color: '#7c2d12' }}>
                             Assessment is desktop/laptop only
                         </h2>
                         <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: '#78350f' }}>
@@ -242,7 +242,7 @@ const PartnerInfo = () => {
                 <section
                     id="eligibility"
                     style={{
-                        marginTop: 54,
+                        marginTop: 34,
                         paddingTop: 24,
                         borderTop: '1px solid rgba(15,23,42,0.1)',
                     }}
@@ -292,7 +292,7 @@ const PartnerInfo = () => {
                                         alignItems: 'flex-start',
                                         gap: 10,
                                         minHeight: 44,
-                                        padding: '10px 0',
+                                        padding: '10px 2px',
                                         borderBottom: '1px solid rgba(15,23,42,0.08)',
                                     }}
                                 >
