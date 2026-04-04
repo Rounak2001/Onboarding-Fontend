@@ -5,6 +5,23 @@ import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
 import { readResponsePayload } from '../../utils/http';
 
+const CALL_STATUS_OPTIONS = [
+    { value: '', label: 'Not Set' },
+    { value: 'not_called', label: 'Not Called' },
+    { value: 'called', label: 'Called' },
+    { value: 'follow_up', label: 'Follow Up' },
+    { value: 'rejected', label: 'Rejected' },
+];
+
+const buildCallTrackingDraft = (profile = {}) => ({
+    caller_id: '',
+    call_status: '',
+    is_rejected: false,
+    comments: '',
+    issue_facing: '',
+    next_follow_up: '',
+});
+
 const ConsultantDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -17,11 +34,15 @@ const ConsultantDetail = () => {
     const [credentialsPopup, setCredentialsPopup] = useState(null);
     const [error, setError] = useState('');
     const [openSections, setOpenSections] = useState({
-        profile: true, identity: true, face: true, assessment: true, documents: true,
+        profile: true, identity: true, face: true, assessment: true, documents: true, callTracking: true,
     });
     const [selectedImage, setSelectedImage] = useState(null);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null);
     const [selectedVideoCard, setSelectedVideoCard] = useState(null);
+    const [callerOptions, setCallerOptions] = useState([]);
+    const [callTrackingDraft, setCallTrackingDraft] = useState(buildCallTrackingDraft());
+    const [callLogs, setCallLogs] = useState([]);
+    const [savingCallTracking, setSavingCallTracking] = useState(false);
     const renderInBody = (node) => (typeof document !== 'undefined' ? createPortal(node, document.body) : node);
 
     const token = localStorage.getItem('admin_token');
@@ -40,8 +61,59 @@ const ConsultantDetail = () => {
             if (res.status === 404) { setError('Consultant not found'); setLoading(false); return; }
             const d = await res.json();
             setData(d);
+            setCallerOptions(d.caller_options || []);
+            setCallTrackingDraft(buildCallTrackingDraft());
+            setCallLogs(d.call_logs || []);
         } catch { setError('Failed to load data'); }
         finally { setLoading(false); }
+    };
+
+    const handleCallTrackingChange = (field, value) => {
+        setCallTrackingDraft((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleSaveCallTracking = async () => {
+        setSavingCallTracking(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/call-tracking/`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(callTrackingDraft),
+            });
+            const payload = await readResponsePayload(res);
+
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                navigate(adminUrl());
+                return;
+            }
+            if (!res.ok) {
+                alert(payload.error || 'Failed to save call tracking');
+                return;
+            }
+
+            const updated = payload.consultant || {};
+            const newCallLog = payload.call_log;
+            setData((prev) => ({
+                ...prev,
+                profile: {
+                    ...(prev?.profile || {}),
+                    ...updated,
+                },
+            }));
+            setCallTrackingDraft(buildCallTrackingDraft());
+            if (newCallLog) {
+                setCallLogs((prev) => [newCallLog, ...prev]);
+            }
+            alert(payload.message || 'Call entry added successfully.');
+        } catch {
+            alert('Failed to connect to server');
+        } finally {
+            setSavingCallTracking(false);
+        }
     };
 
     const generateCredentialsRequest = async (forcePhoneReassign = false) => {
@@ -254,6 +326,23 @@ const ConsultantDetail = () => {
         border: '1px solid rgba(148,163,184,0.15)', objectFit: 'contain',
         background: 'rgba(15,23,42,0.6)',
     };
+    const formInputStyle = {
+        width: '100%',
+        padding: '10px 12px',
+        borderRadius: 10,
+        background: 'rgba(15,23,42,0.72)',
+        border: '1px solid rgba(148,163,184,0.16)',
+        color: '#e2e8f0',
+        fontSize: 13,
+        outline: 'none',
+        boxSizing: 'border-box',
+    };
+    const formTextAreaStyle = {
+        ...formInputStyle,
+        minHeight: 110,
+        resize: 'vertical',
+        fontFamily: 'inherit',
+    };
 
     if (loading) return (
         <div style={{
@@ -290,6 +379,7 @@ const ConsultantDetail = () => {
     const isCandidateDisqualified = Boolean(data?.assessment_summary?.disqualified);
     const qualDocs = data?.documents?.qualification_documents || [];
     const consultDocs = data?.documents?.consultant_documents || [];
+    const totalCallAttempts = callLogs.length;
 
     return (
         <div className="tp-page" style={{
@@ -1247,6 +1337,189 @@ const ConsultantDetail = () => {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    )}
+                </div>
+
+                <div style={sectionStyle}>
+                    {sectionHeader('Call Tracking', 'callTracking', '📞')}
+                    {openSections.callTracking && (
+                        <div style={{ padding: '16px 20px 20px' }}>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                gap: 12,
+                                marginBottom: 18,
+                            }}>
+                                <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Calls</div>
+                                    <div style={{ marginTop: 6, fontSize: 22, fontWeight: 800, color: '#f1f5f9' }}>{totalCallAttempts}</div>
+                                </div>
+                                <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Latest Caller</div>
+                                    <div style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>{p.caller_name || 'No caller'}</div>
+                                </div>
+                                <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Latest Status</div>
+                                    <div style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>{p.call_status_label || 'Not Set'}</div>
+                                </div>
+                            </div>
+
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', marginBottom: 12 }}>Add New Call Entry</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                                <div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 700 }}>Caller</div>
+                                    <select
+                                        value={callTrackingDraft.caller_id}
+                                        onChange={(e) => handleCallTrackingChange('caller_id', e.target.value)}
+                                        style={formInputStyle}
+                                    >
+                                        <option value="">Select caller</option>
+                                        {callerOptions.map((option) => (
+                                            <option key={option.id} value={option.id}>{option.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 700 }}>Call Status</div>
+                                    <select
+                                        value={callTrackingDraft.call_status}
+                                        onChange={(e) => handleCallTrackingChange('call_status', e.target.value)}
+                                        style={formInputStyle}
+                                    >
+                                        {CALL_STATUS_OPTIONS.map((option) => (
+                                            <option key={option.value || 'blank'} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 700 }}>Next Follow Up</div>
+                                    <input
+                                        type="date"
+                                        value={callTrackingDraft.next_follow_up}
+                                        onChange={(e) => handleCallTrackingChange('next_follow_up', e.target.value)}
+                                        style={formInputStyle}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#cbd5e1' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={callTrackingDraft.is_rejected}
+                                        onChange={(e) => handleCallTrackingChange('is_rejected', e.target.checked)}
+                                    />
+                                    Rejected
+                                </label>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+                                <div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 700 }}>Comments</div>
+                                    <textarea
+                                        value={callTrackingDraft.comments}
+                                        onChange={(e) => handleCallTrackingChange('comments', e.target.value)}
+                                        placeholder="Comments"
+                                        style={formTextAreaStyle}
+                                    />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 700 }}>Issue Facing</div>
+                                    <textarea
+                                        value={callTrackingDraft.issue_facing}
+                                        onChange={(e) => handleCallTrackingChange('issue_facing', e.target.value)}
+                                        placeholder="Issue facing"
+                                        style={formTextAreaStyle}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <div style={{ fontSize: 12, color: '#64748b' }}>
+                                    Current: <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{p.caller_name || 'No caller'}</span>
+                                    {' · '}
+                                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{p.call_status_label || 'Not Set'}</span>
+                                </div>
+                                <button
+                                    onClick={handleSaveCallTracking}
+                                    disabled={savingCallTracking}
+                                    style={{
+                                        padding: '9px 16px',
+                                        borderRadius: 10,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        background: savingCallTracking ? 'rgba(148,163,184,0.2)' : 'rgba(16,185,129,0.15)',
+                                        color: savingCallTracking ? '#94a3b8' : '#34d399',
+                                        border: '1px solid rgba(16,185,129,0.28)',
+                                        cursor: savingCallTracking ? 'not-allowed' : 'pointer',
+                                    }}
+                                >
+                                    {savingCallTracking ? 'Saving...' : 'Save Call Tracking'}
+                                </button>
+                            </div>
+
+                            <div style={{ marginTop: 24 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', marginBottom: 12 }}>Call History</div>
+                                {callLogs.length === 0 ? (
+                                    <p style={{ color: '#64748b', fontSize: 13 }}>No call entries added yet.</p>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        {callLogs.map((log) => (
+                                            <div
+                                                key={log.id}
+                                                style={{
+                                                    padding: 14,
+                                                    borderRadius: 12,
+                                                    background: 'rgba(15,23,42,0.45)',
+                                                    border: '1px solid rgba(148,163,184,0.08)',
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>
+                                                        Call {log.call_round}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                                                        {log.called_at ? new Date(log.called_at).toLocaleString() : '—'}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 10 }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Caller</div>
+                                                        <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>{log.caller_name || '—'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Status</div>
+                                                        <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>{log.call_status_label || 'Not Set'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Rejected</div>
+                                                        <div style={{ fontSize: 13, color: log.is_rejected ? '#f87171' : '#34d399', fontWeight: 700 }}>
+                                                            {log.is_rejected ? 'Yes' : 'No'}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Next Follow Up</div>
+                                                        <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>
+                                                            {log.next_follow_up ? new Date(log.next_follow_up).toLocaleDateString() : '—'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Comments</div>
+                                                        <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>{log.comments || '—'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Issue Facing</div>
+                                                        <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>{log.issue_facing || '—'}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

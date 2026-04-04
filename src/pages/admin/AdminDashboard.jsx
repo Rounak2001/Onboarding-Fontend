@@ -663,7 +663,7 @@ const AdminDashboard = () => {
                             </span>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 <button
-                                    onClick={() => fetchConsultants(1, search, statusFilter, verificationFilter)}
+                                    onClick={() => fetchConsultants(1, search, statusFilter, verificationFilter, credentialsFilter)}
                                     disabled={page <= 1 || loading}
                                     style={{
                                         padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
@@ -672,7 +672,7 @@ const AdminDashboard = () => {
                                     }}
                                 >«</button>
                                 <button
-                                    onClick={() => fetchConsultants(page - 1, search, statusFilter, verificationFilter)}
+                                    onClick={() => fetchConsultants(page - 1, search, statusFilter, verificationFilter, credentialsFilter)}
                                     disabled={page <= 1 || loading}
                                     style={{
                                         padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
@@ -686,7 +686,7 @@ const AdminDashboard = () => {
                                     return p <= totalPages ? (
                                         <button
                                             key={p}
-                                            onClick={() => fetchConsultants(p, search, statusFilter, verificationFilter)}
+                                            onClick={() => fetchConsultants(p, search, statusFilter, verificationFilter, credentialsFilter)}
                                             disabled={loading}
                                             style={{
                                                 padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
@@ -700,7 +700,7 @@ const AdminDashboard = () => {
                                     ) : null;
                                 })}
                                 <button
-                                    onClick={() => fetchConsultants(page + 1, search, statusFilter, verificationFilter)}
+                                    onClick={() => fetchConsultants(page + 1, search, statusFilter, verificationFilter, credentialsFilter)}
                                     disabled={page >= totalPages || loading}
                                     style={{
                                         padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
@@ -709,7 +709,7 @@ const AdminDashboard = () => {
                                     }}
                                 >Next ›</button>
                                 <button
-                                    onClick={() => fetchConsultants(totalPages, search, statusFilter, verificationFilter)}
+                                    onClick={() => fetchConsultants(totalPages, search, statusFilter, verificationFilter, credentialsFilter)}
                                     disabled={page >= totalPages || loading}
                                     style={{
                                         padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
