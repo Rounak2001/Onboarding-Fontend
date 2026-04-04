@@ -173,8 +173,8 @@ const Success = () => {
                             padding: '6px 14px',
                             borderRadius: 20,
                             border: '1px solid #fecaca',
-                            display: isCompactScreen ? 'inline-flex' : 'inline-flex',
-                            width: isCompactScreen ? '100%' : 'auto',
+                            display: 'inline-flex',
+                            width: isPhoneScreen ? '100%' : 'auto',
                             justifyContent: 'center',
                         }}
                     >
@@ -192,8 +192,8 @@ const Success = () => {
                                 padding: '6px 14px',
                                 borderRadius: 20,
                                 border: '1px solid #fdba74',
-                                display: isCompactScreen ? 'inline-flex' : 'inline-flex',
-                                width: isCompactScreen ? '100%' : 'auto',
+                                display: 'inline-flex',
+                                width: isPhoneScreen ? '100%' : 'auto',
                                 justifyContent: 'center',
                             }}
                         >
@@ -211,8 +211,8 @@ const Success = () => {
                                     padding: '6px 14px',
                                     borderRadius: 20,
                                     border: '1px solid #fdba74',
-                                    display: isCompactScreen ? 'inline-flex' : 'inline-flex',
-                                    width: isCompactScreen ? '100%' : 'auto',
+                                    display: 'inline-flex',
+                                    width: isPhoneScreen ? '100%' : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
@@ -248,10 +248,10 @@ const Success = () => {
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1200, margin: '0 auto', padding: `${isPhoneScreen ? 22 : (isCompactScreen ? 28 : 40)}px ${pageHorizontalPadding}px` }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: `${isPhoneScreen ? 20 : (isCompactScreen ? 28 : 40)}px ${pageHorizontalPadding}px` }}>
                 <div style={{ marginBottom: 32 }}>
                     <h1 style={{ fontSize: isPhoneScreen ? 22 : (isCompactScreen ? 24 : 26), fontWeight: 700, color: '#111827', margin: 0, lineHeight: 1.25 }}>{`Welcome back, ${user?.first_name || user?.email?.split('@')[0]}`}</h1>
-                    <p style={{ fontSize: 15, color: '#6b7280', marginTop: 8, lineHeight: 1.6 }}>Complete the steps below to finish your consultant onboarding.</p>
+                    <p style={{ fontSize: isPhoneScreen ? 14 : 15, color: '#6b7280', marginTop: 8, lineHeight: 1.6 }}>Complete the steps below to finish your consultant onboarding.</p>
                 </div>
 
                 {showReviewCompletionBanner && (
@@ -275,14 +275,14 @@ const Success = () => {
                                 key={i}
                                 style={{
                                     display: 'flex',
-                                    alignItems: isCompactScreen ? 'stretch' : 'center',
-                                    gap: isCompactScreen ? 12 : 20,
-                                    padding: isCompactScreen ? '16px 14px' : '20px 28px',
+                                    alignItems: isPhoneScreen ? 'stretch' : 'center',
+                                    gap: isPhoneScreen ? 12 : (isCompactScreen ? 16 : 20),
+                                    padding: isPhoneScreen ? '16px 14px' : (isCompactScreen ? '18px 18px' : '20px 28px'),
                                     borderTop: i > 0 ? '1px solid #f3f4f6' : 'none',
                                     background: isActive ? '#f0fdf4' : '#fff',
                                     opacity: isLocked ? 0.82 : 1,
                                     transition: 'all 0.2s',
-                                    flexDirection: isCompactScreen ? 'column' : 'row',
+                                    flexDirection: isPhoneScreen ? 'column' : 'row',
                                 }}
                             >
                                 <div
@@ -303,7 +303,7 @@ const Success = () => {
                                     {step.done ? '✓' : i + 1}
                                 </div>
 
-                                {!isCompactScreen && <span style={{ fontSize: 24, flexShrink: 0 }}>{step.icon}</span>}
+                                {!isPhoneScreen && <span style={{ fontSize: isCompactScreen ? 22 : 24, flexShrink: 0 }}>{step.icon}</span>}
 
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <h3
@@ -321,9 +321,9 @@ const Success = () => {
                                     </p>
                                 </div>
 
-                                <div style={{ flexShrink: 0, width: isCompactScreen ? '100%' : 'auto' }}>
+                                <div style={{ flexShrink: 0, width: isPhoneScreen ? '100%' : 'auto' }}>
                                     {step.done ? (
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 14px', borderRadius: 20, display: isCompactScreen ? 'inline-flex' : 'inline-flex', width: isCompactScreen ? '100%' : 'auto', justifyContent: 'center' }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 14px', borderRadius: 20, display: 'inline-flex', width: isPhoneScreen ? '100%' : 'auto', justifyContent: 'center' }}>
                                             Complete
                                         </span>
                                     ) : isActive && step.action ? (
@@ -339,7 +339,7 @@ const Success = () => {
                                                 border: 'none',
                                                 cursor: 'pointer',
                                                 transition: 'background 0.2s',
-                                                width: isCompactScreen ? '100%' : 'auto',
+                                                width: isPhoneScreen ? '100%' : 'auto',
                                             }}
                                             onMouseEnter={(e) => { e.target.style.background = '#047857'; }}
                                             onMouseLeave={(e) => { e.target.style.background = '#059669'; }}
@@ -353,8 +353,8 @@ const Success = () => {
                                                     fontSize: 12,
                                                     color: '#64748b',
                                                     fontWeight: 600,
-                                                    display: isCompactScreen ? 'inline-flex' : 'inline',
-                                                    width: isCompactScreen ? '100%' : 'auto',
+                                                    display: isPhoneScreen ? 'inline-flex' : 'inline',
+                                                    width: isPhoneScreen ? '100%' : 'auto',
                                                     justifyContent: 'center',
                                                 }}
                                             >

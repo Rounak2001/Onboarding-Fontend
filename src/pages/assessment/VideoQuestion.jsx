@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Webcam from 'react-webcam';
 import { normalizeAssessmentDomainLabel } from './domainLabels';
 
-const TOTAL_TIME = 90; // 1 min 30 sec
+const TOTAL_TIME = 120; // 2 min 00 sec
 const START_RECORDING_SPEECH_RMS_THRESHOLD = 0.04;
 const START_RECORDING_SPEECH_MIN_FRAMES = 4;
 
@@ -274,6 +274,22 @@ export default function VideoQuestion({
     const safeTotalTime = Math.max(1, totalTime || TOTAL_TIME);
     const pct = ((safeTotalTime - Math.max(0, timeLeft)) / safeTotalTime) * 100;
     const isLow = timeLeft < 15;
+    const timerShellStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 18px',
+        borderRadius: 18,
+        border: `1px solid ${isLow ? '#fecaca' : '#bfdbfe'}`,
+        background: isLow
+            ? 'linear-gradient(135deg, rgba(255,245,245,0.98) 0%, rgba(254,226,226,0.98) 100%)'
+            : 'linear-gradient(135deg, rgba(239,246,255,0.98) 0%, rgba(224,242,254,0.98) 52%, rgba(224,231,255,0.98) 100%)',
+        boxShadow: isLow
+            ? '0 10px 28px rgba(220,38,38,0.22), inset 0 1px 0 rgba(255,255,255,0.85)'
+            : '0 12px 30px rgba(37,99,235,0.18), inset 0 1px 0 rgba(255,255,255,0.9)',
+        minWidth: 132,
+        justifyContent: 'center',
+    };
     const recordingButtonStyle = {
         padding: '9px 12px',
         borderRadius: 10,
@@ -380,12 +396,35 @@ export default function VideoQuestion({
                         </button>
                     )}
 
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        background: isLow ? '#fef2f2' : '#f9fafb', padding: '6px 14px', borderRadius: 20,
-                        border: `1px solid ${isLow ? '#fecaca' : '#e5e7eb'}`,
-                    }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 15, color: isLow ? '#dc2626' : '#111827' }}>
+                    <div style={timerShellStyle}>
+                        <span
+                            style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: isLow ? '#dc2626' : '#2563eb',
+                                boxShadow: isLow
+                                    ? '0 0 0 5px rgba(220,38,38,0.16), 0 0 18px rgba(220,38,38,0.45)'
+                                    : '0 0 0 5px rgba(37,99,235,0.12), 0 0 18px rgba(37,99,235,0.32)',
+                                animation: 'pulse 1.4s infinite',
+                                flexShrink: 0,
+                            }}
+                        />
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', color: isLow ? '#b91c1c' : '#1d4ed8' }}>
+                            TIMER
+                        </span>
+                        <span
+                            style={{
+                                fontFamily: 'monospace',
+                                fontWeight: 800,
+                                fontSize: 22,
+                                letterSpacing: '0.04em',
+                                color: isLow ? '#991b1b' : '#0f172a',
+                                textShadow: isLow
+                                    ? '0 0 14px rgba(220,38,38,0.18)'
+                                    : '0 0 18px rgba(59,130,246,0.14)',
+                            }}
+                        >
                             {formatTime(timeLeft)}
                         </span>
                     </div>
