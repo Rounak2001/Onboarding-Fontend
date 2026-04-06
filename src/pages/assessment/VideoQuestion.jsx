@@ -5,6 +5,9 @@ import { normalizeAssessmentDomainLabel } from './domainLabels';
 const TOTAL_TIME = 120; // 2 min 00 sec
 const START_RECORDING_SPEECH_RMS_THRESHOLD = 0.04;
 const START_RECORDING_SPEECH_MIN_FRAMES = 4;
+const RECORDING_SPEECH_RMS_THRESHOLD = 0.03;
+const RECORDING_SPEECH_MIN_FRAMES = 4;
+const NO_VOICE_PROMPT_AFTER_MS = 5000;
 
 export default function VideoQuestion({
     question,
@@ -28,6 +31,11 @@ export default function VideoQuestion({
     const audioDataArrayRef = useRef(null);
     const speechFramesRef = useRef(0);
     const startReminderShownRef = useRef(false);
+    const recordingSpeechFramesRef = useRef(0);
+    const recordingVoiceDetectedRef = useRef(false);
+    const recordingMonitorStartedAtRef = useRef(0);
+    const noVoicePromptShownRef = useRef(false);
+    const discardCurrentRecordingRef = useRef(false);
 
     const [recording, setRecording] = useState(false);
     const [recordedBlob, setRecordedBlob] = useState(null);
@@ -36,6 +44,8 @@ export default function VideoQuestion({
     const [error, setError] = useState('');
     const [hasStartedRecording, setHasStartedRecording] = useState(false);
     const [showStartRecordingPrompt, setShowStartRecordingPrompt] = useState(false);
+    const [showEnableMicPrompt, setShowEnableMicPrompt] = useState(false);
+    const [micLevel, setMicLevel] = useState(0);
     const categoryLabel = useMemo(() => {
         const raw = String(question?.category || '').trim();
         if (raw) return raw;
@@ -75,7 +85,14 @@ export default function VideoQuestion({
         setError('');
         setHasStartedRecording(false);
         setShowStartRecordingPrompt(false);
+        setShowEnableMicPrompt(false);
+        setMicLevel(0);
         startReminderShownRef.current = false;
+        recordingSpeechFramesRef.current = 0;
+        recordingVoiceDetectedRef.current = false;
+        recordingMonitorStartedAtRef.current = 0;
+        noVoicePromptShownRef.current = false;
+        discardCurrentRecordingRef.current = false;
         chunksRef.current = [];
         teardownSpeechMonitor();
     }, [question?.id, teardownSpeechMonitor]);
@@ -108,6 +125,7 @@ export default function VideoQuestion({
 
         if (hasStartedRecording && recording) {
             autoSubmitRef.current = true;
+            setShowEnableMicPrompt(false);
             setTimeout(() => stopRecording(), 0);
         } else if (!hasStartedRecording) {
             onVideoUploaded && onVideoUploaded();
@@ -131,7 +149,9 @@ export default function VideoQuestion({
     useEffect(() => {
         if (!hasStartedRecording || recording) return;
         setShowStartRecordingPrompt(false);
+        setShowEnableMicPrompt(false);
         teardownSpeechMonitor();
+        setMicLevel(0);
     }, [hasStartedRecording, recording, teardownSpeechMonitor]);
 
     useEffect(() => {
@@ -224,13 +244,112 @@ export default function VideoQuestion({
         return undefined;
     }, [registerSnapshotGetter, recording]);
 
+    useEffect(() => {
+        if (!recording) {
+            setMicLevel(0);
+            teardownSpeechMonitor();
+            return undefined;
+        }
+
+        let cancelled = false;
+        let intervalId = null;
+
+        const ensureSpeechDetector = async () => {
+            if (audioAnalyserRef.current && audioDataArrayRef.current) return true;
+            const stream = webcamRef.current?.video?.srcObject;
+            if (!stream || !stream.getAudioTracks().some((track) => track.readyState === 'live' && track.enabled !== false)) {
+                return false;
+            }
+
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return false;
+
+            try {
+                const context = new AudioCtx();
+                const source = context.createMediaStreamSource(stream);
+                const analyser = context.createAnalyser();
+                analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.8;
+                source.connect(analyser);
+                if (context.state === 'suspended') {
+                    await context.resume().catch(() => { });
+                }
+                audioContextRef.current = context;
+                audioSourceRef.current = source;
+                audioAnalyserRef.current = analyser;
+                audioDataArrayRef.current = new Uint8Array(analyser.fftSize);
+                return true;
+            } catch {
+                teardownSpeechMonitor();
+                return false;
+            }
+        };
+
+        const startMonitor = async () => {
+            const initialized = await ensureSpeechDetector();
+            if (!initialized || cancelled) return;
+
+            intervalId = setInterval(() => {
+                if (cancelled) return;
+                const analyser = audioAnalyserRef.current;
+                const data = audioDataArrayRef.current;
+                if (!analyser || !data) return;
+
+                analyser.getByteTimeDomainData(data);
+                let sumSquares = 0;
+                for (let i = 0; i < data.length; i += 1) {
+                    const centered = (data[i] - 128) / 128;
+                    sumSquares += centered * centered;
+                }
+                const rms = Math.sqrt(sumSquares / data.length);
+                setMicLevel(Math.max(0, Math.min(1, rms * 8)));
+
+                if (rms >= RECORDING_SPEECH_RMS_THRESHOLD) {
+                    recordingSpeechFramesRef.current += 1;
+                } else if (recordingSpeechFramesRef.current > 0) {
+                    recordingSpeechFramesRef.current -= 1;
+                }
+
+                if (recordingSpeechFramesRef.current >= RECORDING_SPEECH_MIN_FRAMES) {
+                    recordingVoiceDetectedRef.current = true;
+                }
+
+                const elapsed = Date.now() - Number(recordingMonitorStartedAtRef.current || Date.now());
+                if (
+                    elapsed >= NO_VOICE_PROMPT_AFTER_MS
+                    && !recordingVoiceDetectedRef.current
+                    && !noVoicePromptShownRef.current
+                ) {
+                    noVoicePromptShownRef.current = true;
+                    setShowEnableMicPrompt(true);
+                }
+            }, 140);
+        };
+
+        startMonitor();
+
+        return () => {
+            cancelled = true;
+            if (intervalId) clearInterval(intervalId);
+            setMicLevel(0);
+            teardownSpeechMonitor();
+        };
+    }, [recording, teardownSpeechMonitor]);
+
     const startRecording = useCallback(() => {
         chunksRef.current = [];
+        discardCurrentRecordingRef.current = false;
         setRecordedBlob(null);
         if (preview) URL.revokeObjectURL(preview);
         setPreview(null);
         setError('');
         setShowStartRecordingPrompt(false);
+        setShowEnableMicPrompt(false);
+        setMicLevel(0);
+        recordingSpeechFramesRef.current = 0;
+        recordingVoiceDetectedRef.current = false;
+        recordingMonitorStartedAtRef.current = Date.now();
+        noVoicePromptShownRef.current = false;
 
         const stream = webcamRef.current?.video?.srcObject;
         if (!stream) {
@@ -255,6 +374,16 @@ export default function VideoQuestion({
             if (e.data.size > 0) chunksRef.current.push(e.data);
         };
         recorder.onstop = () => {
+            if (discardCurrentRecordingRef.current) {
+                discardCurrentRecordingRef.current = false;
+                chunksRef.current = [];
+                setRecordedBlob(null);
+                setPreview((prev) => {
+                    if (prev) URL.revokeObjectURL(prev);
+                    return null;
+                });
+                return;
+            }
             const blob = new Blob(chunksRef.current, { type: 'video/webm' });
             setRecordedBlob(blob);
             setPreview(URL.createObjectURL(blob));
@@ -477,6 +606,32 @@ export default function VideoQuestion({
                                 </div>
                             </div>
                         )}
+                        {recording && (
+                            <div style={{
+                                position: 'absolute',
+                                top: 12,
+                                right: 12,
+                                minWidth: 160,
+                                background: 'rgba(15, 23, 42, 0.74)',
+                                border: '1px solid rgba(148, 163, 184, 0.26)',
+                                borderRadius: 10,
+                                padding: '8px 10px',
+                                backdropFilter: 'blur(4px)',
+                            }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#cbd5e1', marginBottom: 6 }}>
+                                    MIC LEVEL
+                                </div>
+                                <div style={{ height: 8, borderRadius: 999, background: 'rgba(148,163,184,0.25)', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${Math.max(4, Math.round(micLevel * 100))}%`,
+                                        transition: 'width 100ms linear',
+                                        borderRadius: 999,
+                                        background: micLevel > 0.18 ? '#22c55e' : '#f59e0b',
+                                    }} />
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -552,6 +707,71 @@ export default function VideoQuestion({
                                 }}
                             >
                                 Start Recording
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showEnableMicPrompt && recording && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(17, 24, 39, 0.58)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000,
+                    padding: 16,
+                }}>
+                    <div style={{
+                        width: 'min(92vw, 500px)',
+                        background: '#fff',
+                        borderRadius: 14,
+                        border: '1px solid #e5e7eb',
+                        boxShadow: '0 22px 50px rgba(17, 24, 39, 0.3)',
+                        padding: '18px 18px 16px',
+                    }}>
+                        <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#111827', fontWeight: 700 }}>
+                            Please enable microphone
+                        </h3>
+                        <p style={{ margin: '0 0 16px', fontSize: 14, color: '#374151', lineHeight: 1.6 }}>
+                            We could not detect voice in the first 5 seconds of recording. Please enable your mic and re-record this answer.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button
+                                className="tp-btn"
+                                onClick={() => setShowEnableMicPrompt(false)}
+                                style={{
+                                    padding: '10px 14px',
+                                    borderRadius: 10,
+                                    border: '1px solid #d1d5db',
+                                    background: '#fff',
+                                    color: '#374151',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Continue anyway
+                            </button>
+                            <button
+                                className="tp-btn"
+                                onClick={() => {
+                                    discardCurrentRecordingRef.current = true;
+                                    setShowEnableMicPrompt(false);
+                                    stopRecording();
+                                }}
+                                style={{
+                                    padding: '10px 14px',
+                                    borderRadius: 10,
+                                    border: 'none',
+                                    background: '#dc2626',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Re-record with mic
                             </button>
                         </div>
                     </div>

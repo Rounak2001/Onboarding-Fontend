@@ -6,6 +6,7 @@ import BrandLogo from '../components/BrandLogo';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
 import { isFaceVerificationSatisfied } from '../utils/devBypass';
 import { useIsNarrowScreen } from '../utils/useViewport';
+import Feedback from './Feedback';
 
 const formatRetryUnlockAt = (value) => {
     if (!value) return '';
@@ -376,6 +377,11 @@ const Success = () => {
                         </p>
                     </div>
                 )}
+
+                {/* Embedded Feedback Form */}
+                <div style={{ marginTop: 40 }}>
+                    <Feedback embedded />
+                </div>
 
             </div>
         </div>

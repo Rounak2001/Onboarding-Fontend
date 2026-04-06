@@ -132,7 +132,7 @@ const GrowTextarea = ({ value, onChange, placeholder, minRows = 3 }) => {
 };
 
 /* ─── Main component ─── */
-const Feedback = () => {
+const Feedback = ({ embedded = false }) => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const isPhoneScreen = useIsNarrowScreen(640);
@@ -235,64 +235,66 @@ const Feedback = () => {
 
     /* ─── Render ─── */
     return (
-        <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={embedded ? { background: '#ffffff', borderRadius: 16, border: '1px solid #e5e7eb', fontFamily: "'Inter', system-ui, sans-serif" } : { minHeight: '100vh', background: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif" }}>
             <FeedbackToast message={toastMessage} />
 
             {/* ── Header ── */}
-            <header
-                style={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 30,
-                    background: '#0d1b2a',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    borderBottom: '1px solid #e2e8f0',
-                }}
-            >
-                <div
+            {!embedded && (
+                <header
                     style={{
-                        maxWidth: 1500,
-                        margin: '0 auto',
-                        padding: `0 ${sidePad}px`,
-                        height: 56,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 30,
+                        background: '#0d1b2a',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        borderBottom: '1px solid #e2e8f0',
                     }}
                 >
-                    <BrandLogo height={34} />
-                    <button
-                        type="button"
-                        onClick={() => navigate(-1)}
+                    <div
                         style={{
-                            border: 'none',
-                            background: 'none',
-                            cursor: 'pointer',
-                            fontSize: 14,
-                            fontWeight: 500,
-                            color: '#64748b',
+                            maxWidth: 1500,
+                            margin: '0 auto',
+                            padding: `0 ${sidePad}px`,
+                            height: 56,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 4,
-                            padding: '6px 0',
-                            fontFamily: 'inherit',
-                            transition: 'color 180ms ease',
+                            justifyContent: 'space-between',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = '#0f172a'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = '#64748b'; }}
                     >
-                        
-                    </button>
-                </div>
-            </header>
+                        <BrandLogo height={34} />
+                        <button
+                            type="button"
+                            onClick={() => navigate(-1)}
+                            style={{
+                                border: 'none',
+                                background: 'none',
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                fontWeight: 500,
+                                color: '#64748b',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '6px 0',
+                                fontFamily: 'inherit',
+                                transition: 'color 180ms ease',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#0f172a'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = '#64748b'; }}
+                        >
+                            
+                        </button>
+                    </div>
+                </header>
+            )}
 
             {/* ── Content ── */}
             <main
                 style={{
                     maxWidth: 1000,
                     margin: '0 auto',
-                    padding: `${isPhoneScreen ? 32 : 48}px ${sidePad}px 80px`,
+                    padding: embedded ? `${isPhoneScreen ? 24 : 32}px ${sidePad}px ${isPhoneScreen ? 32 : 40}px` : `${isPhoneScreen ? 32 : 48}px ${sidePad}px 80px`,
                 }}
             >
                 {/* Hero */}

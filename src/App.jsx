@@ -31,7 +31,8 @@ const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
 // Layout for onboarding pages — includes a fixed header
 export const OnboardingLayout = () => {
   const location = useLocation();
-  const showFeedbackButton = location.pathname !== '/feedback';
+  const isAssessmentRoute = location.pathname.startsWith('/assessment');
+  const showFeedbackButton = location.pathname !== '/feedback' && !isAssessmentRoute;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -60,17 +61,28 @@ export const OnboardingLayout = () => {
               onClick={() => window.open('/feedback', '_blank', 'noopener,noreferrer')}
               style={{
                 pointerEvents: 'auto',
-                border: '1px solid rgba(255,255,255,0.18)',
-                background: 'rgba(13,27,42,0.92)',
-                color: '#f8fafc',
+                border: '1px solid rgba(251,146,60,0.55)',
+                background: 'linear-gradient(135deg, rgba(249,115,22,0.95), rgba(194,65,12,0.95))',
+                color: '#fff7ed',
                 borderRadius: 999,
                 padding: '10px 18px',
                 fontSize: 13,
                 fontWeight: 700,
                 letterSpacing: '0.01em',
                 cursor: 'pointer',
-                boxShadow: '0 14px 30px rgba(15,23,42,0.18)',
+                boxShadow: '0 14px 30px rgba(249,115,22,0.28), 0 0 0 1px rgba(251,146,60,0.2) inset',
                 marginRight: 56,
+                transition: 'transform 160ms ease, box-shadow 160ms ease, filter 160ms ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 18px 34px rgba(249,115,22,0.34), 0 0 0 1px rgba(253,186,116,0.26) inset';
+                e.currentTarget.style.filter = 'brightness(1.04)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 14px 30px rgba(249,115,22,0.28), 0 0 0 1px rgba(251,146,60,0.2) inset';
+                e.currentTarget.style.filter = 'brightness(1)';
               }}
             >
               Share Feedback
