@@ -94,6 +94,16 @@ export const getUserProfile = async () => {
     return response.data;
 };
 
+export const getOnboardingFeedback = async () => {
+    const response = await api.get('/auth/feedback/');
+    return response.data;
+};
+
+export const submitOnboardingFeedback = async (payload) => {
+    const response = await api.post('/auth/feedback/', payload);
+    return response.data;
+};
+
 // Logout
 export const logout = async () => {
     const response = await api.post('/auth/logout/');

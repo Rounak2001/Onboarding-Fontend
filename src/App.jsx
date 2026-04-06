@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import Success from './pages/Success';
+import Feedback from './pages/Feedback';
 import DocumentUpload from './pages/DocumentUpload';
 import FaceVerification from './pages/FaceVerification';
 import IdentityVerification from './pages/IdentityVerification';
@@ -29,8 +30,54 @@ const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
 
 // Layout for onboarding pages — includes a fixed header
 export const OnboardingLayout = () => {
+  const location = useLocation();
+  const showFeedbackButton = location.pathname !== '/feedback';
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {showFeedbackButton && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 10,
+            left: 0,
+            right: 0,
+            zIndex: 70,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1440,
+              margin: '0 auto',
+              padding: '0 32px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => window.open('/feedback', '_blank', 'noopener,noreferrer')}
+              style={{
+                pointerEvents: 'auto',
+                border: '1px solid rgba(255,255,255,0.18)',
+                background: 'rgba(13,27,42,0.92)',
+                color: '#f8fafc',
+                borderRadius: 999,
+                padding: '10px 18px',
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: '0.01em',
+                cursor: 'pointer',
+                boxShadow: '0 14px 30px rgba(15,23,42,0.18)',
+                marginRight: 56,
+              }}
+            >
+              Share Feedback
+            </button>
+          </div>
+        </div>
+      )}
       <main style={{ flex: 1, position: 'relative' }}>
         <Outlet />
       </main>
@@ -177,6 +224,7 @@ function AppRoutes() {
         <Route path="/success" element={
           <StepGuard step="dashboard"><Success /></StepGuard>
         } />
+        <Route path="/feedback" element={<Feedback />} />
         <Route path="/onboarding/identity" element={
           <StepGuard step="identity"><IdentityVerification /></StepGuard>
         } />

@@ -25,6 +25,7 @@ const AdminDashboard = () => {
     const [totalCount, setTotalCount] = useState(0);
 
     const [exporting, setExporting] = useState(false);
+    const [dispatchingDueNotifications, setDispatchingDueNotifications] = useState(false);
 
     const token = localStorage.getItem('admin_token');
     const searchRef = useRef(search);
@@ -154,6 +155,31 @@ const AdminDashboard = () => {
     const handleLogout = () => {
         localStorage.removeItem('admin_token');
         navigate(adminUrl());
+    };
+
+    const handleDispatchDueNotifications = async () => {
+        setDispatchingDueNotifications(true);
+        try {
+            const res = await fetch(apiUrl('/admin-panel/notifications/dispatch-due/'), {
+                method: 'POST',
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                navigate(adminUrl());
+                return;
+            }
+            const payload = await readResponsePayload(res);
+            if (!res.ok) {
+                alert(payload.error || 'Failed to dispatch due onboarding notifications');
+                return;
+            }
+            alert(payload.message || `Queued ${payload.queued || 0} due onboarding notification(s).`);
+        } catch {
+            alert('Failed to connect to server');
+        } finally {
+            setDispatchingDueNotifications(false);
+        }
     };
 
     const verificationBadge = (status) => {
@@ -342,6 +368,15 @@ const AdminDashboard = () => {
                             cursor: loading ? 'not-allowed' : 'pointer',
                         }}>
                             {loading ? 'Refreshing…' : 'Refresh'}
+                        </button>
+                        <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{
+                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)',
+                            color: dispatchingDueNotifications ? '#94a3b8' : '#60a5fa',
+                            border: '1px solid rgba(59,130,246,0.25)',
+                            cursor: dispatchingDueNotifications ? 'not-allowed' : 'pointer',
+                        }}>
+                            {dispatchingDueNotifications ? 'Dispatching…' : 'Send Due Emails'}
                         </button>
                         <button className="tp-btn" onClick={handleLogout} style={{
                             padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,

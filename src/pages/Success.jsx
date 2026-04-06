@@ -134,7 +134,6 @@ const Success = () => {
     );
     const retryUnlockText = formatRetryUnlockAt(retryAvailableAt);
     const retryCountdownText = formatRetryCountdown(retrySecondsRemaining);
-
     const steps = [
         { label: 'Profile Details', desc: 'Personal and practice information', done: user?.is_onboarded, icon: '\u{1F464}' },
         { label: 'Identity Verification', desc: 'Upload government-issued ID', done: hasIdentity, action: () => navigate('/onboarding/identity'), icon: '\u{1FAAA}' },
@@ -377,6 +376,7 @@ const Success = () => {
                         </p>
                     </div>
                 )}
+
             </div>
         </div>
     );

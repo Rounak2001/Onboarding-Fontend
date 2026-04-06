@@ -34,7 +34,7 @@ const ConsultantDetail = () => {
     const [credentialsPopup, setCredentialsPopup] = useState(null);
     const [error, setError] = useState('');
     const [openSections, setOpenSections] = useState({
-        profile: true, identity: true, face: true, assessment: true, documents: true, callTracking: true,
+        profile: true, identity: true, face: true, assessment: true, documents: true, feedback: true, callTracking: true,
     });
     const [selectedImage, setSelectedImage] = useState(null);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null);
@@ -43,6 +43,7 @@ const ConsultantDetail = () => {
     const [callTrackingDraft, setCallTrackingDraft] = useState(buildCallTrackingDraft());
     const [callLogs, setCallLogs] = useState([]);
     const [savingCallTracking, setSavingCallTracking] = useState(false);
+    const [selectedFeedbackId, setSelectedFeedbackId] = useState(null);
     const renderInBody = (node) => (typeof document !== 'undefined' ? createPortal(node, document.body) : node);
 
     const token = localStorage.getItem('admin_token');
@@ -64,6 +65,10 @@ const ConsultantDetail = () => {
             setCallerOptions(d.caller_options || []);
             setCallTrackingDraft(buildCallTrackingDraft());
             setCallLogs(d.call_logs || []);
+            const initialFeedback = Array.isArray(d?.feedback_entries) && d.feedback_entries.length > 0
+                ? d.feedback_entries[0]
+                : d?.feedback;
+            setSelectedFeedbackId(initialFeedback?.id ?? null);
         } catch { setError('Failed to load data'); }
         finally { setLoading(false); }
     };
@@ -379,6 +384,9 @@ const ConsultantDetail = () => {
     const isCandidateDisqualified = Boolean(data?.assessment_summary?.disqualified);
     const qualDocs = data?.documents?.qualification_documents || [];
     const consultDocs = data?.documents?.consultant_documents || [];
+    const feedback = data?.feedback;
+    const feedbackEntries = Array.isArray(data?.feedback_entries) ? data.feedback_entries : (feedback ? [feedback] : []);
+    const activeFeedback = feedbackEntries.find((entry) => entry.id === selectedFeedbackId) || feedbackEntries[0] || null;
     const totalCallAttempts = callLogs.length;
 
     return (
@@ -1336,6 +1344,141 @@ const ConsultantDetail = () => {
                                         </>
                                     )}
                                 </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div style={sectionStyle}>
+                    {sectionHeader('Candidate Feedback', 'feedback', '💬')}
+                    {openSections.feedback && (
+                        <div style={{ padding: '16px 20px 20px' }}>
+                            {feedbackEntries.length === 0 ? (
+                                <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>
+                                    No onboarding feedback submitted yet.
+                                </p>
+                            ) : (
+                                <>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                        gap: 12,
+                                        marginBottom: 18,
+                                    }}>
+                                        <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Experience Rating</div>
+                                            <div style={{ marginTop: 6, fontSize: 24, fontWeight: 800, color: '#f1f5f9' }}>{activeFeedback?.experience_rating}/5</div>
+                                        </div>
+                                        <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Had Difficulties</div>
+                                            <div style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: activeFeedback?.had_difficulties ? '#fbbf24' : '#34d399' }}>
+                                                {activeFeedback?.had_difficulties ? 'Yes' : 'No'}
+                                            </div>
+                                        </div>
+                                        <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Submitted At</div>
+                                            <div style={{ marginTop: 6, fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>
+                                                {activeFeedback?.submitted_at ? new Date(activeFeedback.submitted_at).toLocaleString() : '—'}
+                                            </div>
+                                        </div>
+                                        <div style={{ padding: 12, borderRadius: 10, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Entries</div>
+                                            <div style={{ marginTop: 6, fontSize: 24, fontWeight: 800, color: '#f1f5f9' }}>
+                                                {feedbackEntries.length}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {Array.isArray(activeFeedback?.difficulty_categories) && activeFeedback.difficulty_categories.length > 0 && (
+                                        <div style={{ marginBottom: 18 }}>
+                                            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 700 }}>Difficulty Categories</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                                {activeFeedback.difficulty_categories.map((item) => (
+                                                    <span
+                                                        key={item}
+                                                        style={{
+                                                            padding: '6px 10px',
+                                                            borderRadius: 999,
+                                                            background: 'rgba(59,130,246,0.12)',
+                                                            border: '1px solid rgba(59,130,246,0.18)',
+                                                            color: '#93c5fd',
+                                                            fontSize: 12,
+                                                            fontWeight: 700,
+                                                        }}
+                                                    >
+                                                        {String(item || '').replace(/_/g, ' ')}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: 'rgba(15,23,42,0.45)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 700 }}>Difficulties Details</div>
+                                        <div style={{ fontSize: 13, lineHeight: 1.7, color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
+                                            {activeFeedback?.difficulties_details || '—'}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                        <div style={{ padding: 14, borderRadius: 12, background: 'rgba(15,23,42,0.45)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 700 }}>What Went Well</div>
+                                            <div style={{ fontSize: 13, lineHeight: 1.7, color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
+                                                {activeFeedback?.what_went_well || '—'}
+                                            </div>
+                                        </div>
+                                        <div style={{ padding: 14, borderRadius: 12, background: 'rgba(15,23,42,0.45)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 700 }}>What Needs Improvement</div>
+                                            <div style={{ fontSize: 13, lineHeight: 1.7, color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
+                                                {activeFeedback?.what_needs_improvement || '—'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {feedbackEntries.length > 1 && (
+                                        <div style={{ marginTop: 18 }}>
+                                            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10, fontWeight: 700 }}>Feedback History</div>
+                                            <div style={{ display: 'grid', gap: 10 }}>
+                                                {feedbackEntries.map((entry, index) => (
+                                                    <div
+                                                        key={entry.id || index}
+                                                        onClick={() => setSelectedFeedbackId(entry.id ?? null)}
+                                                        style={{
+                                                            padding: 14,
+                                                            borderRadius: 12,
+                                                            background: selectedFeedbackId === entry.id
+                                                                ? 'rgba(30,58,138,0.35)'
+                                                                : (index === 0 ? 'rgba(15,23,42,0.55)' : 'rgba(15,23,42,0.38)'),
+                                                            border: selectedFeedbackId === entry.id
+                                                                ? '1px solid rgba(96,165,250,0.45)'
+                                                                : '1px solid rgba(148,163,184,0.08)',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                                                            <div style={{ fontSize: 13, fontWeight: 800, color: '#f8fafc' }}>
+                                                                {selectedFeedbackId === entry.id
+                                                                    ? `Selected: Submission ${feedbackEntries.length - index}`
+                                                                    : (index === 0 ? 'Latest submission' : `Submission ${feedbackEntries.length - index}`)}
+                                                            </div>
+                                                            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                                                                {entry.submitted_at ? new Date(entry.submitted_at).toLocaleString() : '-'}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.65 }}>
+                                                            Rating: {entry.experience_rating}/5
+                                                        </div>
+                                                        {entry.what_needs_improvement && (
+                                                            <div style={{ marginTop: 8, fontSize: 13, color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                                                                {entry.what_needs_improvement}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     )}
