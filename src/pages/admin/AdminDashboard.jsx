@@ -369,6 +369,14 @@ const AdminDashboard = () => {
                         }}>
                             {loading ? 'Refreshing…' : 'Refresh'}
                         </button>
+                        <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{
+                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: 'rgba(168,85,247,0.15)', color: '#c084fc',
+                            border: '1px solid rgba(168,85,247,0.25)',
+                            cursor: 'pointer',
+                        }}>
+                            📧 Email Monitor
+                        </button>
                         <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{
                             padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                             background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)',

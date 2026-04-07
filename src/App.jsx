@@ -21,6 +21,7 @@ import PartnerInfo from './pages/PartnerInfo';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
+import EmailDashboard from './pages/admin/EmailDashboard';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
 import { isFaceVerificationSatisfied } from './utils/devBypass';
@@ -268,6 +269,7 @@ function AppRoutes() {
       {/* Admin Panel Routes — standalone */}
       <Route path={ADMIN_BASE} element={<AdminLogin />} />
       <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
+      <Route path={adminUrl('emails')} element={<EmailDashboard />} />
       <Route path={adminUrl('consultant/:id')} element={<ConsultantDetail />} />
       {!IS_DEFAULT_ADMIN_PATH && (
         <>
