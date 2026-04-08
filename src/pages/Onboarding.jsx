@@ -594,7 +594,7 @@ const Onboarding = () => {
                                     {errors.phone_number && <p style={errorStyle}>{errors.phone_number}</p>}
 
                                     <div aria-live="polite" style={{ marginTop: 8 }}>
-                                        <div style={{ display: 'flex', alignItems: isPhoneScreen ? 'flex-start' : 'center', gap: 10, flexWrap: 'wrap', flexDirection: isPhoneScreen ? 'column' : 'row' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                             <span style={{
                                                 fontSize: 12,
                                                 fontWeight: 700,
@@ -606,6 +606,11 @@ const Onboarding = () => {
                                             }}>
                                                 {isPhoneVerified ? 'Verified' : 'Not verified'}
                                             </span>
+                                            {!isPhoneVerified && otpSent && (
+                                                <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>
+                                                    {otpPhoneDisplay ? `Sent to ${otpPhoneDisplay}` : 'OTP sent to WhatsApp'}
+                                                </span>
+                                            )}
 
                                             {isPhoneVerified ? (
                                                 <button
@@ -648,55 +653,51 @@ const Onboarding = () => {
                                                             {otpSending ? 'Sending…' : 'Send OTP'}
                                                         </button>
                                                     ) : (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isPhoneScreen ? 'flex-start' : 'flex-end', lineHeight: 1.1 }}>
-                                                            <span style={{ fontSize: 11, color: '#6b7280' }}>
-                                                                {otpPhoneDisplay ? `Sent to ${otpPhoneDisplay}` : 'OTP sent to WhatsApp'}
-                                                            </span>
-                                                            {resendCooldown > 0 ? (
-                                                                <span style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                                                                    Resend available in {resendCooldown}s
-                                                                </span>
-                                                            ) : (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isPhoneScreen ? 'flex-start' : 'flex-end', gap: 6 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={handleSendOtp}
-                                                                    disabled={!currentPhoneE164 || otpSending}
+                                                                    onClick={() => setOtpModalOpen(true)}
                                                                     style={{
-                                                                        background: 'transparent',
-                                                                        border: 'none',
-                                                                        padding: 0,
-                                                                        marginTop: 2,
+                                                                        padding: '7px 11px',
+                                                                        borderRadius: 8,
+                                                                        border: '1px solid #0f766e',
+                                                                        background: '#0f766e',
                                                                         fontSize: 12,
-                                                                        fontWeight: 700,
-                                                                        color: '#059669',
-                                                                        cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
-                                                                        textDecoration: 'underline',
+                                                                        fontWeight: 800,
+                                                                        color: '#ffffff',
+                                                                        cursor: 'pointer',
+                                                                        whiteSpace: 'nowrap',
                                                                     }}
                                                                 >
-                                                                    Resend OTP
+                                                                    Enter OTP
                                                                 </button>
-                                                            )}
+                                                                {resendCooldown > 0 ? (
+                                                                    <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, padding: '7px 9px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb', whiteSpace: 'nowrap' }}>
+                                                                        Resend in {resendCooldown}s
+                                                                    </span>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={handleSendOtp}
+                                                                        disabled={!currentPhoneE164 || otpSending}
+                                                                        style={{
+                                                                            padding: '7px 11px',
+                                                                            borderRadius: 8,
+                                                                            border: '1px solid #059669',
+                                                                            background: '#ecfdf5',
+                                                                            fontSize: 12,
+                                                                            fontWeight: 800,
+                                                                            color: '#047857',
+                                                                            cursor: (!currentPhoneE164 || otpSending) ? 'not-allowed' : 'pointer',
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}
+                                                                    >
+                                                                        {otpSending ? 'Sending...' : 'Resend OTP'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    )}
-
-                                                    {otpSent && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setOtpModalOpen(true)}
-                                                            style={{
-                                                                background: 'transparent',
-                                                                border: 'none',
-                                                                padding: 0,
-                                                                fontSize: 12,
-                                                                fontWeight: 800,
-                                                                color: '#111827',
-                                                                cursor: 'pointer',
-                                                                textDecoration: 'underline',
-                                                                alignSelf: isPhoneScreen ? 'flex-start' : 'auto',
-                                                            }}
-                                                        >
-                                                            Enter OTP
-                                                        </button>
                                                     )}
                                                 </div>
                                             )}

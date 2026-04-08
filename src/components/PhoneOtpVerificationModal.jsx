@@ -89,9 +89,6 @@ export default function PhoneOtpVerificationModal({
                 }}
             >
                 <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.14)' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 12, background: 'rgba(5,150,105,0.18)', border: '1px solid rgba(5,150,105,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#065f46', fontWeight: 900 }}>
-                        OK
-                    </div>
                     <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{title}</div>
                         <div style={{ fontSize: 12, color: 'rgba(15,23,42,0.70)' }}>

@@ -2006,71 +2006,6 @@ const TestEngine = () => {
                     />
                 </div>
             )}
-            {SHOW_PROCTORING_DEBUG && !isVideoSection && !showVideoPrepScreen && !submissionResult && (
-                <div style={{
-                    position: 'fixed',
-                    bottom: 20,
-                    left: 20,
-                    width: 280,
-                    background: '#111827',
-                    color: '#e5e7eb',
-                    borderRadius: 10,
-                    border: '1px solid #374151',
-                    padding: 12,
-                    zIndex: 55,
-                    fontSize: 12,
-                    lineHeight: 1.45,
-                }}>
-                    <div style={{ fontWeight: 700, marginBottom: 8 }}>Debug Telemetry</div>
-                    <div>audio_detected: {String(debugTelemetry.audioDetected)}</div>
-                    <div>audio_level_rms: {debugTelemetry.audioLevel}</div>
-                    <div>mic_status: {debugTelemetry.micStatus}</div>
-                    <div>webcam_status: {webcamStatus}</div>
-                    <div>detector_status: {debugTelemetry.detectorStatus}</div>
-                    <div>gaze_violation: {String(debugTelemetry.gazeViolation)}</div>
-                    <div>pose_yaw: {debugTelemetry.poseYaw ?? '-'}</div>
-                    <div>pose_pitch: {debugTelemetry.posePitch ?? '-'}</div>
-                    <div>pose_roll: {debugTelemetry.poseRoll ?? '-'}</div>
-                    <div>mouth_state: {debugTelemetry.mouthState}</div>
-                    <div>label_count: {debugTelemetry.labelCount}</div>
-                    <div>fullscreen_state: {String(debugTelemetry.fullscreenState)}</div>
-                    <div>last_status: {debugTelemetry.lastSnapshotStatus}</div>
-                    <div>snapshot_cadence_ms: {debugTelemetry.snapshotCadenceMs}</div>
-                    <div>last_snapshot_duration_ms: {debugTelemetry.lastSnapshotDurationMs}</div>
-                    <div>violation_count: {debugTelemetry.lastViolationCount}</div>
-                    <div>reason: {debugTelemetry.lastReason || '-'}</div>
-                    <div>last_error: {debugTelemetry.lastError || '-'}</div>
-                    <div>network: {isOnline ? 'online' : 'offline'}</div>
-                    <div style={{ marginTop: 6 }}>client_timestamp: {debugTelemetry.lastClientTimestamp || '-'}</div>
-                    {violationEvents.length > 0 && (
-                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #374151' }}>
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Recent Events</div>
-                            {violationEvents.map((e, idx) => (
-                                <div key={`${e.at}-${idx}`} style={{ fontSize: 11, color: '#cbd5e1' }}>
-                                    {new Date(e.at).toLocaleTimeString()} | {violationTypeLabel(e.type)} | {e.reason}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    <button
-                        className="tp-btn"
-                        onClick={captureAndAnalyzeSnapshot}
-                        style={{
-                            marginTop: 10,
-                            width: '100%',
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '8px 10px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            background: '#059669',
-                            color: '#fff',
-                        }}
-                    >
-                        Send Snapshot Now
-                    </button>
-                </div>
-            )}
 
             {/* Header */}
             <header style={s.header}>
@@ -2148,27 +2083,6 @@ const TestEngine = () => {
                     }}>
                         {isOnline ? 'Online' : 'Offline'}
                     </span>
-                    {SHOW_PROCTORING_DEBUG && pendingSnapshotUploads > 0 && (
-                        <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#ecfeff', color: '#155e75', border: '1px solid #a5f3fc' }}>
-                            Snapshot queue: {pendingSnapshotUploads}
-                        </span>
-                    )}
-                    {SHOW_PROCTORING_DEBUG && (
-                    <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
-                        Snapshots recorded: {snapshotRecordedCount}
-                    </span>
-                    )}
-                    {SHOW_PROCTORING_DEBUG && proctoringSuspended && (
-                        <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#9a3412', border: '1px solid #fdba74' }}>
-                            Proctoring paused: {proctoringSuspendReason || 'Session not active'}
-                        </span>
-                    )}
-                    {SHOW_PROCTORING_DEBUG && failedSnapshotUploads > 0 && (
-                        <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
-                            Snapshot failed: {failedSnapshotUploads}
-                        </span>
-                    )}
-
                     {serverViolationCount > 0 && (
                         <div style={{ display: 'flex', gap: 6 }}>
                             {serverViolationCount > 0 && (

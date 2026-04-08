@@ -318,11 +318,11 @@ const Instructions = () => {
                     {deviceError && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#dc2626' }}>{deviceError}</p>}
                 </section>
 
-                <section style={{ borderTop: '1px solid #f1d9aa', borderBottom: '1px solid #f1d9aa', background: '#fffaf0', padding: '14px 0', marginBottom: 24, borderRadius: 10 }}>
+                {/* <section style={{ borderTop: '1px solid #f1d9aa', borderBottom: '1px solid #f1d9aa', background: '#fffaf0', padding: '14px 0', marginBottom: 24, borderRadius: 10 }}>
                     <p style={{ fontSize: 15, color: '#92400e', margin: 10, lineHeight: 1.7 }}>
                         Important: Your assessment window is 2 hours. If interrupted, MCQ/video may restart within this window; after expiry, you must reselect categories.
                     </p>
-                </section>
+                </section> */}
 
                 {error && <div style={{ marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 16, color: '#dc2626' }}>{error}</div>}
 

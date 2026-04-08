@@ -102,6 +102,49 @@ const FaceVerification = () => {
                     <p style={{ fontSize: 14, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>Now take a live photo using your webcam to verify your identity against the ID you uploaded.</p>
                 </div>
 
+            {error && (
+                <div
+                    className="animate-fade-in-up"
+                    style={{
+                        marginBottom: 24,
+                        borderRadius: 16,
+                        border: '1px solid #fecaca',
+                        background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
+                        padding: '16px 18px',
+                        boxShadow: '0 12px 28px rgba(220, 38, 38, 0.08)',
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <div
+                            style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 12,
+                                flexShrink: 0,
+                                background: '#fff',
+                                border: '1px solid #fecaca',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#dc2626',
+                                fontSize: 16,
+                                fontWeight: 800,
+                            }}
+                        >
+                            !
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.4, color: '#991b1b', textTransform: 'uppercase', marginBottom: 4 }}>
+                                Verification Warning
+                            </div>
+                            <p style={{ margin: 0, fontSize: 14, color: '#b91c1c', lineHeight: 1.65 }}>
+                                {error}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: isPhoneScreen ? 16 : 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isPhoneScreen ? 'flex-start' : 'center', marginBottom: 16, gap: 10, flexDirection: isPhoneScreen ? 'column' : 'row' }}>
                     <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>{'\u{1F4F8} Live Capture'}</h2>
@@ -110,17 +153,20 @@ const FaceVerification = () => {
                         onClick={handleReuploadId}
                         style={{
                             fontSize: 13,
-                            color: '#059669',
-                            background: '#ecfdf5',
-                            border: '1px solid #a7f3d0',
+                            color: '#fff',
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                            border: 'none',
                             cursor: 'pointer',
                             fontWeight: 700,
                             borderRadius: 999,
-                            padding: '10px 14px',
-                            boxShadow: '0 8px 20px rgba(5,150,105,0.08)',
-                            transition: 'transform 140ms ease, box-shadow 180ms ease, background 180ms ease',
+                            padding: '11px 20px',
+                            boxShadow: '0 8px 20px rgba(234, 88, 12, 0.25), inset 0 2px 4px rgba(255,255,255,0.2)',
+                            transition: 'all 180ms ease',
                             width: isPhoneScreen ? '100%' : 'auto',
                             justifyContent: 'center',
+                            display: 'flex',
+                            alignItems: 'center',
+                            letterSpacing: '0.2px',
                         }}
                     >
                         {'\u2190 Change Uploaded ID'}
@@ -159,48 +205,6 @@ const FaceVerification = () => {
                     </div>
                 )}
             </div>
-
-            {error && (
-                <div
-                    style={{
-                        marginTop: 18,
-                        borderRadius: 16,
-                        border: '1px solid #fecaca',
-                        background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
-                        padding: '16px 18px',
-                        boxShadow: '0 12px 28px rgba(220, 38, 38, 0.08)',
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                        <div
-                            style={{
-                                width: 34,
-                                height: 34,
-                                borderRadius: 12,
-                                flexShrink: 0,
-                                background: '#fff',
-                                border: '1px solid #fecaca',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#dc2626',
-                                fontSize: 16,
-                                fontWeight: 800,
-                            }}
-                        >
-                            !
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.4, color: '#991b1b', textTransform: 'uppercase', marginBottom: 4 }}>
-                                Verification Warning
-                            </div>
-                            <p style={{ margin: 0, fontSize: 14, color: '#b91c1c', lineHeight: 1.65 }}>
-                                {error}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
             </div>
         </div>
     );

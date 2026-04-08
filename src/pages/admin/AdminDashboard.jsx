@@ -1,58 +1,182 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
 import { readResponsePayload } from '../../utils/http';
-import BrandLogo from '../../components/BrandLogo';
+import AdminThemeToggle from './AdminThemeToggle';
+import AdminBrandLogo from './AdminBrandLogo';
+import { useAdminTheme } from './adminTheme';
 
 const PAGE_SIZE = 50;
+const STATUS_FILTER_OPTIONS = [
+    'New Join', 'Profile Details', 'Gov ID', 'Face Verification',
+    'Degree Upload', 'Assessment Ongoing',
+    'Credentials Sent', 'Credentials Failed', 'Retry', 'Disqualified',
+];
+const ASSESSMENT_SUBSTATUS_OPTIONS = [
+    { value: 'all', label: 'All stages' },
+    { value: 'mcq', label: 'MCQ' },
+    { value: 'video', label: 'Video' },
+];
+const JOINED_DATE_OPTIONS = [
+    { value: 'all', label: 'All joined dates' },
+    { value: 'today', label: 'Joined Today' },
+    { value: 'last_3_days', label: 'Last 3 days' },
+    { value: 'last_5_days', label: 'Last 5 days' },
+    { value: 'last_7_days', label: 'Last 7 days' },
+    { value: 'last_15_days', label: 'Last 15 days' },
+    { value: 'last_30_days', label: 'Last 30 days' },
+];
+const STATUS_COLORS = {
+    'New Join': { bg: 'rgba(148,163,184,0.12)', color: 'var(--admin-text-secondary)' },
+    'Profile Details': { bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' },
+    'Gov ID': { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' },
+    'Face Verification': { bg: 'rgba(45,212,191,0.12)', color: '#2dd4bf' },
+    'Degree Upload': { bg: 'rgba(56,189,248,0.12)', color: '#38bdf8' },
+    'Assessment Ongoing': { bg: 'rgba(96,165,250,0.12)', color: '#60a5fa' },
+    MCQ: { bg: 'rgba(129,140,248,0.12)', color: '#818cf8' },
+    Completed: { bg: 'rgba(52,211,153,0.12)', color: '#34d399' },
+    'Credentials Sent': { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
+    'Credentials Failed': { bg: 'rgba(249,115,22,0.12)', color: '#f97316' },
+    Retry: { bg: 'rgba(251,146,60,0.12)', color: '#fb923c' },
+    Disqualified: { bg: 'rgba(248,113,113,0.14)', color: '#f87171' },
+};
+const SUBSTATUS_COLORS = {
+    MCQ: { bg: 'rgba(59,130,246,0.12)', color: '#2563eb' },
+    Video: { bg: 'rgba(139,92,246,0.12)', color: '#7c3aed' },
+};
+
+const ChevronIcon = ({ open }) => (
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 20 20"
+        aria-hidden="true"
+        style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s ease' }}
+    >
+        <path d="M5 7.5L10 12.5L15 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+const CheckIcon = ({ visible }) => (
+    <svg width="11" height="11" viewBox="0 0 20 20" aria-hidden="true" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.14s ease' }}>
+        <path d="M4.5 10.5L8.2 14.2L15.5 6.9" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+const CloseIcon = () => (
+    <svg width="11" height="11" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M6 6L14 14M14 6L6 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+);
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
+    const { isLight, themeVars, toggleTheme } = useAdminTheme();
+    const token = localStorage.getItem('admin_token');
+    const searchRef = useRef('');
+    const statusMenuRef = useRef(null);
     const [consultants, setConsultants] = useState([]);
-    const [stats, setStats] = useState({ total: 0, completed: 0, ongoing: 0, violated: 0, working: 0 });
+    const [stats, setStats] = useState({ total: 0, status_counts: {} });
     const [search, setSearch] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [deletingId, setDeletingId] = useState(null);
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [verificationFilter, setVerificationFilter] = useState('all');
-    const [credentialsFilter, setCredentialsFilter] = useState('all');
+    const [statusFilters, setStatusFilters] = useState([]);
+    const [assessmentSubstatusFilter, setAssessmentSubstatusFilter] = useState('all');
+    const [joinedDateFilter, setJoinedDateFilter] = useState('all');
     const [sortKey, setSortKey] = useState('created_at');
     const [sortDir, setSortDir] = useState('desc');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-
     const [exporting, setExporting] = useState(false);
     const [dispatchingDueNotifications, setDispatchingDueNotifications] = useState(false);
+    const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+    const showAssessmentSubstatus = statusFilters.includes('Assessment Ongoing');
 
-    const token = localStorage.getItem('admin_token');
-    const searchRef = useRef(search);
+    const statusCounts = stats?.status_counts || {};
+    const totalValue = Number(stats?.total || 0);
+    const consultantsValue = Number(statusCounts['Credentials Sent'] ?? stats?.working ?? 0);
+    const spamLeadsValue = Number(statusCounts['New Join'] || 0);
+    const disqualifiedValue = Number(statusCounts['Disqualified'] ?? stats?.violated ?? 0);
+    const inProgressValue = Math.max(0, totalValue - spamLeadsValue - consultantsValue - disqualifiedValue);
+
+    const summaryCards = [
+        {
+            label: 'Total',
+            value: totalValue,
+            accent: isLight ? '#64748B' : '#94A3B8',
+            border: isLight ? 'rgba(100,116,139,0.30)' : 'rgba(148,163,184,0.35)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(24,35,56,0.95) 100%)',
+        },
+        {
+            label: 'Consultants',
+            value: consultantsValue,
+            accent: isLight ? '#059669' : '#34D399',
+            border: isLight ? 'rgba(5,150,105,0.30)' : 'rgba(16,185,129,0.30)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(236,253,245,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(12,44,42,0.92) 100%)',
+        },
+        {
+            label: 'In Progress',
+            value: inProgressValue,
+            accent: isLight ? '#2563EB' : '#60A5FA',
+            border: isLight ? 'rgba(37,99,235,0.30)' : 'rgba(96,165,250,0.30)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(239,246,255,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(18,35,73,0.92) 100%)',
+        },
+        {
+            label: 'Spam Leads',
+            value: spamLeadsValue,
+            accent: isLight ? '#D97706' : '#FBBF24',
+            border: isLight ? 'rgba(217,119,6,0.32)' : 'rgba(251,191,36,0.32)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(255,247,237,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(54,39,16,0.92) 100%)',
+        },
+        {
+            label: 'Disqualified',
+            value: disqualifiedValue,
+            accent: isLight ? '#DC2626' : '#FB7185',
+            border: isLight ? 'rgba(220,38,38,0.30)' : 'rgba(251,113,133,0.30)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(255,241,242,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(41,22,36,0.92) 100%)',
+        },
+    ];
+
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    const resetSession = () => {
+        localStorage.removeItem('admin_token');
+        navigate(adminUrl());
+    };
 
     const fetchConsultants = async (
         pg = 1,
         currentSearch = search,
-        currentStatus = statusFilter,
-        currentVerification = verificationFilter,
-        currentCredentials = credentialsFilter,
+        currentStatuses = statusFilters,
+        currentAssessmentSubstatus = assessmentSubstatusFilter,
+        currentJoinedDate = joinedDateFilter,
     ) => {
         setLoading(true);
         setError('');
         try {
-            const params = new URLSearchParams({ page: pg, page_size: PAGE_SIZE });
+            const params = new URLSearchParams({ page: String(pg), page_size: String(PAGE_SIZE) });
             if (currentSearch.trim()) params.set('search', currentSearch.trim());
-            if (currentStatus !== 'all') params.set('status', currentStatus);
-            if (currentVerification !== 'all') params.set('verification', currentVerification);
-            if (currentCredentials !== 'all') params.set('credentials', currentCredentials);
-
-            const res = await fetch(apiUrl(`/admin-panel/consultants/?${params}`), {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-            });
-            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
+            currentStatuses.forEach((statusValue) => params.append('status', statusValue));
+            if (currentStatuses.includes('Assessment Ongoing') && currentAssessmentSubstatus !== 'all') {
+                params.set('assessment_substatus', currentAssessmentSubstatus);
+            }
+            if (currentJoinedDate !== 'all') params.set('joined_range', currentJoinedDate);
+            const res = await fetch(apiUrl(`/admin-panel/consultants/?${params}`), { headers: authHeaders });
+            if (res.status === 401 || res.status === 403) return resetSession();
             const data = await res.json();
             setConsultants(data.consultants || []);
-            setStats(data.stats || { total: 0, completed: 0, ongoing: 0, violated: 0, working: 0 });
+            setStats(data.stats || { total: 0, status_counts: {} });
             setTotalPages(data.total_pages || 1);
             setTotalCount(data.total || 0);
             setPage(pg);
@@ -64,78 +188,154 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
-        if (!token && !import.meta.env.DEV) { navigate(adminUrl()); return; }
+        if (!token && !import.meta.env.DEV) return navigate(adminUrl());
         fetchConsultants(1);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Debounced search re-fetch
     useEffect(() => {
         searchRef.current = search;
         const timer = setTimeout(() => {
-            if (searchRef.current === search) fetchConsultants(1, search, statusFilter, verificationFilter, credentialsFilter);
+            if (searchRef.current === search) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter);
         }, 350);
         return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
-    // Immediate re-fetch on filter change
     useEffect(() => {
-        fetchConsultants(1, search, statusFilter, verificationFilter, credentialsFilter);
-    }, [statusFilter, verificationFilter, credentialsFilter]);
+        fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [statusFilters, assessmentSubstatusFilter, joinedDateFilter]);
 
-    const handleDeleteConsultant = async (consultantId, consultantName) => {
-        if (!window.confirm(`Delete ${consultantName || 'this consultant'} permanently? This cannot be undone.`)) return;
-        setDeletingId(consultantId);
-        try {
-            const res = await fetch(apiUrl(`/admin-panel/consultants/${consultantId}/delete/`), {
-                method: 'DELETE',
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-            });
-            if (res.status === 401 || res.status === 403) {
-                localStorage.removeItem('admin_token');
-                navigate(adminUrl());
-                return;
-            }
-            const data = await readResponsePayload(res);
-            if (!res.ok) {
-                alert(data.error || 'Failed to delete consultant');
-                return;
-            }
-            setConsultants(prev => prev.filter(c => c.id !== consultantId));
-        } catch {
-            alert('Failed to connect to server');
-        } finally {
-            setDeletingId(null);
+    useEffect(() => {
+        if (!showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
+            setAssessmentSubstatusFilter('all');
         }
+    }, [showAssessmentSubstatus, assessmentSubstatusFilter]);
+
+    useEffect(() => {
+        if (!statusMenuOpen) return undefined;
+        const handlePointerDown = (event) => {
+            if (statusMenuRef.current && !statusMenuRef.current.contains(event.target)) {
+                setStatusMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handlePointerDown);
+        return () => document.removeEventListener('mousedown', handlePointerDown);
+    }, [statusMenuOpen]);
+
+    const normalizeAdminStatus = (statusValue) => {
+        const raw = String(statusValue || '').trim();
+        if (!raw) return 'New Join';
+        const normalized = raw.toLowerCase();
+        if (normalized === 'completed') return 'Credentials Failed';
+        if (normalized === 'credentials not sent') return 'Credentials Failed';
+        return raw;
     };
 
-    // Filtering is server-side; only sort the current page client-side
     const sorted = useMemo(() => {
-        const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-        const toDate = (v) => { const d = v ? new Date(v) : null; return d && !Number.isNaN(d.getTime()) ? d.getTime() : null; };
+        const toNum = (v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        };
+        const toDate = (v) => {
+            const d = v ? new Date(v) : null;
+            return d && !Number.isNaN(d.getTime()) ? d.getTime() : null;
+        };
         const dir = sortDir === 'asc' ? 1 : -1;
         return [...consultants].sort((a, b) => {
             if (sortKey === 'name') return String(a?.full_name || a?.email || '').localeCompare(String(b?.full_name || b?.email || '')) * dir;
+            if (sortKey === 'status') {
+                const statusA = normalizeAdminStatus(a?.assessment_display_status || a?.assessment_status);
+                const statusB = normalizeAdminStatus(b?.assessment_display_status || b?.assessment_status);
+                return String(statusA).localeCompare(String(statusB)) * dir;
+            }
             if (sortKey === 'score') return ((toNum(a?.assessment_score) ?? -1) - (toNum(b?.assessment_score) ?? -1)) * dir;
-            if (sortKey === 'status') return String(a?.assessment_status || '').localeCompare(String(b?.assessment_status || '')) * dir;
+            if (sortKey === 'updated_at') return ((toDate(a?.updated_at) ?? 0) - (toDate(b?.updated_at) ?? 0)) * dir;
+            if (sortKey === 'assessment_count') return ((toNum(a?.assessment_count) ?? 0) - (toNum(b?.assessment_count) ?? 0)) * dir;
             return ((toDate(a?.created_at) ?? 0) - (toDate(b?.created_at) ?? 0)) * dir;
         });
-    }, [consultants, sortKey, sortDir]);
+    }, [consultants, sortDir, sortKey]);
+
+    const setSort = (key) => {
+        setSortKey((prev) => {
+            if (prev !== key) {
+                setSortDir('desc');
+                return key;
+            }
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+            return prev;
+        });
+    };
+
+    const sortIndicator = (key) => {
+        const isActive = sortKey === key;
+        const upColor = isActive && sortDir === 'asc' ? '#10b981' : 'var(--admin-text-muted)';
+        const downColor = isActive && sortDir === 'desc' ? '#10b981' : 'var(--admin-text-muted)';
+        const inactiveOpacity = isActive ? 0.45 : 0.35;
+
+        return (
+            <span
+                aria-hidden="true"
+                style={{
+                    marginLeft: 8,
+                    display: 'inline-flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    verticalAlign: 'middle',
+                }}
+            >
+                <span
+                    style={{
+                        width: 0,
+                        height: 0,
+                        borderLeft: '4px solid transparent',
+                        borderRight: '4px solid transparent',
+                        borderBottom: `6px solid ${upColor}`,
+                        opacity: isActive && sortDir === 'asc' ? 1 : inactiveOpacity,
+                    }}
+                />
+                <span
+                    style={{
+                        width: 0,
+                        height: 0,
+                        borderLeft: '4px solid transparent',
+                        borderRight: '4px solid transparent',
+                        borderTop: `6px solid ${downColor}`,
+                        opacity: isActive && sortDir === 'desc' ? 1 : inactiveOpacity,
+                    }}
+                />
+            </span>
+        );
+    };
+
+    const toggleStatusFilter = (statusValue) => {
+        setStatusFilters((prev) => (
+            prev.includes(statusValue)
+                ? prev.filter((value) => value !== statusValue)
+                : [...prev, statusValue]
+        ));
+    };
+
+    const statusSelectionLabel = statusFilters.length === 0
+        ? 'All statuses'
+        : statusFilters.length === 1
+            ? statusFilters[0]
+            : `${statusFilters.length} statuses`;
 
     const handleExportExcel = async () => {
         setExporting(true);
         try {
             const params = new URLSearchParams();
             if (search.trim()) params.set('search', search.trim());
-            if (statusFilter !== 'all') params.set('status', statusFilter);
-            if (verificationFilter !== 'all') params.set('verification', verificationFilter);
-            if (credentialsFilter !== 'all') params.set('credentials', credentialsFilter);
-
-            const res = await fetch(apiUrl(`/admin-panel/consultants/export/?${params}`), {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-            });
-            if (res.status === 401 || res.status === 403) { localStorage.removeItem('admin_token'); navigate(adminUrl()); return; }
-            if (!res.ok) { alert('Export failed'); return; }
-
+            statusFilters.forEach((statusValue) => params.append('status', statusValue));
+            if (showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
+                params.set('assessment_substatus', assessmentSubstatusFilter);
+            }
+            if (joinedDateFilter !== 'all') params.set('joined_range', joinedDateFilter);
+            const res = await fetch(apiUrl(`/admin-panel/consultants/export/?${params}`), { headers: authHeaders });
+            if (res.status === 401 || res.status === 403) return resetSession();
+            if (!res.ok) return alert('Export failed');
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -152,28 +352,13 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('admin_token');
-        navigate(adminUrl());
-    };
-
     const handleDispatchDueNotifications = async () => {
         setDispatchingDueNotifications(true);
         try {
-            const res = await fetch(apiUrl('/admin-panel/notifications/dispatch-due/'), {
-                method: 'POST',
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-            });
-            if (res.status === 401 || res.status === 403) {
-                localStorage.removeItem('admin_token');
-                navigate(adminUrl());
-                return;
-            }
+            const res = await fetch(apiUrl('/admin-panel/notifications/dispatch-due/'), { method: 'POST', headers: authHeaders });
+            if (res.status === 401 || res.status === 403) return resetSession();
             const payload = await readResponsePayload(res);
-            if (!res.ok) {
-                alert(payload.error || 'Failed to dispatch due onboarding notifications');
-                return;
-            }
+            if (!res.ok) return alert(payload.error || 'Failed to dispatch due onboarding notifications');
             alert(payload.message || `Queued ${payload.queued || 0} due onboarding notification(s).`);
         } catch {
             alert('Failed to connect to server');
@@ -182,586 +367,363 @@ const AdminDashboard = () => {
         }
     };
 
-    const verificationBadge = (status) => {
-        const colors = {
-            Matched: { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
-            'All Verified': { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
-            'No Match': { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.2)' },
-            Pending: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.2)' },
-            'Not Done': { bg: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'rgba(100,116,139,0.15)' },
-            'No Docs': { bg: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'rgba(100,116,139,0.15)' },
-        };
-        const c = colors[status] || colors.Pending;
-        return (
-            <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                background: c.bg, color: c.color, border: `1px solid ${c.border}`,
-                whiteSpace: 'nowrap',
-            }}>
-                {status}
-            </span>
-        );
-    };
-
-    const assessmentStatusBadgeStyle = (status) => {
-        const statusColors = {
-            Completed: { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa' },
-            Ongoing: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-            Pending: { bg: 'rgba(250,204,21,0.12)', color: '#facc15' },
-            Failed: { bg: 'rgba(251,113,133,0.12)', color: '#fb7185' },
-            Violated: { bg: 'rgba(239,68,68,0.14)', color: '#f87171' },
-            'Not Started': { bg: 'rgba(100,116,139,0.12)', color: '#64748b' },
-        };
-        return statusColors[status] || statusColors['Not Started'];
-    };
-
-    const metricCard = (label, value, tint = 'emerald', options = {}) => {
-        const { active = false, onClick = null } = options;
-        const tints = {
-            emerald: { edge: 'rgba(16,185,129,0.28)', bg: 'rgba(16,185,129,0.08)', fg: '#34d399' },
-            blue: { edge: 'rgba(59,130,246,0.28)', bg: 'rgba(59,130,246,0.08)', fg: '#60a5fa' },
-            amber: { edge: 'rgba(245,158,11,0.28)', bg: 'rgba(245,158,11,0.08)', fg: '#fbbf24' },
-            rose: { edge: 'rgba(249,115,22,0.28)', bg: 'rgba(249,115,22,0.08)', fg: '#fb923c' },
-            red: { edge: 'rgba(239,68,68,0.28)', bg: 'rgba(239,68,68,0.08)', fg: '#f87171' },
-            slate: { edge: 'rgba(148,163,184,0.18)', bg: 'rgba(148,163,184,0.06)', fg: '#94a3b8' },
-        };
-        const c = tints[tint] || tints.slate;
-        return (
-            <button
-                type="button"
-                onClick={onClick || undefined}
-                style={{
-                padding: 14,
-                borderRadius: 14,
-                background: active ? 'rgba(15,23,42,0.72)' : 'rgba(15,23,42,0.45)',
-                border: `1px solid ${active ? c.fg : c.edge}`,
-                boxShadow: active ? `0 0 0 2px ${c.bg}, 0 8px 30px rgba(0,0,0,0.25)` : '0 8px 30px rgba(0,0,0,0.25)',
-                position: 'relative',
-                overflow: 'hidden',
-                minHeight: 70,
-                textAlign: 'left',
-                cursor: onClick ? 'pointer' : 'default',
-                width: '100%',
-                color: 'inherit',
-                transition: 'all 0.16s ease',
-            }}
-            >
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', color: '#64748b' }}>
-                    {label}
-                </div>
-                <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900, color: '#f1f5f9' }}>
-                    {value}
-                </div>
-                <div style={{
-                    position: 'absolute',
-                    inset: -60,
-                    background: `radial-gradient(circle at 70% 10%, ${c.bg}, transparent 55%)`,
-                    pointerEvents: 'none',
-                }} />
-                <div style={{
-                    position: 'absolute',
-                    right: 14,
-                    top: 14,
-                    width: 10,
-                    height: 10,
-                    borderRadius: 999,
-                    background: c.fg,
-                    boxShadow: `0 0 0 6px ${c.bg}`,
-                }} />
-            </button>
-        );
-    };
-
-    const handleMetricCardClick = (cardKey) => {
-        if (cardKey === 'Total') {
-            setStatusFilter('all');
-            setCredentialsFilter('all');
-            return;
-        }
-        if (cardKey === 'Completed') {
-            setStatusFilter('Completed');
-            setCredentialsFilter('all');
-            return;
-        }
-        if (cardKey === 'Ongoing') {
-            setStatusFilter('Ongoing');
-            setCredentialsFilter('all');
-            return;
-        }
-        if (cardKey === 'Violated') {
-            setStatusFilter('Violated');
-            setCredentialsFilter('all');
-            return;
-        }
-        if (cardKey === 'Consultants') {
-            setStatusFilter('all');
-            setCredentialsFilter('sent');
-        }
-    };
-
-    const activeMetricCard = useMemo(() => {
-        if (credentialsFilter === 'sent' && statusFilter === 'all') return 'Consultants';
-        if (statusFilter === 'Completed' && credentialsFilter === 'all') return 'Completed';
-        if (statusFilter === 'Ongoing' && credentialsFilter === 'all') return 'Ongoing';
-        if (statusFilter === 'Violated' && credentialsFilter === 'all') return 'Violated';
-        if (statusFilter === 'all' && credentialsFilter === 'all') return 'Total';
-        return null;
-    }, [statusFilter, credentialsFilter]);
-
-    const setSort = (key) => {
-        setSortKey(prev => {
-            if (prev !== key) {
-                setSortDir('desc');
-                return key;
-            }
-            setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-            return prev;
-        });
-    };
-
-    const sortIndicator = (key) => {
-        if (sortKey !== key) return <span style={{ color: '#334155', marginLeft: 6 }}>↕</span>;
-        return <span style={{ color: '#10b981', marginLeft: 6 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>;
-    };
-
     return (
-        <div className="tp-page" style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
-            fontFamily: "'Inter', system-ui, sans-serif", color: '#f1f5f9',
-        }}>
-            <header style={{
-                background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(12px)',
-                borderBottom: '1px solid rgba(148,163,184,0.1)',
-                position: 'sticky', top: 0, zIndex: 30,
-            }}>
-                <div style={{
-                    maxWidth: 1300, margin: '0 auto', padding: '0 32px',
-                    height: 60, display: 'flex', alignItems: 'center', gap: 14,
-                }}>
-                    <BrandLogo height={28} />
-                    <span style={{ fontWeight: 700, fontSize: 16, color: '#f1f5f9' }}>Admin Dashboard</span>
-
+        <div className="tp-page" style={{ ...themeVars, minHeight: '100vh', background: 'var(--admin-page-bg)', fontFamily: "'Inter', system-ui, sans-serif", color: 'var(--admin-text-strong)' }}>
+            <header style={{ background: 'var(--admin-header-bg)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--admin-border-soft)', position: 'sticky', top: 0, zIndex: 30 }}>
+                <div style={{ maxWidth: 1500, margin: '0 auto', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <AdminBrandLogo isLight={isLight} height={28} />
+                    <span style={{ fontWeight: 700, fontSize: 16 }}>Admin Dashboard</span>
                     <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <span style={{
-                            padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                            background: 'rgba(16,185,129,0.15)', color: '#34d399',
-                            border: '1px solid rgba(16,185,129,0.25)',
-                        }}>
-                            Showing {totalCount} total
-                        </span>
-                        <button className="tp-btn" onClick={handleExportExcel} disabled={exporting || loading} style={{
-                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)',
-                            color: exporting ? '#64748b' : '#34d399',
-                            border: '1px solid rgba(16,185,129,0.25)',
-                            cursor: (exporting || loading) ? 'not-allowed' : 'pointer',
-                        }}>
-                            {exporting ? 'Exporting…' : 'Export Excel'}
-                        </button>
-                        <button className="tp-btn" onClick={() => fetchConsultants(page)} disabled={loading} style={{
-                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
-                            border: '1px solid rgba(148,163,184,0.18)',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                        }}>
-                            {loading ? 'Refreshing…' : 'Refresh'}
-                        </button>
-                        <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{
-                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            background: 'rgba(168,85,247,0.15)', color: '#c084fc',
-                            border: '1px solid rgba(168,85,247,0.25)',
-                            cursor: 'pointer',
-                        }}>
-                            📧 Email Monitor
-                        </button>
-                        <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{
-                            padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)',
-                            color: dispatchingDueNotifications ? '#94a3b8' : '#60a5fa',
-                            border: '1px solid rgba(59,130,246,0.25)',
-                            cursor: dispatchingDueNotifications ? 'not-allowed' : 'pointer',
-                        }}>
-                            {dispatchingDueNotifications ? 'Dispatching…' : 'Send Due Emails'}
-                        </button>
-                        <button className="tp-btn" onClick={handleLogout} style={{
-                            padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            background: 'rgba(239,68,68,0.1)', color: '#f87171',
-                            border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer',
-                            transition: 'all 0.2s',
-                        }}>
-                            Logout
-                        </button>
+                        <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
+                        <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>Showing {totalCount} total</span>
+                        <button className="tp-btn" onClick={handleExportExcel} disabled={exporting || loading} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', border: '1px solid rgba(16,185,129,0.25)', cursor: exporting || loading ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Export Excel'}</button>
+                        <button className="tp-btn" onClick={() => fetchConsultants(page)} disabled={loading} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: loading ? 'not-allowed' : 'pointer' }}>{loading ? 'Refreshing...' : 'Refresh'}</button>
+                        <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)', cursor: 'pointer' }}>Email Monitor</button>
+                        <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)', color: dispatchingDueNotifications ? 'var(--admin-text-secondary)' : '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', cursor: dispatchingDueNotifications ? 'not-allowed' : 'pointer' }}>{dispatchingDueNotifications ? 'Dispatching...' : 'Send Due Emails'}</button>
+                        <button className="tp-btn" onClick={resetSession} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}>Logout</button>
                     </div>
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1300, margin: '0 auto', padding: '28px 32px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
-                    {metricCard('Total', stats.total, 'slate', { active: activeMetricCard === 'Total', onClick: () => handleMetricCardClick('Total') })}
-                    {metricCard('Completed', stats.completed, 'blue', { active: activeMetricCard === 'Completed', onClick: () => handleMetricCardClick('Completed') })}
-                    {metricCard('Ongoing', stats.ongoing, 'amber', { active: activeMetricCard === 'Ongoing', onClick: () => handleMetricCardClick('Ongoing') })}
-                    {metricCard('Violated', stats.violated, 'red', { active: activeMetricCard === 'Violated', onClick: () => handleMetricCardClick('Violated') })}
-                    {metricCard('Consultants', stats.working, 'emerald', { active: activeMetricCard === 'Consultants', onClick: () => handleMetricCardClick('Consultants') })}
+            <div style={{ maxWidth: 1500, margin: '0 auto', padding: '28px 32px' }}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    gap: 14,
+                    marginBottom: 22,
+                }}>
+                    {summaryCards.map((card) => (
+                        <div
+                            key={card.label}
+                            style={{
+                                minHeight: 108,
+                                borderRadius: 18,
+                                border: `1px solid ${card.border}`,
+                                background: card.background,
+                                boxShadow: isLight
+                                    ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
+                                    : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                                padding: '18px 18px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{
+                                    fontSize: 13,
+                                    fontWeight: 800,
+                                    letterSpacing: '0.08em',
+                                    textTransform: 'uppercase',
+                                    color: isLight ? '#64748b' : '#6f89b4',
+                                }}>
+                                    {card.label}
+                                </span>
+                                <span style={{
+                                    width: 12,
+                                    height: 12,
+                                    borderRadius: '50%',
+                                    background: card.accent,
+                                    boxShadow: `0 0 0 8px ${card.accent}1c`,
+                                    flexShrink: 0,
+                                }} />
+                            </div>
+                            <div style={{
+                                fontSize: 32,
+                                lineHeight: 1,
+                                fontWeight: 800,
+                                color: isLight ? '#0f172a' : '#ffffff',
+                                letterSpacing: '-0.03em',
+                            }}>
+                                {card.value}
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
-                <div style={{
-                    display: 'flex',
-                    gap: 12,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    marginBottom: 18,
-                }}>
-                    <input
-                        placeholder="Search by name, email, or phone…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        style={{
-                            flex: '1 1 320px',
-                            maxWidth: 520,
-                            padding: '11px 16px',
-                            borderRadius: 12,
-                            background: 'rgba(30,41,59,0.6)',
-                            border: '1px solid rgba(148,163,184,0.15)',
-                            color: '#f1f5f9',
-                            fontSize: 13,
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                        }}
-                        onFocus={(e) => { e.target.style.borderColor = '#10b981'; }}
-                        onBlur={(e) => { e.target.style.borderColor = 'rgba(148,163,184,0.15)'; }}
-                    />
-
-                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{
-                        padding: '10px 12px',
-                        borderRadius: 12,
-                        background: 'rgba(30,41,59,0.6)',
-                        border: '1px solid rgba(148,163,184,0.15)',
-                        color: '#e2e8f0',
-                        fontSize: 13,
-                        outline: 'none',
-                        cursor: 'pointer',
-                    }}>
-                        <option value="all">All statuses</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Ongoing">Ongoing</option>
-                        <option value="Violated">Violated</option>
-                        <option value="Failed">Failed</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Not Started">Not Started</option>
-                    </select>
-
-                    <select value={verificationFilter} onChange={(e) => setVerificationFilter(e.target.value)} style={{
-                        padding: '10px 12px',
-                        borderRadius: 12,
-                        background: 'rgba(30,41,59,0.6)',
-                        border: '1px solid rgba(148,163,184,0.15)',
-                        color: '#e2e8f0',
-                        fontSize: 13,
-                        outline: 'none',
-                        cursor: 'pointer',
-                    }}>
-                        <option value="all">All verification</option>
-                        <option value="verified">Verified</option>
-                        <option value="not_verified">Not verified</option>
-                    </select>
-
-                    {(search || statusFilter !== 'all' || verificationFilter !== 'all' || credentialsFilter !== 'all') && (
-                        <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilter('all'); setVerificationFilter('all'); setCredentialsFilter('all'); }} style={{
-                            padding: '10px 12px',
-                            borderRadius: 12,
-                            background: 'rgba(148,163,184,0.1)',
-                            color: '#94a3b8',
-                            border: '1px solid rgba(148,163,184,0.18)',
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            fontWeight: 800,
-                        }}>
-                            Clear
-                        </button>
+                <div style={{ marginBottom: 18 }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input value={search} placeholder="Search by name, email, or phone..." onChange={(e) => setSearch(e.target.value)} style={{ flex: '1 1 320px', maxWidth: 520, padding: '11px 16px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-strong)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                        <div ref={statusMenuRef} style={{ position: 'relative' }}>
+                            <button
+                                type="button"
+                                onClick={() => setStatusMenuOpen((open) => !open)}
+                                style={{
+                                    padding: '10px 12px',
+                                    borderRadius: 12,
+                                    background: 'var(--admin-surface-strong)',
+                                    border: '1px solid var(--admin-border-mid)',
+                                    boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none',
+                                    color: 'var(--admin-text-primary)',
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                    minWidth: 172,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 10,
+                                }}
+                            >
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 130 }}>{statusSelectionLabel}</span>
+                                <span style={{ color: 'var(--admin-text-muted)', display: 'inline-flex', alignItems: 'center' }}>
+                                    <ChevronIcon open={statusMenuOpen} />
+                                </span>
+                            </button>
+                            {statusMenuOpen && (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: 'calc(100% + 8px)',
+                                        left: 0,
+                                        zIndex: 12,
+                                        width: 250,
+                                        maxHeight: 280,
+                                        overflowY: 'auto',
+                                        padding: 10,
+                                        borderRadius: 12,
+                                        background: 'var(--admin-surface-strong)',
+                                        border: '1px solid var(--admin-border-mid)',
+                                        boxShadow: isLight ? '0 18px 30px rgba(148,163,184,0.2)' : '0 18px 34px rgba(2,6,23,0.45)',
+                                    }}
+                                >
+                                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
+                                        Select Statuses
+                                    </div>
+                                    {STATUS_FILTER_OPTIONS.map((statusOption) => {
+                                        const selected = statusFilters.includes(statusOption);
+                                        return (
+                                            <button
+                                                key={statusOption}
+                                                type="button"
+                                                onClick={() => toggleStatusFilter(statusOption)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px 10px',
+                                                    borderRadius: 9,
+                                                    border: `1px solid ${selected ? 'rgba(16,185,129,0.34)' : 'var(--admin-border-mid)'}`,
+                                                    background: selected ? 'rgba(16,185,129,0.12)' : 'var(--admin-surface)',
+                                                    color: selected ? '#10b981' : 'var(--admin-text-secondary)',
+                                                    fontSize: 12,
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    marginBottom: 6,
+                                                    textAlign: 'left',
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: 14,
+                                                        height: 14,
+                                                        borderRadius: 3,
+                                                        border: `1px solid ${selected ? 'rgba(16,185,129,0.55)' : 'var(--admin-border-mid)'}`,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: 10,
+                                                        lineHeight: 1,
+                                                        color: selected ? '#10b981' : 'transparent',
+                                                        flexShrink: 0,
+                                                    }}
+                                                >
+                                                    <CheckIcon visible={selected} />
+                                                </span>
+                                                <span>{statusOption}</span>
+                                            </button>
+                                        );
+                                    })}
+                                    {statusFilters.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setStatusFilters([]);
+                                                setAssessmentSubstatusFilter('all');
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                marginTop: 4,
+                                                padding: '7px 10px',
+                                                borderRadius: 9,
+                                                border: '1px solid var(--admin-border-mid)',
+                                                background: 'var(--admin-surface)',
+                                                color: 'var(--admin-text-muted)',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            Clear status selection
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatusMenuOpen(false)}
+                                        style={{
+                                            width: '100%',
+                                            marginTop: 6,
+                                            padding: '7px 10px',
+                                            borderRadius: 9,
+                                            border: '1px solid rgba(16,185,129,0.34)',
+                                            background: 'rgba(16,185,129,0.14)',
+                                            color: '#10b981',
+                                            fontSize: 12,
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <select value={joinedDateFilter} onChange={(e) => setJoinedDateFilter(e.target.value)} style={{ padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                            {JOINED_DATE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all') && <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilters([]); setAssessmentSubstatusFilter('all'); setJoinedDateFilter('all'); setStatusMenuOpen(false); }} style={{ padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>Clear</button>}
+                    </div>
+                    {statusFilters.length > 0 && (
+                        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {statusFilters.map((statusValue) => (
+                                <button
+                                    key={statusValue}
+                                    type="button"
+                                    onClick={() => toggleStatusFilter(statusValue)}
+                                    style={{
+                                        padding: '5px 10px',
+                                        borderRadius: 999,
+                                        border: '1px solid rgba(16,185,129,0.35)',
+                                        background: 'rgba(16,185,129,0.14)',
+                                        color: '#10b981',
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                    }}
+                                >
+                                    <span>{statusValue}</span>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                        <CloseIcon />
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {showAssessmentSubstatus && (
+                        <div
+                            style={{
+                                marginTop: 10,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '8px 10px',
+                                borderRadius: 12,
+                                background: isLight ? 'rgba(248,250,252,0.92)' : 'rgba(15,23,42,0.48)',
+                                border: '1px solid var(--admin-border-soft)',
+                            }}
+                        >
+                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>
+                                Assessment Stage
+                            </span>
+                            {ASSESSMENT_SUBSTATUS_OPTIONS.map((option) => {
+                                const isActive = assessmentSubstatusFilter === option.value;
+                                return (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => setAssessmentSubstatusFilter(option.value)}
+                                        style={{
+                                            padding: '6px 10px',
+                                            borderRadius: 999,
+                                            border: `1px solid ${isActive ? 'rgba(16,185,129,0.34)' : 'var(--admin-border-mid)'}`,
+                                            background: isActive ? 'rgba(16,185,129,0.14)' : 'var(--admin-surface-strong)',
+                                            color: isActive ? '#10b981' : 'var(--admin-text-secondary)',
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        {option.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
 
-                {loading && (
-                    <div style={{ textAlign: 'center', padding: 60, color: '#64748b' }}>
-                        <div style={{
-                            width: 36, height: 36, border: '3px solid #334155', borderTopColor: '#10b981',
-                            borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 0.8s linear infinite',
-                        }} />
-                        Loading consultants...
-                        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-                    </div>
-                )}
-
+                {loading && <div style={{ textAlign: 'center', padding: 60, color: 'var(--admin-text-muted)' }}>Loading consultants...</div>}
                 {error && <div style={{ textAlign: 'center', padding: 40, color: '#f87171' }}>{error}</div>}
 
                 {!loading && !error && (
-                    <div style={{
-                        background: 'rgba(30,41,59,0.5)', borderRadius: 14,
-                        border: '1px solid rgba(148,163,184,0.1)', overflow: 'hidden',
-                    }}>
+                    <div style={{ background: 'var(--admin-surface-strong)', borderRadius: 18, border: '1px solid var(--admin-border-soft)', boxShadow: isLight ? '0 18px 40px rgba(148,163,184,0.12)' : 'none', overflow: 'hidden' }}>
                         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1220, tableLayout: 'fixed' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-                                    <th onClick={() => setSort('name')} style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        cursor: 'pointer', userSelect: 'none',
-                                        width: 220,
-                                    }}>Name{sortIndicator('name')}</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 320,
-                                    }}>Email</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 160,
-                                    }}>Phone</th>
-                                    <th onClick={() => setSort('status')} style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        cursor: 'pointer', userSelect: 'none',
-                                        width: 140,
-                                    }}>Assessment{sortIndicator('status')}</th>
-                                    <th onClick={() => setSort('score')} style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        cursor: 'pointer', userSelect: 'none',
-                                        width: 100,
-                                    }}>Score{sortIndicator('score')}</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 95,
-                                    }}>Video</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 120,
-                                    }}>Credentials</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 120,
-                                    }}>ID Verify</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 130,
-                                    }}>Doc Verify</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 70,
-                                    }}>Docs</th>
-                                    <th onClick={() => setSort('created_at')} style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        cursor: 'pointer', userSelect: 'none',
-                                        width: 120,
-                                    }}>Joined{sortIndicator('created_at')}</th>
-                                    <th style={{
-                                        padding: '14px 16px', textAlign: 'left', fontSize: 11,
-                                        fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8,
-                                        width: 140,
-                                    }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sorted.map((c, i) => (
-                                    <tr
-                                        key={c.id}
-                                        onClick={() => window.open(adminUrl(`consultant/${c.id}`), '_blank', 'noopener,noreferrer')}
-                                        style={{
-                                            borderBottom: '1px solid rgba(148,163,184,0.06)',
-                                            cursor: 'pointer', transition: 'background 0.15s',
-                                            background: i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)',
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.05)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)'}
-                                    >
-                                        <td
-                                            title={c.full_name || c.email || ''}
-                                            style={{
-                                                padding: '14px 16px',
-                                                fontSize: 13,
-                                                fontWeight: 800,
-                                                color: '#e2e8f0',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                            }}
-                                        >
-                                            <a
-                                                href={adminUrl(`consultant/${c.id}`)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{
-                                                    color: '#e2e8f0',
-                                                    textDecoration: 'none',
-                                                }}
-                                            >
-                                                {c.full_name || '-'}
-                                            </a>
-                                        </td>
-                                        <td
-                                            title={c.email || ''}
-                                            style={{
-                                                padding: '14px 16px',
-                                                fontSize: 13,
-                                                color: '#94a3b8',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                            }}
-                                        >
-                                            {c.email}
-                                        </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.phone_number || '-'}</td>
-                                        <td style={{ padding: '14px 16px' }}>
-                                            {(() => {
-                                                const statusStyle = assessmentStatusBadgeStyle(c.assessment_status);
-                                                return (
-                                            <span style={{
-                                                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                background: statusStyle.bg,
-                                                color: statusStyle.color,
-                                                whiteSpace: 'nowrap',
-                                            }}>
-                                                {c.assessment_status}
-                                            </span>
-                                                );
-                                            })()}
-                                        </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.assessment_score != null ? `${c.assessment_score}/50` : '-'}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '-'}</td>
-                                        <td style={{ padding: '14px 16px' }}>
-                                            <span style={{
-                                                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                background: c.has_credentials ? 'rgba(16,185,129,0.15)' : 'rgba(100,116,139,0.12)',
-                                                color: c.has_credentials ? '#34d399' : '#64748b',
-                                                border: `1px solid ${c.has_credentials ? 'rgba(16,185,129,0.25)' : 'rgba(100,116,139,0.15)'}`,
-                                                whiteSpace: 'nowrap',
-                                            }}>
-                                                {c.has_credentials ? 'Sent' : '-'}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.face_verification_status)}</td>
-                                        <td style={{ padding: '14px 16px' }}>{verificationBadge(c.doc_verification_status)}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.document_count}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 12, color: '#64748b' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
-                                        <td style={{ padding: '14px 16px' }}>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteConsultant(c.id, c.full_name || c.email);
-                                                }}
-                                                disabled={deletingId === c.id}
-                                                style={{
-                                                    padding: '7px 12px', borderRadius: 10, fontSize: 11, fontWeight: 800,
-                                                    border: '1px solid rgba(239,68,68,0.25)',
-                                                    background: deletingId === c.id ? 'rgba(148,163,184,0.15)' : 'rgba(239,68,68,0.12)',
-                                                    color: deletingId === c.id ? '#94a3b8' : '#f87171',
-                                                    cursor: deletingId === c.id ? 'not-allowed' : 'pointer',
-                                                    whiteSpace: 'nowrap',
-                                                }}
-                                            >
-                                                {deletingId === c.id ? 'Deleting...' : 'Delete'}
-                                            </button>
-                                        </td>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1060, tableLayout: 'fixed' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                        <th onClick={() => setSort('name')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 220 }}>Name{sortIndicator('name')}</th>
+                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, width: 300 }}>Details</th>
+                                        <th onClick={() => setSort('status')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 150 }}>Status{sortIndicator('status')}</th>
+                                        <th onClick={() => setSort('score')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 180 }}>Score{sortIndicator('score')}</th>
+                                        <th onClick={() => setSort('created_at')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 120 }}>Joining{sortIndicator('created_at')}</th>
+                                        <th onClick={() => setSort('updated_at')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 140 }}>Latest Changes{sortIndicator('updated_at')}</th>
+                                        <th onClick={() => setSort('assessment_count')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 120 }}>Attempts{sortIndicator('assessment_count')}</th>
                                     </tr>
-                                ))}
-                                {sorted.length === 0 && (
-                                    <tr>
-                                        <td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 14 }}>
-                                            {(search || statusFilter !== 'all' || verificationFilter !== 'all' || credentialsFilter !== 'all')
-                                                ? 'No consultants match your current filters.'
-                                                : 'No consultants found.'}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
+                                </thead>
+                                <tbody>
+                                    {sorted.map((c, i) => {
+                                        const displayStatus = normalizeAdminStatus(c.assessment_display_status || c.assessment_status);
+                                        const style = STATUS_COLORS[displayStatus] || STATUS_COLORS['New Join'];
+                                        const substatusStyle = c.assessment_substatus ? (SUBSTATUS_COLORS[c.assessment_substatus] || SUBSTATUS_COLORS.MCQ) : null;
+                                        return (
+                                            <tr key={c.id} onClick={() => window.open(adminUrl(`consultant/${c.id}`), '_blank', 'noopener,noreferrer')} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', cursor: 'pointer', background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
+                                                <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 800, color: 'var(--admin-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <a href={adminUrl(`consultant/${c.id}`)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--admin-text-primary)', textDecoration: 'none' }}>{c.full_name || '-'}</a>
+                                                </td>
+                                                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email || '-'}</div>
+                                                    <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 4 }}>{c.phone_number || '-'}</div>
+                                                </td>
+                                                <td style={{ padding: '14px 16px' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                                                        <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: style.bg, color: style.color, whiteSpace: 'nowrap' }}>{displayStatus}</span>
+                                                        {c.assessment_substatus && (
+                                                            <span style={{ padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, background: substatusStyle.bg, color: substatusStyle.color, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                                                                {c.assessment_substatus}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700 }}>{c.assessment_score != null ? `MCQ: ${c.assessment_score}/50` : 'MCQ: -'}</div>
+                                                    <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 4 }}>{c.video_score != null ? `Video: ${c.video_score}/${c.video_total || '?'}` : 'Video: -'}</div>
+                                                </td>
+                                                <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
+                                                <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'}</td>
+                                                <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.assessment_count ?? 0}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
+                                </tbody>
                             </table>
                         </div>
-                        <div style={{
-                            padding: '10px 16px',
-                            borderTop: '1px solid rgba(148,163,184,0.08)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            color: '#64748b',
-                            fontSize: 12,
-                            flexWrap: 'wrap',
-                            gap: 8,
-                        }}>
-                            <span>
-                                Page <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{page}</span> of <span style={{ color: '#e2e8f0', fontWeight: 800 }}>{totalPages}</span>
-                                {' · '}{totalCount} result{totalCount !== 1 ? 's' : ''}
-                            </span>
+                        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(148,163,184,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--admin-text-muted)', fontSize: 12, flexWrap: 'wrap', gap: 8, background: isLight ? 'rgba(248,250,252,0.9)' : 'transparent' }}>
+                            <span>Page <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{page}</span> of <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{totalPages}</span>{' . '}{totalCount} result{totalCount !== 1 ? 's' : ''}</span>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                <button
-                                    onClick={() => fetchConsultants(1, search, statusFilter, verificationFilter, credentialsFilter)}
-                                    disabled={page <= 1 || loading}
-                                    style={{
-                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                        background: 'rgba(148,163,184,0.08)', color: page <= 1 ? '#334155' : '#94a3b8',
-                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                                    }}
-                                >«</button>
-                                <button
-                                    onClick={() => fetchConsultants(page - 1, search, statusFilter, verificationFilter, credentialsFilter)}
-                                    disabled={page <= 1 || loading}
-                                    style={{
-                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                        background: 'rgba(148,163,184,0.08)', color: page <= 1 ? '#334155' : '#94a3b8',
-                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                                    }}
-                                >‹ Prev</button>
+                                <button onClick={() => fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page <= 1 || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page <= 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>{'<<'}</button>
+                                <button onClick={() => fetchConsultants(page - 1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page <= 1 || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page <= 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>{'< Prev'}</button>
                                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                     const start = Math.max(1, Math.min(page - 2, totalPages - 4));
                                     const p = start + i;
-                                    return p <= totalPages ? (
-                                        <button
-                                            key={p}
-                                            onClick={() => fetchConsultants(p, search, statusFilter, verificationFilter, credentialsFilter)}
-                                            disabled={loading}
-                                            style={{
-                                                padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                                background: p === page ? 'rgba(16,185,129,0.2)' : 'rgba(148,163,184,0.08)',
-                                                color: p === page ? '#34d399' : '#94a3b8',
-                                                border: `1px solid ${p === page ? 'rgba(16,185,129,0.35)' : 'rgba(148,163,184,0.15)'}`,
-                                                cursor: loading ? 'not-allowed' : 'pointer',
-                                                minWidth: 32,
-                                            }}
-                                        >{p}</button>
-                                    ) : null;
+                                    return p <= totalPages ? <button key={p} onClick={() => fetchConsultants(p, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: p === page ? 'rgba(16,185,129,0.2)' : 'var(--admin-tab-idle)', color: p === page ? '#34d399' : 'var(--admin-text-secondary)', border: `1px solid ${p === page ? 'rgba(16,185,129,0.35)' : 'var(--admin-border-mid)'}`, cursor: loading ? 'not-allowed' : 'pointer', minWidth: 32 }}>{p}</button> : null;
                                 })}
-                                <button
-                                    onClick={() => fetchConsultants(page + 1, search, statusFilter, verificationFilter, credentialsFilter)}
-                                    disabled={page >= totalPages || loading}
-                                    style={{
-                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                        background: 'rgba(148,163,184,0.08)', color: page >= totalPages ? '#334155' : '#94a3b8',
-                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-                                    }}
-                                >Next ›</button>
-                                <button
-                                    onClick={() => fetchConsultants(totalPages, search, statusFilter, verificationFilter, credentialsFilter)}
-                                    disabled={page >= totalPages || loading}
-                                    style={{
-                                        padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                        background: 'rgba(148,163,184,0.08)', color: page >= totalPages ? '#334155' : '#94a3b8',
-                                        border: '1px solid rgba(148,163,184,0.15)', cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-                                    }}
-                                >»</button>
+                                <button onClick={() => fetchConsultants(page + 1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page >= totalPages || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page >= totalPages ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>{'Next >'}</button>
+                                <button onClick={() => fetchConsultants(totalPages, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page >= totalPages || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page >= totalPages ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>{'>>'}</button>
                             </div>
-                            <span style={{ color: '#94a3b8' }}>Tip: click headers to sort</span>
+                            <span style={{ color: 'var(--admin-text-secondary)' }}>Tip: click headers to sort</span>
                         </div>
                     </div>
                 )}

@@ -6,7 +6,6 @@ import BrandLogo from '../components/BrandLogo';
 import { isAssessmentDeviceBlocked } from '../utils/devicePolicy';
 import { isFaceVerificationSatisfied } from '../utils/devBypass';
 import { useIsNarrowScreen } from '../utils/useViewport';
-import Feedback from './Feedback';
 
 const formatRetryUnlockAt = (value) => {
     if (!value) return '';
@@ -51,11 +50,15 @@ const Success = () => {
     const [assessmentPassed, setAssessmentPassed] = useState(stepFlags?.has_passed_assessment || false);
     const [assessmentStatus, setAssessmentStatus] = useState(null);
     const [assessmentReviewPending, setAssessmentReviewPending] = useState(stepFlags?.assessment_review_pending || false);
+    const [assessmentFailed, setAssessmentFailed] = useState(stepFlags?.assessment_failed || false);
+    const [attemptsRemaining, setAttemptsRemaining] = useState(stepFlags?.assessment_attempts_remaining || 0);
+    const [canRetryNow, setCanRetryNow] = useState(stepFlags?.assessment_can_retry_now || false);
     const [isDisqualified, setIsDisqualified] = useState(false);
     const [retryLocked, setRetryLocked] = useState(stepFlags?.assessment_retry_locked || false);
     const [retryAvailableAt, setRetryAvailableAt] = useState(stepFlags?.assessment_retry_available_at || null);
     const [retrySecondsRemaining, setRetrySecondsRemaining] = useState(() => getRetrySecondsRemaining(stepFlags?.assessment_retry_available_at));
     const [loading, setLoading] = useState(true);
+    const [showFeedbackPopup, setShowFeedbackPopup] = useState(false);
 
     const refreshAssessmentState = useCallback(async () => {
         try {
@@ -63,6 +66,9 @@ const Success = () => {
             setAssessmentPassed(Boolean(data?.passed));
             if (data?.status) setAssessmentStatus(data.status);
             setAssessmentReviewPending(Boolean(data?.review_pending));
+            setAssessmentFailed(Boolean(data?.failed));
+            setAttemptsRemaining(Number(data?.attempts_remaining || 0));
+            setCanRetryNow(Boolean(data?.can_retry_now));
             setRetryLocked(Boolean(data?.retry_locked));
             setRetryAvailableAt(data?.retry_available_at || null);
             setRetrySecondsRemaining(getRetrySecondsRemaining(data?.retry_available_at));
@@ -70,6 +76,8 @@ const Success = () => {
             updateStepFlags({
                 has_passed_assessment: Boolean(data?.passed),
                 assessment_review_pending: Boolean(data?.review_pending),
+                assessment_failed: Boolean(data?.failed),
+                assessment_attempts_remaining: Number(data?.attempts_remaining || 0),
                 assessment_retry_locked: Boolean(data?.retry_locked),
                 assessment_retry_available_at: data?.retry_available_at || null,
                 assessment_retry_in_seconds: getRetrySecondsRemaining(data?.retry_available_at),
@@ -125,14 +133,49 @@ const Success = () => {
     const isFlagged = assessmentStatus === 'flagged';
     const underReview = assessmentReviewPending || assessmentStatus === 'review_pending';
     const disqualified = isFlagged || isDisqualified;
-    const recentAssessmentSubmission = Boolean(location.state?.assessment_submitted);
     const assessmentEntryRoute = isAssessmentDeviceBlocked() ? '/assessment/device-required' : '/assessment/select';
-    const showReviewCompletionBanner = Boolean(
-        (recentAssessmentSubmission || underReview)
+    const isRetryFlow = Boolean(
+        assessmentFailed
+        && attemptsRemaining > 0
+        && !underReview
+        && !disqualified
+        && !assessmentPassed
+    );
+    const showRetryAvailableBanner = Boolean(
+        isRetryFlow
+        && canRetryNow
         && stepFlags?.has_documents
         && isVerified
         && hasIdentity
     );
+    const showRetryLockedBanner = Boolean(
+        isRetryFlow
+        && retryLocked
+        && stepFlags?.has_documents
+        && isVerified
+        && hasIdentity
+    );
+    const showReviewCompletionBanner = Boolean(
+        underReview
+        && stepFlags?.has_documents
+        && isVerified
+        && hasIdentity
+        && !retryLocked
+        && !disqualified
+    );
+    
+    useEffect(() => {
+        if (!showReviewCompletionBanner) {
+            setShowFeedbackPopup(false);
+            return undefined;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setShowFeedbackPopup(true);
+        }, 5000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [showReviewCompletionBanner]);
     const retryUnlockText = formatRetryUnlockAt(retryAvailableAt);
     const retryCountdownText = formatRetryCountdown(retrySecondsRemaining);
     const steps = [
@@ -150,18 +193,28 @@ const Success = () => {
             icon: '\u{1F4C4}',
         },
         {
-            label: disqualified ? 'Assessment Disqualified' : underReview ? 'Assessment Under Review' : retryLocked ? 'Assessment Retry Locked' : 'Domain Assessment',
+            label: disqualified
+                ? 'Assessment Disqualified'
+                : underReview
+                    ? 'Assessment Under Review'
+                    : showRetryLockedBanner
+                        ? 'Assessment Retry Locked'
+                        : showRetryAvailableBanner
+                            ? 'Assessment Retry Available'
+                            : 'Domain Assessment',
             desc: disqualified
                 ? 'Maximum attempts exceeded or violations detected.'
                 : underReview
                     ? 'We are reviewing your assessment and will email you within 48 hours.'
-                    : retryLocked
+                    : showRetryLockedBanner
                         ? `Your next assessment attempt unlocks on ${retryUnlockText || 'the next available slot'}. Time remaining: ${retryCountdownText}.`
+                        : showRetryAvailableBanner
+                            ? `Your previous attempt did not clear all thresholds. You still have ${attemptsRemaining} ${attemptsRemaining === 1 ? 'attempt' : 'attempts'} remaining and can start your retry now.`
                         : '50 MCQs plus video questions',
             done: assessmentPassed || stepFlags?.has_passed_assessment,
             requires: isVerified && stepFlags?.has_documents && !disqualified,
             action: disqualified || underReview || retryLocked ? null : () => navigate(assessmentEntryRoute),
-            icon: disqualified ? '\u{1F6AB}' : underReview ? '\u23F3' : '\u{1F4DD}',
+            icon: disqualified ? '\u{1F6AB}' : underReview ? '\u23F3' : isRetryFlow ? '\u{1F504}' : '\u{1F4DD}',
             customStatus: disqualified
                 ? (
                     <span
@@ -200,7 +253,7 @@ const Success = () => {
                             Under Review
                         </span>
                     )
-                    : retryLocked
+                    : showRetryLockedBanner
                         ? (
                             <span
                                 style={{
@@ -219,6 +272,25 @@ const Success = () => {
                                 {retryCountdownText}
                             </span>
                         )
+                        : showRetryAvailableBanner
+                            ? (
+                                <span
+                                    style={{
+                                        fontSize: 12,
+                                        color: '#166534',
+                                        fontWeight: 600,
+                                        background: '#f0fdf4',
+                                        padding: '6px 14px',
+                                        borderRadius: 20,
+                                        border: '1px solid #bbf7d0',
+                                        display: 'inline-flex',
+                                        width: isPhoneScreen ? '100%' : 'auto',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    Retry Available
+                                </span>
+                            )
                         : null,
         },
     ];
@@ -239,6 +311,11 @@ const Success = () => {
             </div>
         );
     }
+
+    const openFeedbackForm = () => {
+        window.open('/feedback', '_blank', 'noopener,noreferrer');
+        setShowFeedbackPopup(false);
+    };
 
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -261,6 +338,26 @@ const Success = () => {
                         </h2>
                         <p style={{ fontSize: 14, color: '#047857', margin: 0, lineHeight: 1.65 }}>
                             We are currently reviewing your assessment. You will receive an email update within 48 hours once the review is complete.
+                        </p>
+                    </div>
+                )}
+                {showRetryAvailableBanner && (
+                    <div style={{ marginBottom: 22, background: '#fff7ed', borderRadius: 12, padding: isPhoneScreen ? 16 : 22, border: '1px solid #fdba74' }}>
+                        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#9a3412', margin: '0 0 8px' }}>
+                            Assessment retry available
+                        </h2>
+                        <p style={{ fontSize: 14, color: '#9a3412', margin: 0, lineHeight: 1.65 }}>
+                            Your previous assessment attempt did not clear all thresholds. You still have {attemptsRemaining} {attemptsRemaining === 1 ? 'attempt' : 'attempts'} remaining. Please start your retry when you are ready.
+                        </p>
+                    </div>
+                )}
+                {showRetryLockedBanner && (
+                    <div style={{ marginBottom: 22, background: '#fff7ed', borderRadius: 12, padding: isPhoneScreen ? 16 : 22, border: '1px solid #fdba74' }}>
+                        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#9a3412', margin: '0 0 8px' }}>
+                            Assessment retry scheduled
+                        </h2>
+                        <p style={{ fontSize: 14, color: '#9a3412', margin: 0, lineHeight: 1.65 }}>
+                            Your previous assessment attempt did not clear all thresholds. Your next retry unlocks on {retryUnlockText || 'the next available slot'}. Time remaining: {retryCountdownText}.
                         </p>
                     </div>
                 )}
@@ -378,12 +475,99 @@ const Success = () => {
                     </div>
                 )}
 
-                {/* Embedded Feedback Form */}
-                <div style={{ marginTop: 40 }}>
-                    <Feedback embedded />
-                </div>
-
             </div>
+
+            {showFeedbackPopup && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 16,
+                        zIndex: 120,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            maxWidth: 420,
+                            borderRadius: 20,
+                            background: '#ffffff',
+                            boxShadow: '0 24px 64px rgba(15, 23, 42, 0.24)',
+                            border: '1px solid #e5e7eb',
+                            padding: isPhoneScreen ? 20 : 24,
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                            <div>
+                                <div style={{ fontSize: 28, lineHeight: 1, marginBottom: 12 }}>💬</div>
+                                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
+                                    Please give feedback
+                                </h3>
+                                <p style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.6, color: '#475569' }}>
+                                    You completed all onboarding steps. Your feedback will help us improve this process.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowFeedbackPopup(false)}
+                                aria-label="Close feedback popup"
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#64748b',
+                                    cursor: 'pointer',
+                                    fontSize: 22,
+                                    lineHeight: 1,
+                                    padding: 0,
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 12, marginTop: 22, flexDirection: isPhoneScreen ? 'column' : 'row' }}>
+                            <button
+                                type="button"
+                                onClick={() => setShowFeedbackPopup(false)}
+                                style={{
+                                    flex: 1,
+                                    minHeight: 44,
+                                    borderRadius: 10,
+                                    border: '1px solid #cbd5e1',
+                                    background: '#ffffff',
+                                    color: '#334155',
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Maybe later
+                            </button>
+                            <button
+                                type="button"
+                                onClick={openFeedbackForm}
+                                style={{
+                                    flex: 1,
+                                    minHeight: 44,
+                                    borderRadius: 10,
+                                    border: 'none',
+                                    background: '#059669',
+                                    color: '#ffffff',
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Open feedback form
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

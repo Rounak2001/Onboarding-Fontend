@@ -177,7 +177,7 @@ const StepGuard = ({ step, children }) => {
       allowed = Boolean(onboarded);
       break;
     case 'identity':
-      allowed = onboarded && !hasIdentity;
+      allowed = onboarded && (!hasIdentity || !verified);
       break;
     case 'face':
       allowed = onboarded && hasIdentity && !verified;
