@@ -38,6 +38,11 @@ const EmailDashboard = () => {
     const [lSort, setLSort] = useState({ key: 'sent_at', direction: 'desc' });
 
     const [expandedRow, setExpandedRow] = useState(null);
+    const [viewportWidth, setViewportWidth] = useState(
+        () => (typeof window !== 'undefined' ? window.innerWidth : 1280),
+    );
+    const isMobile = viewportWidth <= 768;
+    const isNarrowMobile = viewportWidth <= 430;
 
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -127,6 +132,13 @@ const EmailDashboard = () => {
         }, 350);
         return () => clearTimeout(timer);
     }, [nSearch, lSearch]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const doAction = async (url, method = 'POST', body = null) => {
         setActionLoading(url);
@@ -243,7 +255,7 @@ const EmailDashboard = () => {
                 type="button"
                 onClick={() => setActiveCardFilter((current) => (current === filterKey ? 'all' : filterKey))}
                 style={{
-                    padding: 16,
+                    padding: isMobile ? 12 : 16,
                     borderRadius: 16,
                     background: active ? 'var(--admin-surface-strong)' : 'var(--admin-surface-accent)',
                     border: `1px solid ${active ? color.fg : color.edge}`,
@@ -252,14 +264,14 @@ const EmailDashboard = () => {
                         : (isLight ? '0 10px 22px rgba(148,163,184,0.08)' : '0 8px 30px rgba(0,0,0,0.25)'),
                     position: 'relative',
                     overflow: 'hidden',
-                    minHeight: 72,
+                    minHeight: isMobile ? 64 : 72,
                     width: '100%',
                     textAlign: 'left',
                     cursor: 'pointer',
                 }}
             >
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>{label}</div>
-                <div style={{ marginTop: 6, fontSize: 24, fontWeight: 900, color: 'var(--admin-text-strong)' }}>{value}</div>
+                <div style={{ fontSize: isMobile ? 10 : 11, fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>{label}</div>
+                <div style={{ marginTop: 6, fontSize: isMobile ? 20 : 24, fontWeight: 900, color: 'var(--admin-text-strong)' }}>{value}</div>
                 {subtitle && <div style={{ marginTop: 2, fontSize: 11, color: 'var(--admin-text-muted)' }}>{subtitle}</div>}
                 <div style={{
                     position: 'absolute',
@@ -283,30 +295,33 @@ const EmailDashboard = () => {
 
     const pagination = (page, totalPages, onPage) => (
         <div style={{
-            padding: '10px 16px',
+            padding: isMobile ? '12px' : '10px 16px',
             borderTop: '1px solid rgba(148,163,184,0.08)',
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: isMobile ? 'stretch' : 'center',
             color: 'var(--admin-text-muted)',
             fontSize: 12,
             flexWrap: 'wrap',
             gap: 8,
         }}>
-            <span>
+            <span style={{ textAlign: isMobile ? 'center' : 'left' }}>
                 Page <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{page}</span> of <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{totalPages}</span>
             </span>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
                 {[
-                    { label: '<', disabled: page <= 1, pg: page - 1 },
-                    { label: '>', disabled: page >= totalPages, pg: page + 1 },
+                    { label: isMobile ? 'First' : '<<', disabled: page <= 1, pg: 1 },
+                    { label: isMobile ? 'Prev' : '<', disabled: page <= 1, pg: page - 1 },
+                    { label: isMobile ? 'Next' : '>', disabled: page >= totalPages, pg: page + 1 },
+                    { label: isMobile ? 'Last' : '>>', disabled: page >= totalPages, pg: totalPages },
                 ].map((button, index) => (
                     <button
                         key={index}
                         onClick={() => onPage(button.pg)}
                         disabled={button.disabled || loading}
                         style={{
-                            padding: '5px 12px',
+                            padding: isMobile ? '6px 10px' : '5px 12px',
                             borderRadius: 7,
                             fontSize: 12,
                             fontWeight: 700,
@@ -355,9 +370,9 @@ const EmailDashboard = () => {
         };
         const colorSet = colors[color] || colors.blue;
         return {
-            padding: '6px 14px',
+            padding: isMobile ? '7px 12px' : '6px 14px',
             borderRadius: 8,
-            fontSize: 11,
+            fontSize: isMobile ? 12 : 11,
             fontWeight: 700,
             background: colorSet.bg,
             color: colorSet.fg,
@@ -418,24 +433,38 @@ const EmailDashboard = () => {
                 <div style={{
                     maxWidth: 1300,
                     margin: '0 auto',
-                    padding: '0 32px',
-                    height: 60,
+                    padding: isMobile ? '10px 14px' : '0 32px',
+                    minHeight: 60,
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    flexWrap: isMobile ? 'wrap' : 'nowrap',
+                    gap: isMobile ? 10 : 14,
                 }}>
                     <AdminBrandLogo isLight={isLight} height={28} />
                     <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--admin-text-strong)' }}>Email Monitor</span>
-                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                        marginLeft: isMobile ? 0 : 'auto',
+                        width: isMobile ? '100%' : 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: isMobile ? 'flex-start' : 'flex-end',
+                        flexWrap: 'wrap',
+                        gap: isMobile ? 8 : 12,
+                    }}>
                         <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
-                        <button onClick={() => navigate(adminUrl('dashboard'))} style={{ ...actionBtnStyle('emerald'), padding: '8px 14px' }}>← Dashboard</button>
-                        <button onClick={() => { fetchSummary(); tab === 'notifications' ? fetchNotifications(nPage) : fetchLogs(lPage); }} style={{ ...actionBtnStyle('blue'), padding: '8px 14px' }}>Refresh</button>
+                        <button onClick={() => navigate(adminUrl('dashboard'))} style={{ ...actionBtnStyle('emerald'), padding: isMobile ? '7px 10px' : '8px 14px' }}>&lt;- Dashboard</button>
+                        <button onClick={() => { fetchSummary(); tab === 'notifications' ? fetchNotifications(nPage) : fetchLogs(lPage); }} style={{ ...actionBtnStyle('blue'), padding: isMobile ? '7px 10px' : '8px 14px' }}>Refresh</button>
                     </div>
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1300, margin: '0 auto', padding: '28px 32px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(168px, 1fr))', gap: 12, marginBottom: 24 }}>
+            <div style={{ maxWidth: 1300, margin: '0 auto', padding: isMobile ? '14px 12px 18px' : '28px 32px' }}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(168px, 1fr))',
+                    gap: isMobile ? 10 : 12,
+                    marginBottom: isMobile ? 14 : 24,
+                }}>
                     {metricCard('sent_today', 'Sent Today', summaryData?.emails_today?.sent ?? '-', 'emerald', `Total: ${summaryData?.notifications?.total_sent ?? '-'}`)}
                     {metricCard('failed_today', 'Failed Today', summaryData?.emails_today?.failed ?? '-', summaryData?.emails_today?.failed > 0 ? 'red' : 'slate', `Total: ${summaryData?.notifications?.total_failed ?? '-'}`)}
                     {metricCard('in_queue', 'In Queue', summaryData?.notifications?.in_queue ?? '-', 'amber')}
@@ -447,7 +476,7 @@ const EmailDashboard = () => {
                         <span style={{ fontSize: 12, color: 'var(--admin-text-secondary)' }}>
                             Card filter active: <span style={{ color: 'var(--admin-text-strong)', fontWeight: 700 }}>{activeCardFilter.replaceAll('_', ' ')}</span>
                         </span>
-                        <button type="button" onClick={() => setActiveCardFilter('all')} style={actionBtnStyle('blue')}>Clear Filter</button>
+                        <button type="button" onClick={() => setActiveCardFilter('all')} style={{ ...actionBtnStyle('blue'), width: isMobile ? '100%' : 'auto' }}>Clear Filter</button>
                     </div>
                 )}
 
@@ -456,8 +485,8 @@ const EmailDashboard = () => {
                         background: 'var(--admin-surface)',
                         borderRadius: 14,
                         border: '1px solid var(--admin-border-soft)',
-                        padding: '18px 22px',
-                        marginBottom: 24,
+                        padding: isMobile ? '14px 12px' : '18px 22px',
+                        marginBottom: isMobile ? 14 : 24,
                     }}>
                         <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.7, color: 'var(--admin-text-muted)', marginBottom: 12 }}>
                             7-Day Delivery History
@@ -496,7 +525,7 @@ const EmailDashboard = () => {
                             const data = await doAction('/admin-panel/email-dashboard/test-smtp/', 'POST', { email: '' });
                             if (data?.message) alert(data.message);
                         }}
-                        style={actionBtnStyle('blue')}
+                        style={{ ...actionBtnStyle('blue'), width: isMobile ? '100%' : 'auto' }}
                     >
                         Test SMTP
                     </button>
@@ -506,7 +535,7 @@ const EmailDashboard = () => {
                             const data = await doAction('/admin-panel/email-dashboard/force-daily-run/');
                             if (data?.message) alert(data.message);
                         }}
-                        style={actionBtnStyle('amber')}
+                        style={{ ...actionBtnStyle('amber'), width: isMobile ? '100%' : 'auto' }}
                     >
                         Force Daily Run
                     </button>
@@ -517,7 +546,7 @@ const EmailDashboard = () => {
                             const data = await doAction('/admin-panel/email-dashboard/retry-all-failed/');
                             if (data?.message) alert(data.message);
                         }}
-                        style={actionBtnStyle('red')}
+                        style={{ ...actionBtnStyle('red'), width: isMobile ? '100%' : 'auto' }}
                     >
                         Retry All Failed
                     </button>
@@ -528,19 +557,19 @@ const EmailDashboard = () => {
                             if (data?.message) alert(data.message);
                             else alert(`Queued ${data?.queued || 0} notification(s).`);
                         }}
-                        style={actionBtnStyle('emerald')}
+                        style={{ ...actionBtnStyle('emerald'), width: isMobile ? '100%' : 'auto' }}
                     >
                         Send Due Emails
                     </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: 2, marginBottom: 0 }}>
+                <div style={{ display: 'flex', gap: 2, marginBottom: 0, overflowX: 'auto' }}>
                     {['notifications', 'logs'].map((value) => (
                         <button
                             key={value}
                             onClick={() => setTab(value)}
                             style={{
-                                padding: '10px 22px',
+                                padding: isMobile ? '10px 12px' : '10px 22px',
                                 fontSize: 12,
                                 fontWeight: 800,
                                 textTransform: 'uppercase',
@@ -552,6 +581,8 @@ const EmailDashboard = () => {
                                 borderBottom: 'none',
                                 cursor: 'pointer',
                                 transition: 'all 0.15s',
+                                flex: isMobile ? '1 1 0' : '0 0 auto',
+                                minWidth: isMobile ? 120 : 'auto',
                             }}
                         >
                             {value === 'notifications' ? 'Notifications' : 'Email Log'}
@@ -561,15 +592,29 @@ const EmailDashboard = () => {
 
                 <div style={{
                     background: 'var(--admin-surface)',
-                    borderRadius: '0 14px 14px 14px',
+                    borderRadius: isMobile ? '0 12px 12px 12px' : '0 14px 14px 14px',
                     border: '1px solid var(--admin-border-soft)',
                     overflow: 'hidden',
                 }}>
                     {tab === 'notifications' && (
                         <>
-                            <div style={{ padding: '14px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(148,163,184,0.08)', background: isLight ? 'rgba(248,250,252,0.82)' : 'transparent' }}>
-                                <input placeholder="Search email or template..." value={nSearch} onChange={(event) => setNSearch(event.target.value)} style={inputStyle} />
-                                <select value={nStatus} onChange={(event) => setNStatus(event.target.value)} style={selectStyle}>
+                            <div style={{
+                                padding: isMobile ? '12px' : '14px 18px',
+                                display: 'flex',
+                                gap: 10,
+                                flexWrap: 'wrap',
+                                flexDirection: isMobile ? 'column' : 'row',
+                                alignItems: isMobile ? 'stretch' : 'center',
+                                borderBottom: '1px solid rgba(148,163,184,0.08)',
+                                background: isLight ? 'rgba(248,250,252,0.82)' : 'transparent',
+                            }}>
+                                <input
+                                    placeholder="Search email or template..."
+                                    value={nSearch}
+                                    onChange={(event) => setNSearch(event.target.value)}
+                                    style={{ ...inputStyle, width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 'none' : 320, boxSizing: 'border-box' }}
+                                />
+                                <select value={nStatus} onChange={(event) => setNStatus(event.target.value)} style={{ ...selectStyle, width: isMobile ? '100%' : 'auto' }}>
                                     <option value="">All statuses</option>
                                     <option value="queued">Queued</option>
                                     <option value="sending">Sending</option>
@@ -577,113 +622,256 @@ const EmailDashboard = () => {
                                     <option value="failed">Failed</option>
                                     <option value="cancelled">Cancelled</option>
                                 </select>
+                                {isMobile && (
+                                    <>
+                                        <select value={nSort.key} onChange={(event) => setNSort((current) => ({ ...current, key: event.target.value }))} style={{ ...selectStyle, width: '100%' }}>
+                                            <option value="template">Sort: Template</option>
+                                            <option value="recipient">Sort: Recipient</option>
+                                            <option value="status">Sort: Status</option>
+                                            <option value="scheduled_for">Sort: Scheduled</option>
+                                            <option value="sent_at">Sort: Sent At</option>
+                                        </select>
+                                        <select value={nSort.direction} onChange={(event) => setNSort((current) => ({ ...current, direction: event.target.value }))} style={{ ...selectStyle, width: '100%' }}>
+                                            <option value="asc">Order: Ascending</option>
+                                            <option value="desc">Order: Descending</option>
+                                        </select>
+                                    </>
+                                )}
                             </div>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                            <th>{renderSortHeader('Template', 'notifications', 'template')}</th>
-                                            <th>{renderSortHeader('Recipient', 'notifications', 'recipient')}</th>
-                                            <th>{renderSortHeader('Status', 'notifications', 'status')}</th>
-                                            <th>{renderSortHeader('Scheduled', 'notifications', 'scheduled_for')}</th>
-                                            <th>{renderSortHeader('Sent At', 'notifications', 'sent_at')}</th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.7 }}>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {loading && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</td></tr>}
-                                        {!loading && filteredNotifications.length === 0 && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No notifications found.</td></tr>}
-                                        {!loading && filteredNotifications.map((item, index) => (
-                                            <tr key={item.id}>
-                                                <td colSpan={6} style={{ padding: 0, borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
-                                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                                        <tbody>
-                                                            <tr
-                                                                onClick={() => item.last_error && setExpandedRow(expandedRow === item.id ? null : item.id)}
-                                                                style={{ background: index % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)', cursor: item.last_error ? 'pointer' : 'default' }}
-                                                            >
-                                                                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{templateLabel(item.template_key)}</td>
-                                                                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{item.recipient_email}</td>
-                                                                <td style={{ padding: '12px 16px' }}>{statusBadge(item.status)}</td>
-                                                                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.scheduled_for)}</td>
-                                                                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.sent_at)}</td>
-                                                                <td style={{ padding: '12px 16px' }}>
-                                                                    <div style={{ display: 'flex', gap: 6 }}>
-                                                                        {item.status === 'failed' && <button disabled={!!actionLoading} onClick={(event) => { event.stopPropagation(); doAction(`/admin-panel/email-dashboard/retry-notification/${item.id}/`); }} style={actionBtnStyle('blue')}>Retry</button>}
-                                                                        {item.status === 'queued' && <button disabled={!!actionLoading} onClick={(event) => { event.stopPropagation(); doAction(`/admin-panel/email-dashboard/cancel-notification/${item.id}/`); }} style={actionBtnStyle('red')}>Cancel</button>}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                            {expandedRow === item.id && item.last_error && (
-                                                                <tr>
-                                                                    <td colSpan={6} style={{ padding: '0 16px 14px 16px', background: 'rgba(239,68,68,0.04)' }}>
-                                                                        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--admin-surface-soft)', border: '1px solid rgba(239,68,68,0.15)', fontSize: 11, fontFamily: 'monospace', color: '#fca5a5', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 160, overflowY: 'auto' }}>
-                                                                            {item.last_error}
+                            {isMobile ? (
+                                <div style={{ padding: 10, display: 'grid', gap: 10 }}>
+                                    {loading && <div style={{ padding: 20, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</div>}
+                                    {!loading && filteredNotifications.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No notifications found.</div>}
+                                    {!loading && filteredNotifications.map((item, index) => (
+                                        <div
+                                            key={item.id}
+                                            onClick={() => item.last_error && setExpandedRow(expandedRow === item.id ? null : item.id)}
+                                            style={{
+                                                borderRadius: 12,
+                                                border: '1px solid rgba(148,163,184,0.12)',
+                                                background: index % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)',
+                                                padding: 12,
+                                                cursor: item.last_error ? 'pointer' : 'default',
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{templateLabel(item.template_key)}</div>
+                                                {statusBadge(item.status)}
+                                            </div>
+                                            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--admin-text-secondary)', wordBreak: 'break-word' }}>{item.recipient_email}</div>
+                                            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--admin-text-muted)' }}>Scheduled</div>
+                                                    <div style={{ marginTop: 2, fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.scheduled_for)}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--admin-text-muted)' }}>Sent At</div>
+                                                    <div style={{ marginTop: 2, fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.sent_at)}</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                {item.status === 'failed' && (
+                                                    <button
+                                                        disabled={!!actionLoading}
+                                                        onClick={(event) => { event.stopPropagation(); doAction(`/admin-panel/email-dashboard/retry-notification/${item.id}/`); }}
+                                                        style={actionBtnStyle('blue')}
+                                                    >
+                                                        Retry
+                                                    </button>
+                                                )}
+                                                {item.status === 'queued' && (
+                                                    <button
+                                                        disabled={!!actionLoading}
+                                                        onClick={(event) => { event.stopPropagation(); doAction(`/admin-panel/email-dashboard/cancel-notification/${item.id}/`); }}
+                                                        style={actionBtnStyle('red')}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {expandedRow === item.id && item.last_error && (
+                                                <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'var(--admin-surface-soft)', border: '1px solid rgba(239,68,68,0.15)', fontSize: 11, fontFamily: 'monospace', color: '#fca5a5', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 140, overflowY: 'auto' }}>
+                                                    {item.last_error}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                                <th>{renderSortHeader('Template', 'notifications', 'template')}</th>
+                                                <th>{renderSortHeader('Recipient', 'notifications', 'recipient')}</th>
+                                                <th>{renderSortHeader('Status', 'notifications', 'status')}</th>
+                                                <th>{renderSortHeader('Scheduled', 'notifications', 'scheduled_for')}</th>
+                                                <th>{renderSortHeader('Sent At', 'notifications', 'sent_at')}</th>
+                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.7 }}>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {loading && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</td></tr>}
+                                            {!loading && filteredNotifications.length === 0 && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No notifications found.</td></tr>}
+                                            {!loading && filteredNotifications.map((item, index) => (
+                                                <tr key={item.id}>
+                                                    <td colSpan={6} style={{ padding: 0, borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                            <tbody>
+                                                                <tr
+                                                                    onClick={() => item.last_error && setExpandedRow(expandedRow === item.id ? null : item.id)}
+                                                                    style={{ background: index % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)', cursor: item.last_error ? 'pointer' : 'default' }}
+                                                                >
+                                                                    <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{templateLabel(item.template_key)}</td>
+                                                                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{item.recipient_email}</td>
+                                                                    <td style={{ padding: '12px 16px' }}>{statusBadge(item.status)}</td>
+                                                                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.scheduled_for)}</td>
+                                                                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.sent_at)}</td>
+                                                                    <td style={{ padding: '12px 16px' }}>
+                                                                        <div style={{ display: 'flex', gap: 6 }}>
+                                                                            {item.status === 'failed' && <button disabled={!!actionLoading} onClick={(event) => { event.stopPropagation(); doAction(`/admin-panel/email-dashboard/retry-notification/${item.id}/`); }} style={actionBtnStyle('blue')}>Retry</button>}
+                                                                            {item.status === 'queued' && <button disabled={!!actionLoading} onClick={(event) => { event.stopPropagation(); doAction(`/admin-panel/email-dashboard/cancel-notification/${item.id}/`); }} style={actionBtnStyle('red')}>Cancel</button>}
                                                                         </div>
                                                                     </td>
                                                                 </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                                {expandedRow === item.id && item.last_error && (
+                                                                    <tr>
+                                                                        <td colSpan={6} style={{ padding: '0 16px 14px 16px', background: 'rgba(239,68,68,0.04)' }}>
+                                                                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--admin-surface-soft)', border: '1px solid rgba(239,68,68,0.15)', fontSize: 11, fontFamily: 'monospace', color: '#fca5a5', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 160, overflowY: 'auto' }}>
+                                                                                {item.last_error}
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                             {pagination(nPage, nTotalPages, fetchNotifications)}
                         </>
                     )}
                     {tab === 'logs' && (
                         <>
-                            <div style={{ padding: '14px 18px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid rgba(148,163,184,0.08)', background: isLight ? 'rgba(248,250,252,0.82)' : 'transparent' }}>
-                                <input placeholder="Search email or subject..." value={lSearch} onChange={(event) => setLSearch(event.target.value)} style={inputStyle} />
-                                <select value={lType} onChange={(event) => setLType(event.target.value)} style={selectStyle}>
+                            <div style={{
+                                padding: isMobile ? '12px' : '14px 18px',
+                                display: 'flex',
+                                gap: 10,
+                                flexWrap: 'wrap',
+                                flexDirection: isMobile ? 'column' : 'row',
+                                alignItems: isMobile ? 'stretch' : 'center',
+                                borderBottom: '1px solid rgba(148,163,184,0.08)',
+                                background: isLight ? 'rgba(248,250,252,0.82)' : 'transparent',
+                            }}>
+                                <input
+                                    placeholder="Search email or subject..."
+                                    value={lSearch}
+                                    onChange={(event) => setLSearch(event.target.value)}
+                                    style={{ ...inputStyle, width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 'none' : 320, boxSizing: 'border-box' }}
+                                />
+                                <select value={lType} onChange={(event) => setLType(event.target.value)} style={{ ...selectStyle, width: isMobile ? '100%' : 'auto' }}>
                                     <option value="">All types</option>
                                     <option value="notification">Notification</option>
                                     <option value="abandonment">Abandonment</option>
                                     <option value="credential">Credential</option>
                                     <option value="otp">OTP</option>
                                 </select>
-                                <select value={lStatus} onChange={(event) => setLStatus(event.target.value)} style={selectStyle}>
+                                <select value={lStatus} onChange={(event) => setLStatus(event.target.value)} style={{ ...selectStyle, width: isMobile ? '100%' : 'auto' }}>
                                     <option value="">All statuses</option>
                                     <option value="sent">Sent</option>
                                     <option value="failed">Failed</option>
                                 </select>
-                                <select value={lDays} onChange={(event) => setLDays(Number(event.target.value))} style={selectStyle}>
+                                <select value={lDays} onChange={(event) => setLDays(Number(event.target.value))} style={{ ...selectStyle, width: isMobile ? '100%' : 'auto' }}>
                                     <option value={7}>Last 7 days</option>
                                     <option value={30}>Last 30 days</option>
                                     <option value={60}>Last 60 days</option>
                                 </select>
+                                {isMobile && (
+                                    <>
+                                        <select value={lSort.key} onChange={(event) => setLSort((current) => ({ ...current, key: event.target.value }))} style={{ ...selectStyle, width: '100%' }}>
+                                            <option value="type">Sort: Type</option>
+                                            <option value="subject">Sort: Subject</option>
+                                            <option value="recipient">Sort: Recipient</option>
+                                            <option value="status">Sort: Status</option>
+                                            <option value="sent_at">Sort: Sent At</option>
+                                            <option value="error">Sort: Error</option>
+                                        </select>
+                                        <select value={lSort.direction} onChange={(event) => setLSort((current) => ({ ...current, direction: event.target.value }))} style={{ ...selectStyle, width: '100%' }}>
+                                            <option value="asc">Order: Ascending</option>
+                                            <option value="desc">Order: Descending</option>
+                                        </select>
+                                    </>
+                                )}
                             </div>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                            <th>{renderSortHeader('Type', 'logs', 'type')}</th>
-                                            <th>{renderSortHeader('Subject', 'logs', 'subject')}</th>
-                                            <th>{renderSortHeader('Recipient', 'logs', 'recipient')}</th>
-                                            <th>{renderSortHeader('Status', 'logs', 'status')}</th>
-                                            <th>{renderSortHeader('Sent At', 'logs', 'sent_at')}</th>
-                                            <th>{renderSortHeader('Error', 'logs', 'error')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {loading && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</td></tr>}
-                                        {!loading && filteredLogs.length === 0 && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No email logs found.</td></tr>}
-                                        {!loading && filteredLogs.map((item, index) => (
-                                            <tr key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', background: index % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
-                                                <td style={{ padding: '12px 16px' }}>{typeBadge(item.email_type)}</td>
-                                                <td title={item.subject} style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-primary)', maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.subject}</td>
-                                                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{item.recipient_email}</td>
-                                                <td style={{ padding: '12px 16px' }}>{statusBadge(item.status)}</td>
-                                                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.created_at)}</td>
-                                                <td title={item.error_message} style={{ padding: '12px 16px', fontSize: 11, color: '#fca5a5', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.error_message || '-'}</td>
+                            {isMobile ? (
+                                <div style={{ padding: 10, display: 'grid', gap: 10 }}>
+                                    {loading && <div style={{ padding: 20, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</div>}
+                                    {!loading && filteredLogs.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No email logs found.</div>}
+                                    {!loading && filteredLogs.map((item, index) => (
+                                        <div
+                                            key={item.id}
+                                            style={{
+                                                borderRadius: 12,
+                                                border: '1px solid rgba(148,163,184,0.12)',
+                                                background: index % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)',
+                                                padding: 12,
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                                                {typeBadge(item.email_type)}
+                                                {statusBadge(item.status)}
+                                            </div>
+                                            <div title={item.subject} style={{ marginTop: 8, fontSize: 12, color: 'var(--admin-text-primary)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {item.subject}
+                                            </div>
+                                            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--admin-text-secondary)', wordBreak: 'break-word' }}>{item.recipient_email}</div>
+                                            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--admin-text-muted)' }}>Sent At</div>
+                                                    <div style={{ marginTop: 2, fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.created_at)}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--admin-text-muted)' }}>Error</div>
+                                                    <div title={item.error_message} style={{ marginTop: 2, fontSize: 11, color: '#fca5a5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.error_message || '-'}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                                <th>{renderSortHeader('Type', 'logs', 'type')}</th>
+                                                <th>{renderSortHeader('Subject', 'logs', 'subject')}</th>
+                                                <th>{renderSortHeader('Recipient', 'logs', 'recipient')}</th>
+                                                <th>{renderSortHeader('Status', 'logs', 'status')}</th>
+                                                <th>{renderSortHeader('Sent At', 'logs', 'sent_at')}</th>
+                                                <th>{renderSortHeader('Error', 'logs', 'error')}</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody>
+                                            {loading && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</td></tr>}
+                                            {!loading && filteredLogs.length === 0 && <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No email logs found.</td></tr>}
+                                            {!loading && filteredLogs.map((item, index) => (
+                                                <tr key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', background: index % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
+                                                    <td style={{ padding: '12px 16px' }}>{typeBadge(item.email_type)}</td>
+                                                    <td title={item.subject} style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-primary)', maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.subject}</td>
+                                                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{item.recipient_email}</td>
+                                                    <td style={{ padding: '12px 16px' }}>{statusBadge(item.status)}</td>
+                                                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{fmt(item.created_at)}</td>
+                                                    <td title={item.error_message} style={{ padding: '12px 16px', fontSize: 11, color: '#fca5a5', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.error_message || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                             {pagination(lPage, lTotalPages, fetchLogs)}
                         </>
                     )}
