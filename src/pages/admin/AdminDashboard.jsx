@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { readResponsePayload } from '../../utils/http';
+import { readResponsePayload } from '../../utils/http'; 
 import AdminThemeToggle from './AdminThemeToggle';
 import AdminBrandLogo from './AdminBrandLogo';
 import { useAdminTheme } from './adminTheme';
@@ -161,7 +161,7 @@ const AdminDashboard = () => {
         navigate(adminUrl());
     };
 
-    const fetchConsultants = async (
+    const fetchConsultants = useCallback(async (
         pg = 1,
         currentSearch = search,
         currentStatuses = statusFilters,
@@ -191,8 +191,9 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [credentialsFilter, navigate, search, statusFilter, token, verificationFilter]);
 
+    // Fetch once on mount, then debounce search/filter changes into a single request.
     useEffect(() => {
         if (!token && !import.meta.env.DEV) navigate(adminUrl());
     }, [navigate, token]);
