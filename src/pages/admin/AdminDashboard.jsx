@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
@@ -191,7 +191,7 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [credentialsFilter, navigate, search, statusFilter, token, verificationFilter]);
+    }, [assessmentSubstatusFilter, joinedDateFilter, navigate, search, statusFilters, token]);
 
     // Fetch once on mount, then debounce search/filter changes into a single request.
     useEffect(() => {
