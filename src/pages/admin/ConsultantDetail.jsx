@@ -458,7 +458,7 @@ const ConsultantDetail = () => {
                 position: 'sticky', top: 0, zIndex: 30,
             }}>
                 <div style={{
-                    maxWidth: 1000,
+                    maxWidth: 1500,
                     margin: '0 auto',
                     padding: isMobile ? '10px 12px' : '0 32px',
                     minHeight: 60,
@@ -494,7 +494,7 @@ const ConsultantDetail = () => {
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '14px 10px 18px' : '28px 32px' }}>
+            <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '14px 10px 18px' : '28px 32px' }}>
 
                 {isCredentialsFailed && (
                     <div style={{

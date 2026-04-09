@@ -83,6 +83,7 @@ const AdminDashboard = () => {
     const [statusFilters, setStatusFilters] = useState([]);
     const [assessmentSubstatusFilter, setAssessmentSubstatusFilter] = useState('all');
     const [joinedDateFilter, setJoinedDateFilter] = useState('all');
+    const [cardFilter, setCardFilter] = useState('total');
     const [sortKey, setSortKey] = useState('created_at');
     const [sortDir, setSortDir] = useState('desc');
     const [loading, setLoading] = useState(true);
@@ -109,6 +110,7 @@ const AdminDashboard = () => {
 
     const summaryCards = [
         {
+            filterKey: 'total',
             label: 'Total',
             value: totalValue,
             accent: isLight ? '#64748B' : '#94A3B8',
@@ -118,6 +120,7 @@ const AdminDashboard = () => {
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(24,35,56,0.95) 100%)',
         },
         {
+            filterKey: 'consultants',
             label: 'Consultants',
             value: consultantsValue,
             accent: isLight ? '#059669' : '#34D399',
@@ -127,6 +130,7 @@ const AdminDashboard = () => {
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(12,44,42,0.92) 100%)',
         },
         {
+            filterKey: 'in_progress',
             label: 'In Progress',
             value: inProgressValue,
             accent: isLight ? '#2563EB' : '#60A5FA',
@@ -136,6 +140,7 @@ const AdminDashboard = () => {
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(18,35,73,0.92) 100%)',
         },
         {
+            filterKey: 'spam_leads',
             label: 'Spam Leads',
             value: spamLeadsValue,
             accent: isLight ? '#D97706' : '#FBBF24',
@@ -145,6 +150,7 @@ const AdminDashboard = () => {
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(54,39,16,0.92) 100%)',
         },
         {
+            filterKey: 'disqualified',
             label: 'Disqualified',
             value: disqualifiedValue,
             accent: isLight ? '#DC2626' : '#FB7185',
@@ -167,6 +173,7 @@ const AdminDashboard = () => {
         currentStatuses = statusFilters,
         currentAssessmentSubstatus = assessmentSubstatusFilter,
         currentJoinedDate = joinedDateFilter,
+        currentCardFilter = cardFilter,
     ) => {
         setLoading(true);
         setError('');
@@ -178,6 +185,7 @@ const AdminDashboard = () => {
                 params.set('assessment_substatus', currentAssessmentSubstatus);
             }
             if (currentJoinedDate !== 'all') params.set('joined_range', currentJoinedDate);
+            if (currentCardFilter && currentCardFilter !== 'total') params.set('card_filter', currentCardFilter);
             const res = await fetch(apiUrl(`/admin-panel/consultants/?${params}`), { headers: authHeaders });
             if (res.status === 401 || res.status === 403) return resetSession();
             const data = await res.json();
@@ -191,7 +199,7 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [assessmentSubstatusFilter, joinedDateFilter, navigate, search, statusFilters, token]);
+    }, [assessmentSubstatusFilter, cardFilter, joinedDateFilter, navigate, search, statusFilters, token]);
 
     // Fetch once on mount, then debounce search/filter changes into a single request.
     useEffect(() => {
@@ -205,7 +213,7 @@ const AdminDashboard = () => {
         }
         searchRef.current = search;
         const timer = setTimeout(() => {
-            if (searchRef.current === search) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter);
+            if (searchRef.current === search) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter);
         }, 350);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -213,9 +221,9 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         if (!token && !import.meta.env.DEV) return;
-        fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter);
+        fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilters, assessmentSubstatusFilter, joinedDateFilter]);
+    }, [statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter]);
 
     useEffect(() => {
         if (!showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
@@ -331,6 +339,7 @@ const AdminDashboard = () => {
     };
 
     const toggleStatusFilter = (statusValue) => {
+        setCardFilter('total');
         setStatusFilters((prev) => (
             prev.includes(statusValue)
                 ? prev.filter((value) => value !== statusValue)
@@ -344,6 +353,13 @@ const AdminDashboard = () => {
             ? statusFilters[0]
             : `${statusFilters.length} statuses`;
 
+    const handleCardFilterChange = (nextCardFilter) => {
+        setCardFilter(nextCardFilter);
+        setStatusMenuOpen(false);
+        setStatusFilters([]);
+        setAssessmentSubstatusFilter('all');
+    };
+
     const handleExportExcel = async () => {
         setExporting(true);
         try {
@@ -354,17 +370,24 @@ const AdminDashboard = () => {
                 params.set('assessment_substatus', assessmentSubstatusFilter);
             }
             if (joinedDateFilter !== 'all') params.set('joined_range', joinedDateFilter);
+            if (cardFilter && cardFilter !== 'total') params.set('card_filter', cardFilter);
             const res = await fetch(apiUrl(`/admin-panel/consultants/export/?${params}`), { headers: authHeaders });
             if (res.status === 401 || res.status === 403) return resetSession();
-            if (!res.ok) return alert('Export failed');
+            if (!res.ok) {
+                const payload = await readResponsePayload(res);
+                return alert(payload.error || payload.detail || 'Export failed');
+            }
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `consultants_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            const contentDisposition = res.headers.get('content-disposition') || '';
+            const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+            const serverFilename = filenameMatch ? decodeURIComponent(filenameMatch[1].replace(/"/g, '')) : '';
+            a.download = serverFilename || `consultants_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
             document.body.appendChild(a);
             a.click();
-            window.URL.revokeObjectURL(url);
+            window.setTimeout(() => window.URL.revokeObjectURL(url), 1200);
             document.body.removeChild(a);
         } catch {
             alert('Failed to export');
@@ -431,12 +454,14 @@ const AdminDashboard = () => {
                     marginBottom: isMobile ? 14 : 22,
                 }}>
                     {summaryCards.map((card) => (
-                        <div
+                        <button
+                            type="button"
                             key={card.label}
+                            onClick={() => handleCardFilterChange(card.filterKey)}
                             style={{
                                 minHeight: isMobile ? 90 : 108,
                                 borderRadius: 18,
-                                border: `1px solid ${card.border}`,
+                                border: `1px solid ${cardFilter === card.filterKey ? card.accent : card.border}`,
                                 background: card.background,
                                 boxShadow: isLight
                                     ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
@@ -445,6 +470,12 @@ const AdminDashboard = () => {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 justifyContent: 'space-between',
+                                width: '100%',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                transform: cardFilter === card.filterKey ? 'translateY(-1px)' : 'none',
+                                transition: 'border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease',
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -475,7 +506,7 @@ const AdminDashboard = () => {
                             }}>
                                 {card.value}
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
 
@@ -577,6 +608,7 @@ const AdminDashboard = () => {
                                         <button
                                             type="button"
                                             onClick={() => {
+                                                setCardFilter('total');
                                                 setStatusFilters([]);
                                                 setAssessmentSubstatusFilter('all');
                                             }}
@@ -620,7 +652,7 @@ const AdminDashboard = () => {
                         <select value={joinedDateFilter} onChange={(e) => setJoinedDateFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
                             {JOINED_DATE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
-                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all') && <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilters([]); setAssessmentSubstatusFilter('all'); setJoinedDateFilter('all'); setStatusMenuOpen(false); }} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>Clear</button>}
+                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total') && <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilters([]); setAssessmentSubstatusFilter('all'); setJoinedDateFilter('all'); setCardFilter('total'); setStatusMenuOpen(false); }} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>Clear</button>}
                     </div>
                     {statusFilters.length > 0 && (
                         <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -780,7 +812,7 @@ const AdminDashboard = () => {
                                 })}
                                 {sorted.length === 0 && (
                                     <div style={{ padding: 24, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>
-                                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all')
+                                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total')
                                             ? 'No consultants match your current filters.'
                                             : 'No consultants found.'}
                                     </div>
@@ -834,7 +866,7 @@ const AdminDashboard = () => {
                                                 </tr>
                                             );
                                         })}
-                                        {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
+                                        {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
                                     </tbody>
                                 </table>
                             </div>
