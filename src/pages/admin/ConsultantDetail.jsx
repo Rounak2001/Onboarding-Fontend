@@ -543,7 +543,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader('Profile Details', 'profile', '👤',
                         p.is_verified && (
-                            !p.has_credentials ? (
+                            (!p.has_credentials || isCredentialsFailed) ? (
                                 canManageRestrictedActions ? (
                                     <button
                                         onClick={handleGenerateCredentials}

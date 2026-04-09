@@ -75,6 +75,7 @@ const AdminDashboard = () => {
     const { isLight, themeVars, toggleTheme } = useAdminTheme();
     const token = localStorage.getItem('admin_token');
     const searchRef = useRef('');
+    const hasInitializedSearchEffect = useRef(false);
     const statusMenuRef = useRef(null);
     const [consultants, setConsultants] = useState([]);
     const [stats, setStats] = useState({ total: 0, status_counts: {} });
@@ -188,12 +189,14 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
-        if (!token && !import.meta.env.DEV) return navigate(adminUrl());
-        fetchConsultants(1);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        if (!token && !import.meta.env.DEV) navigate(adminUrl());
+    }, [navigate, token]);
 
     useEffect(() => {
+        if (!hasInitializedSearchEffect.current) {
+            hasInitializedSearchEffect.current = true;
+            return undefined;
+        }
         searchRef.current = search;
         const timer = setTimeout(() => {
             if (searchRef.current === search) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter);
@@ -203,6 +206,7 @@ const AdminDashboard = () => {
     }, [search]);
 
     useEffect(() => {
+        if (!token && !import.meta.env.DEV) return;
         fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [statusFilters, assessmentSubstatusFilter, joinedDateFilter]);
