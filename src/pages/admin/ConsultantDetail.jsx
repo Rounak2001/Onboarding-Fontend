@@ -49,7 +49,11 @@ const ConsultantDetail = () => {
     const [callLogs, setCallLogs] = useState([]);
     const [savingCallTracking, setSavingCallTracking] = useState(false);
     const [selectedFeedbackId, setSelectedFeedbackId] = useState(null);
+    const [viewportWidth, setViewportWidth] = useState(
+        () => (typeof window !== 'undefined' ? window.innerWidth : 1280),
+    );
     const renderInBody = (node) => (typeof document !== 'undefined' ? createPortal(node, document.body) : node);
+    const isMobile = viewportWidth <= 768;
 
     const token = getAdminToken();
     const adminRole = getAdminRole();
@@ -59,6 +63,13 @@ const ConsultantDetail = () => {
         if (!token) { navigate(adminUrl()); return; }
         fetchDetail();
     }, [id]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const fetchDetail = async () => {
         try {
@@ -314,8 +325,13 @@ const ConsultantDetail = () => {
 
     const sectionHeader = (title, key, icon, action = null) => (
         <div onClick={() => toggle(key)} style={{
-            padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12,
-            cursor: 'pointer', borderBottom: openSections[key] ? '1px solid rgba(148,163,184,0.08)' : 'none',
+            padding: isMobile ? '14px 12px' : '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? 8 : 12,
+            flexWrap: isMobile ? 'wrap' : 'nowrap',
+            cursor: 'pointer',
+            borderBottom: openSections[key] ? '1px solid rgba(148,163,184,0.08)' : 'none',
             transition: 'background 0.15s',
         }}
             onMouseEnter={(e) => e.currentTarget.style.background = isLight ? 'rgba(59,130,246,0.06)' : 'rgba(16,185,129,0.03)'}
@@ -335,8 +351,14 @@ const ConsultantDetail = () => {
     const fieldRow = (label, value) => {
         const isEmpty = value === null || value === undefined || value === '';
         return (
-            <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
-                <span style={{ width: 180, fontSize: 13, color: 'var(--admin-text-muted)', fontWeight: 500, flexShrink: 0 }}>{label}</span>
+            <div style={{
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? 4 : 0,
+                padding: '10px 0',
+                borderBottom: '1px solid rgba(148,163,184,0.06)',
+            }}>
+                <span style={{ width: isMobile ? 'auto' : 180, fontSize: 13, color: 'var(--admin-text-muted)', fontWeight: 500, flexShrink: 0 }}>{label}</span>
                 <span style={{ fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 500, wordBreak: 'break-all' }}>
                     {isEmpty ? <span style={{ color: 'var(--admin-text-muted)' }}>—</span> : value}
                 </span>
@@ -436,25 +458,31 @@ const ConsultantDetail = () => {
                 position: 'sticky', top: 0, zIndex: 30,
             }}>
                 <div style={{
-                    maxWidth: 1000, margin: '0 auto', padding: '0 32px',
-                    height: 60, display: 'flex', alignItems: 'center', gap: 14,
+                    maxWidth: 1500,
+                    margin: '0 auto',
+                    padding: isMobile ? '10px 12px' : '0 32px',
+                    minHeight: 60,
+                    display: 'flex',
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    flexWrap: isMobile ? 'wrap' : 'nowrap',
+                    gap: isMobile ? 10 : 14,
                 }}>
                     <AdminBrandLogo isLight={isLight} height={26} />
                     <button onClick={() => navigate(adminUrl('dashboard'))} style={{
-                        padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        padding: isMobile ? '7px 10px' : '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                         background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)',
                         border: '1px solid var(--admin-border-mid)', cursor: 'pointer',
                     }}>
                         ← Back
                     </button>
-                    <div style={{ flex: 1 }}>
-                        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--admin-text-strong)' }}>{p.full_name || p.email}</span>
-                        <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginLeft: 10 }}>{p.email}</span>
+                    <div style={{ flex: 1, minWidth: isMobile ? '100%' : 0 }}>
+                        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--admin-text-strong)', display: 'inline-block', wordBreak: 'break-word' }}>{p.full_name || p.email}</span>
+                        <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginLeft: isMobile ? 0 : 10, display: 'inline-block', wordBreak: 'break-word' }}>{p.email}</span>
                     </div>
                     <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
                     {canManageRestrictedActions && (
                         <button onClick={handleDeleteConsultant} disabled={deleting} style={{
-                            padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            padding: isMobile ? '7px 10px' : '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                             background: deleting ? 'var(--admin-border-strong)' : 'rgba(239,68,68,0.12)',
                             color: deleting ? 'var(--admin-text-secondary)' : '#f87171',
                             border: '1px solid rgba(239,68,68,0.25)', cursor: deleting ? 'not-allowed' : 'pointer',
@@ -466,12 +494,12 @@ const ConsultantDetail = () => {
                 </div>
             </header>
 
-            <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 32px' }}>
+            <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '14px 10px 18px' : '28px 32px' }}>
 
                 {isCredentialsFailed && (
                     <div style={{
                         marginBottom: 20,
-                        padding: '20px 22px',
+                        padding: isMobile ? '14px 12px' : '20px 22px',
                         borderRadius: 16,
                         border: '1px solid rgba(249,115,22,0.35)',
                         background: isLight
@@ -486,7 +514,7 @@ const ConsultantDetail = () => {
                             gap: 20,
                             flexWrap: 'wrap',
                         }}>
-                            <div style={{ flex: '1 1 420px' }}>
+                            <div style={{ flex: '1 1 420px', minWidth: isMobile ? '100%' : 0 }}>
                                 <div style={{
                                     fontSize: 12,
                                     fontWeight: 800,
@@ -529,7 +557,8 @@ const ConsultantDetail = () => {
                                         cursor: generating ? 'not-allowed' : 'pointer',
                                         boxShadow: generating ? 'none' : '0 10px 24px rgba(249,115,22,0.28)',
                                         alignSelf: 'center',
-                                        minWidth: 240,
+                                        minWidth: isMobile ? 0 : 240,
+                                        width: isMobile ? '100%' : 'auto',
                                     }}
                                 >
                                     {generating ? 'Generating...' : 'Generate Credentials Manually'}
@@ -573,8 +602,8 @@ const ConsultantDetail = () => {
                         )
                     )}
                     {openSections.profile && (
-                        <div style={{ padding: '12px 20px 20px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 40px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '12px 20px 20px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 40px' }}>
                                 <div>
                                     {fieldRow('First Name', p.first_name)}
                                     {fieldRow('Middle Name', p.middle_name)}
@@ -596,7 +625,7 @@ const ConsultantDetail = () => {
                                     {fieldRow('Experience', p.years_of_experience ? `${p.years_of_experience} years` : null)}
                                 </div>
                             </div>
-                            <div style={{ marginTop: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
+                            <div style={{ marginTop: 12, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                                 {fieldRow('Joined', p.created_at ? new Date(p.created_at).toLocaleString() : null)}
                                 {fieldRow('Updated', p.updated_at ? new Date(p.updated_at).toLocaleString() : null)}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: p.has_accepted_declaration ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${p.has_accepted_declaration ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
@@ -614,7 +643,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader(`Identity Documents (${identityDocs.length})`, 'identity', '🪪')}
                     {openSections.identity && (
-                        <div style={{ padding: '12px 20px 20px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '12px 20px 20px' }}>
                             {identityDocs.length === 0 ? (
                                 <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>No identity documents uploaded.</p>
                             ) : identityDocs.map((doc, i) => (
@@ -624,7 +653,7 @@ const ConsultantDetail = () => {
                                 }}>
                                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                                         {/* Image Section */}
-                                        <div style={{ flex: '0 0 auto', width: 200 }}>
+                                        <div style={{ flex: '0 0 auto', width: isMobile ? '100%' : 200 }}>
                                             {doc.file_url ? (
                                                 <div style={{ marginBottom: 8 }}>
                                                     <img src={doc.file_url} alt="Identity Document" style={{ ...imgStyle, cursor: 'pointer', height: 140, objectFit: 'cover', width: '100%' }}
@@ -642,7 +671,7 @@ const ConsultantDetail = () => {
                                         </div>
 
                                         {/* Verification Details Section */}
-                                        <div style={{ flex: 1, minWidth: 250, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        <div style={{ flex: 1, minWidth: isMobile ? 0 : 250, display: 'flex', flexDirection: 'column', gap: 12 }}>
                                             <div style={{ padding: 16, background: 'var(--admin-surface-strong)', borderRadius: 12, border: '1px solid rgba(148,163,184,0.08)', boxShadow: isLight ? '0 12px 24px rgba(148,163,184,0.08)' : 'none', height: '100%' }}>
                                                 <div style={{ fontSize: 12, fontWeight: 700, color: '#60a5fa', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                                                     AI Verification Results
@@ -699,7 +728,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader(`Face Verification (${faceRecords.length})`, 'face', '📸')}
                     {openSections.face && (
-                        <div style={{ padding: '12px 20px 20px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '12px 20px 20px' }}>
                             {faceRecords.length === 0 ? (
                                 <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>No face verification records.</p>
                             ) : faceRecords.map((f, i) => (
@@ -709,32 +738,32 @@ const ConsultantDetail = () => {
                                 }}>
                                     {/* Photos side by side */}
                                     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
-                                        <div>
+                                        <div style={{ width: isMobile ? '100%' : 200, maxWidth: isMobile ? 'none' : 200 }}>
                                             <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                                                 ID Photo
                                             </div>
                                             {f.id_image_url ? (
                                                 <img src={f.id_image_url} alt="ID Photo"
                                                     onClick={() => setSelectedImage(f.id_image_url)}
-                                                    style={{ width: 200, height: 240, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--admin-border-soft)', cursor: 'pointer' }}
-                                                    onError={(e) => { e.target.outerHTML = '<div style="width:200px;height:240px;border-radius:8px;background:var(--admin-empty-bg);display:flex;align-items:center;justify-content:center;color:var(--admin-text-muted);font-size:12px">Failed to load</div>'; }} />
+                                                    style={{ width: '100%', height: isMobile ? 220 : 240, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--admin-border-soft)', cursor: 'pointer' }}
+                                                    onError={(e) => { e.target.outerHTML = '<div style="width:100%;height:220px;border-radius:8px;background:var(--admin-empty-bg);display:flex;align-items:center;justify-content:center;color:var(--admin-text-muted);font-size:12px">Failed to load</div>'; }} />
                                             ) : (
-                                                <div style={{ width: 200, height: 240, borderRadius: 8, background: 'var(--admin-empty-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-muted)', fontSize: 12 }}>
+                                                <div style={{ width: '100%', height: isMobile ? 220 : 240, borderRadius: 8, background: 'var(--admin-empty-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-muted)', fontSize: 12 }}>
                                                     No image
                                                 </div>
                                             )}
                                         </div>
-                                        <div>
+                                        <div style={{ width: isMobile ? '100%' : 200, maxWidth: isMobile ? 'none' : 200 }}>
                                             <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                                                 Live Photo
                                             </div>
                                             {f.live_image_url ? (
                                                 <img src={f.live_image_url} alt="Live Photo"
                                                     onClick={() => setSelectedImage(f.live_image_url)}
-                                                    style={{ width: 200, height: 240, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--admin-border-soft)', cursor: 'pointer' }}
-                                                    onError={(e) => { e.target.outerHTML = '<div style="width:200px;height:240px;border-radius:8px;background:var(--admin-empty-bg);display:flex;align-items:center;justify-content:center;color:var(--admin-text-muted);font-size:12px">Failed to load</div>'; }} />
+                                                    style={{ width: '100%', height: isMobile ? 220 : 240, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--admin-border-soft)', cursor: 'pointer' }}
+                                                    onError={(e) => { e.target.outerHTML = '<div style="width:100%;height:220px;border-radius:8px;background:var(--admin-empty-bg);display:flex;align-items:center;justify-content:center;color:var(--admin-text-muted);font-size:12px">Failed to load</div>'; }} />
                                             ) : (
-                                                <div style={{ width: 200, height: 240, borderRadius: 8, background: 'var(--admin-empty-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-muted)', fontSize: 12 }}>
+                                                <div style={{ width: '100%', height: isMobile ? 220 : 240, borderRadius: 8, background: 'var(--admin-empty-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-muted)', fontSize: 12 }}>
                                                     No image
                                                 </div>
                                             )}
@@ -765,7 +794,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader(`Assessment Sessions (${sessions.length})`, 'assessment', '📝')}
                     {openSections.assessment && (
-                        <div style={{ padding: '12px 20px 20px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '12px 20px 20px' }}>
                             {sessions.length === 0 ? (
                                 <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>No assessment sessions.</p>
                             ) : sessions.map((s, i) => (
@@ -843,7 +872,7 @@ const ConsultantDetail = () => {
                                     </div>
 
                                     {/* Score cards */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 14 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, 1fr)', gap: 12, marginBottom: 14 }}>
                                         <div style={{ padding: 12, borderRadius: 8, background: 'var(--admin-surface)', border: '1px solid rgba(148,163,184,0.06)', textAlign: 'center' }}>
                                             <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>
                                                 {(s.mcq_score ?? s.score ?? 0)}/{s.mcq_total ?? (s.question_set?.length || 50)}
@@ -902,7 +931,7 @@ const ConsultantDetail = () => {
                                     {s.violations?.length > 0 && (
                                         <div style={{ marginBottom: 12 }}>
                                             <div style={{ fontSize: 12, fontWeight: 700, color: '#f87171', marginBottom: 8 }}>Violation Log</div>
-                                            <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(239,68,68,0.1)' }}>
+                                            <div style={{ borderRadius: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid rgba(239,68,68,0.1)' }}>
                                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                                     <thead>
                                                         <tr style={{ background: 'rgba(239,68,68,0.05)' }}>
@@ -1095,7 +1124,7 @@ const ConsultantDetail = () => {
                                                         <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 800, color: 'var(--admin-text-primary)' }}>
                                                             View recent telemetry ({s.proctoring_audio_telemetry.length})
                                                         </summary>
-                                                        <div style={{ marginTop: 10, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                                        <div style={{ marginTop: 10, borderRadius: 10, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid rgba(148,163,184,0.08)' }}>
                                                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                                                 <thead>
                                                                     <tr style={{ background: 'rgba(148,163,184,0.06)' }}>
@@ -1259,7 +1288,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader(`Uploaded Documents (${qualDocs.length + consultDocs.length})`, 'documents', '📄')}
                     {openSections.documents && (
-                        <div style={{ padding: '12px 20px 20px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '12px 20px 20px' }}>
                             {qualDocs.length === 0 && consultDocs.length === 0 ? (
                                 <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>No documents uploaded.</p>
                             ) : (
@@ -1330,7 +1359,7 @@ const ConsultantDetail = () => {
                                                 }}>
                                                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                                                         {/* Document Preview Section */}
-                                                        <div style={{ flex: '0 0 auto', width: 220 }}>
+                                                        <div style={{ flex: '0 0 auto', width: isMobile ? '100%' : 220 }}>
                                                             <div style={{ marginBottom: 10 }}>
                                                                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--admin-text-primary)', display: 'block' }}>{d.qualification_type}</span>
                                                                 <span style={{ fontSize: 12, color: 'var(--admin-text-secondary)' }}>{d.document_type}</span>
@@ -1371,7 +1400,7 @@ const ConsultantDetail = () => {
                                                         </div>
 
                                                         {/* Verification Details Section */}
-                                                        <div style={{ flex: 1, minWidth: 250, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                                        <div style={{ flex: 1, minWidth: isMobile ? 0 : 250, display: 'flex', flexDirection: 'column', gap: 12 }}>
                                                             <div style={{ padding: 16, background: 'var(--admin-surface-strong)', borderRadius: 10, border: '1px solid rgba(148,163,184,0.05)', height: '100%' }}>
                                                                 <div style={{ fontSize: 12, fontWeight: 700, color: '#60a5fa', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                                                                     AI Verification Results
@@ -1466,7 +1495,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader('Candidate Feedback', 'feedback', '💬')}
                     {openSections.feedback && (
-                        <div style={{ padding: '16px 20px 20px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '16px 20px 20px' }}>
                             {feedbackEntries.length === 0 ? (
                                 <p style={{ color: 'var(--admin-text-muted)', fontSize: 13, margin: 0 }}>
                                     No onboarding feedback submitted yet.
@@ -1534,7 +1563,7 @@ const ConsultantDetail = () => {
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
                                         <div style={{ padding: 14, borderRadius: 12, background: 'var(--admin-surface-accent)', border: '1px solid rgba(148,163,184,0.08)' }}>
                                             <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', marginBottom: 8, fontWeight: 700 }}>What Went Well</div>
                                             <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--admin-text-primary)', whiteSpace: 'pre-wrap' }}>
@@ -1601,7 +1630,7 @@ const ConsultantDetail = () => {
                 <div style={sectionStyle}>
                     {sectionHeader('Call Tracking', 'callTracking', '📞')}
                     {openSections.callTracking && (
-                        <div style={{ padding: '16px 20px 20px' }}>
+                        <div style={{ padding: isMobile ? '12px 12px 16px' : '16px 20px 20px' }}>
                             <div style={{
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -1623,7 +1652,7 @@ const ConsultantDetail = () => {
                             </div>
 
                             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary-soft)', marginBottom: 12 }}>Add New Call Entry</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
                                 <div>
                                     <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', marginBottom: 6, fontWeight: 700 }}>Caller</div>
                                     <select
@@ -1671,7 +1700,7 @@ const ConsultantDetail = () => {
                                 </label>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 18 }}>
                                 <div>
                                     <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', marginBottom: 6, fontWeight: 700 }}>Comments</div>
                                     <textarea
@@ -1763,7 +1792,7 @@ const ConsultantDetail = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                     <div>
                                                         <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginBottom: 4 }}>Comments</div>
                                                         <div style={{ fontSize: 13, color: 'var(--admin-text-primary-soft)', lineHeight: 1.5 }}>{log.comments || '—'}</div>
@@ -1788,10 +1817,11 @@ const ConsultantDetail = () => {
             {credentialsPopup && renderInBody(
                 <div style={{
                     position: 'fixed', inset: 0, zIndex: 100,
-                    background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: isMobile ? 10 : 20,
                 }} onClick={() => setCredentialsPopup(null)}>
                     <div style={{
-                        background: 'var(--admin-base-1)', padding: 32, borderRadius: 16, width: 400,
+                        background: 'var(--admin-base-1)', padding: isMobile ? 18 : 32, borderRadius: 16, width: isMobile ? '100%' : 400, maxWidth: 400,
                         border: '1px solid var(--admin-border-soft)', textAlign: 'center',
                         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
                     }} onClick={e => e.stopPropagation()}>
@@ -1829,12 +1859,12 @@ const ConsultantDetail = () => {
                 selectedSnapshot && renderInBody(
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 110,
-                        background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                        background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 8 : 20
                     }} onClick={() => setSelectedSnapshot(null)}>
                         <div style={{
                             position: 'relative',
                             width: '100%',
-                            maxWidth: 980,
+                            maxWidth: isMobile ? '100%' : 980,
                             maxHeight: '90vh',
                             background: 'var(--admin-base-1)',
                             borderRadius: 16,
@@ -1844,12 +1874,13 @@ const ConsultantDetail = () => {
                             overflow: 'hidden',
                         }} onClick={e => e.stopPropagation()}>
                             <div style={{
-                                padding: '14px 18px',
+                                padding: isMobile ? '12px 10px' : '14px 18px',
                                 borderBottom: '1px solid var(--admin-border-soft)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 gap: 10,
+                                flexWrap: isMobile ? 'wrap' : 'nowrap',
                                 background: 'var(--admin-surface-soft)',
                             }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -1870,7 +1901,7 @@ const ConsultantDetail = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
                                     <button
                                         className="tp-btn"
                                         onClick={async () => {
@@ -1926,8 +1957,8 @@ const ConsultantDetail = () => {
                                 </div>
                             </div>
 
-                            <div style={{ padding: 18, overflowY: 'auto' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 16 }}>
+                            <div style={{ padding: isMobile ? 10 : 18, overflowY: 'auto' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.25fr 1fr', gap: 16 }}>
                                     <div style={{
                                         borderRadius: 14,
                                         overflow: 'hidden',
@@ -1987,7 +2018,7 @@ const ConsultantDetail = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
                                     <div style={{
                                         borderRadius: 14,
                                         background: 'var(--admin-surface-strong)',
@@ -2059,7 +2090,7 @@ const ConsultantDetail = () => {
                 selectedVideoCard && renderInBody(
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 100,
-                        background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                        background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 8 : 20
                     }} onClick={() => setSelectedVideoCard(null)}>
                         <div style={{
                             position: 'relative', width: '100%', maxWidth: 800, maxHeight: '90vh',
@@ -2069,7 +2100,7 @@ const ConsultantDetail = () => {
 
                             {/* Header */}
                             <div style={{
-                                padding: '16px 24px', borderBottom: '1px solid var(--admin-border-soft)',
+                                padding: isMobile ? '12px 12px' : '16px 24px', borderBottom: '1px solid var(--admin-border-soft)',
                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--admin-surface-soft)'
                             }}>
                                 <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--admin-text-strong)', margin: 0 }}>Video Analysis</h3>
@@ -2082,7 +2113,7 @@ const ConsultantDetail = () => {
                             </div>
 
                             {/* Scrollable Content */}
-                            <div style={{ padding: 24, overflowY: 'auto' }}>
+                            <div style={{ padding: isMobile ? 12 : 24, overflowY: 'auto' }}>
                                 {/* Question */}
                                 <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--admin-text-primary)', marginBottom: 20, lineHeight: 1.5 }}>
                                     {selectedVideoCard.question}
@@ -2092,7 +2123,7 @@ const ConsultantDetail = () => {
                                 <div style={{ marginBottom: 24, borderRadius: 12, overflow: 'hidden', background: '#000', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
                                     <video
                                         controls
-                                        style={{ width: '100%', maxHeight: 400, display: 'block' }}
+                                        style={{ width: '100%', maxHeight: isMobile ? 260 : 400, display: 'block' }}
                                     >
                                         <source src={selectedVideoCard.video_url} type="video/webm" />
                                         Your browser does not support the video tag.
@@ -2100,14 +2131,14 @@ const ConsultantDetail = () => {
                                 </div>
 
                                 {/* Results Grid */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 2fr', gap: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(250px, 1fr) 2fr', gap: isMobile ? 12 : 24 }}>
                                     {/* Score Column */}
                                     <div style={{
                                         padding: 20, background: 'var(--admin-surface-soft)', borderRadius: 12, border: '1px solid rgba(148,163,184,0.08)',
                                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8
                                     }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>AI Score</div>
-                                        <div style={{ fontSize: 48, fontWeight: 800, color: '#10b981' }}>{selectedVideoCard.ai_score}/5</div>
+                                        <div style={{ fontSize: isMobile ? 38 : 48, fontWeight: 800, color: '#10b981' }}>{selectedVideoCard.ai_score}/5</div>
                                         <div style={{
                                             padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
                                             background: 'rgba(16,185,129,0.1)', color: '#34d399'
