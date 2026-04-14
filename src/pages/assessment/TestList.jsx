@@ -351,7 +351,7 @@ const TestList = () => {
                     </div>
                 </header>
 
-                <div style={{ maxWidth: 950, margin: '0 auto', padding: '34px 24px 60px' }}>
+                <div style={{ maxWidth: 1000, margin: '0 auto', padding: '34px 24px 60px' }}>
                 <style>{`
                 @keyframes tp-spin { to { transform: rotate(360deg); } }
                 @keyframes tp-modal-fade {
@@ -373,6 +373,10 @@ const TestList = () => {
                     grid-template-columns: repeat(2, minmax(0, 1fr));
                 }
                 .tp-assessment-card {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: stretch;
+                    justify-content: flex-start;
                     transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
                 }
                 .tp-assessment-card:hover {
@@ -420,13 +424,49 @@ const TestList = () => {
                 }
             `}</style>
 
-                <div style={{ marginBottom: 28 }}>
-                    <span style={{ display: 'inline-block', fontSize: 16, fontWeight: 700, color: '#047857', marginBottom: 14 }}>
+                <div style={{ marginBottom: 20 }}>
+                    <span style={{ display: 'inline-block', fontSize: 16, fontWeight: 700, color: '#047857', marginBottom: 1 }}>
                         {isExpansionMode ? 'Additional Unlock Assessment' : 'Step 4: MCQ'}
                     </span>
                     <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0 }}>
                         {isExpansionMode ? 'Unlock More Categories' : 'Select Assessment Categories'}
                     </h1>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            background: '#fff3d8',
+                            borderLeft: '4px solid #d18416',
+                            borderRadius: '0 8px 8px 0',
+                            padding: '14px 18px',
+                            marginTop: 10,
+                            color: '#5f3b05',
+                            fontSize: 16,
+                            fontWeight: 600,
+                            lineHeight: 1.4,
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 26,
+                                height: 20,
+                                borderRadius: '50%',
+                                border: '1px solid #d18416',
+                                color: '#b56b08',
+                                fontSize: 16,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                            }}
+                        >
+                            !
+                        </span>
+                        <span>Please select only categories you know or provide services for</span>
+                    </div>
                     {/* <p style={{ fontSize: 14, lineHeight: 1.65, color: '#64748b', marginTop: 8 }}>
                         {isExpansionMode
                             ? 'Choose one or more locked categories, then confirm the exact titles you want unlocked. Registrations unlock automatically once any main category has been cleared.'
@@ -546,10 +586,10 @@ const TestList = () => {
                                 <div
                                     style={{
                                         display: 'flex',
-                                        alignItems: 'center',
+                                        alignItems: 'flex-start',
                                         justifyContent: 'space-between',
                                         gap: 12,
-                                        marginBottom: 10,
+                                        marginBottom: 0,
                                     }}
                                 >
                                     <span style={{ fontSize: 11, fontWeight: 800, color: isLocked ? '#64748b' : category.accent, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
@@ -565,6 +605,7 @@ const TestList = () => {
                                             borderRadius: 999,
                                             padding: '5px 9px',
                                             whiteSpace: 'nowrap',
+                                            lineHeight: 1.2,
                                         }}
                                     >
                                         {isLocked ? 'Locked' : isSelected ? `${selectedIds.length} selected` : 'Open selection'}
@@ -574,10 +615,8 @@ const TestList = () => {
                                 <h3 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: 0 }}>
                                     {category.name}
                                 </h3>
-                                <p style={{ fontSize: 14, lineHeight: 1.6, color: '#64748b', margin: '8px 0 12px' }}>
-                                    {isLocked
-                                        ? 'Select a Returns or Notices category first to unlock Registrations.'
-                                        : category.description}
+                                <p style={{ fontSize: 14, lineHeight: 1.6, color: '#64748b', margin: '4px 0 2px' }}>
+                                    {category.description}
                                 </p>
 
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -601,18 +640,14 @@ const TestList = () => {
 
                                 {isLocked ? (
                                     <p style={{ fontSize: 13, lineHeight: 1.55, color: '#475569', margin: '0 0 12px' }}>
-                                        Registrations stays locked until at least one other category is confirmed.
+                                        Registrations stays locked until at least one category is confirmed.
                                     </p>
                                 ) : isSelected ? (
                                     <p style={{ fontSize: 13, lineHeight: 1.55, color: '#0f172a', margin: '0 0 12px', fontWeight: 600 }}>
                                         {previewText}
                                         {remainingCount > 0 ? ` +${remainingCount} more` : ''}
                                     </p>
-                                ) : (
-                                    <p style={{ fontSize: 13, lineHeight: 1.55, color: '#64748b', margin: '0 0 12px' }}>
-                                        Choose the exact titles included in this category before continuing.
-                                    </p>
-                                )}
+                                ) : null}
 
                                 <div
                                     style={{
@@ -620,12 +655,13 @@ const TestList = () => {
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
                                         gap: 12,
-                                        fontSize: 12,
+                                        fontSize: 13,
                                         color: '#64748b',
+                                        marginTop: 'auto',
                                     }}
                                 >
-                                    <span>{category.services.length} selectable titles</span>
-                                    <span style={{ color: isLocked ? '#64748b' : category.accent, fontWeight: 700 }}>
+                                    {/* <span>{category.services.length} selectable titles</span> */}
+                                    <span style={{ color: isLocked ? '#64748b' : category.accent, fontWeight: 800 }}>
                                         {isLocked ? 'Unlock first' : isSelected ? 'Edit category' : 'Select category'}
                                     </span>
                                 </div>

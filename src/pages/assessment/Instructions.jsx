@@ -195,6 +195,7 @@ const Instructions = () => {
         'Questions are distributed evenly across your selected domains.',
         'Each MCQ has 4 options with one correct answer.',
         'You cannot go back to previous questions.',
+        'Make sure you have a plain background and good lighting',
         `Fullscreen is mandatory. Exiting fullscreen repeatedly may disqualify your attempt (limit: ${policy.max_fullscreen_exits}).`,
         'Proctoring is active. Keep your camera on during MCQ and allow microphone access for video questions.',
         `${policy.max_webcam_warnings} webcam violations or ${policy.max_tab_warnings} tab switches can lead to disqualification.`,
