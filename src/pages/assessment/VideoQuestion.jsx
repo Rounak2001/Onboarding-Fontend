@@ -403,33 +403,35 @@ export default function VideoQuestion({
     const safeTotalTime = Math.max(1, totalTime || TOTAL_TIME);
     const pct = ((safeTotalTime - Math.max(0, timeLeft)) / safeTotalTime) * 100;
     const isLow = timeLeft < 15;
+    const headerControlHeight = 48;
+    const headerControlMinWidth = 150;
     const timerShellStyle = {
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '10px 18px',
-        borderRadius: 18,
-        border: `1px solid ${isLow ? '#fecaca' : '#bfdbfe'}`,
-        background: isLow
-            ? 'linear-gradient(135deg, rgba(255,245,245,0.98) 0%, rgba(254,226,226,0.98) 100%)'
-            : 'linear-gradient(135deg, rgba(239,246,255,0.98) 0%, rgba(224,242,254,0.98) 52%, rgba(224,231,255,0.98) 100%)',
-        boxShadow: isLow
-            ? '0 10px 28px rgba(220,38,38,0.22), inset 0 1px 0 rgba(255,255,255,0.85)'
-            : '0 12px 30px rgba(37,99,235,0.18), inset 0 1px 0 rgba(255,255,255,0.9)',
-        minWidth: 132,
+        minHeight: headerControlHeight,
+        boxSizing: 'border-box',
+        padding: '0 18px',
+        borderRadius: 10,
+        border: `1px solid ${isLow ? '#fca5a5' : '#d1d5db'}`,
+        background: '#ffffff',
+        minWidth: headerControlMinWidth,
         justifyContent: 'center',
     };
     const recordingButtonStyle = {
-        padding: '9px 12px',
+        minHeight: headerControlHeight,
+        minWidth: headerControlMinWidth,
+        boxSizing: 'border-box',
+        padding: '0 18px',
         borderRadius: 10,
-        fontWeight: 600,
-        fontSize: 12,
+        fontWeight: 700,
+        fontSize: 15,
         border: 'none',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 6,
+        gap: 8,
         flexShrink: 0,
     };
 
@@ -470,10 +472,11 @@ export default function VideoQuestion({
                             onClick={startRecording}
                             style={{
                                 ...recordingButtonStyle,
-                                background: '#059669',
+                                background: '#047857',
                                 color: '#fff',
                             }}
                         >
+                            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: '#d1fae5', boxShadow: 'inset 0 0 0 2px rgba(4,120,87,0.35)' }} />
                             Start Recording
                         </button>
                     )}
@@ -484,10 +487,12 @@ export default function VideoQuestion({
                             onClick={stopRecording}
                             style={{
                                 ...recordingButtonStyle,
-                                background: '#dc2626',
-                                color: '#fff',
+                                background: '#fff1f2',
+                                color: '#b91c1c',
+                                border: '1px solid #fecaca',
                             }}
                         >
+                            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: '#dc2626' }} />
                             Stop Recording
                         </button>
                     )}
@@ -502,7 +507,8 @@ export default function VideoQuestion({
                             }}
                             style={{
                                 ...recordingButtonStyle,
-                                background: '#fff',
+                                minWidth: 120,
+                                background: '#ffffff',
                                 color: '#374151',
                                 border: '1px solid #d1d5db',
                             }}
@@ -517,11 +523,11 @@ export default function VideoQuestion({
                             onClick={() => handleQueueAndAdvance()}
                             style={{
                                 ...recordingButtonStyle,
-                                background: '#059669',
+                                background: '#047857',
                                 color: '#fff',
                             }}
                         >
-                            Submit & Next
+                            Submit & Next <span aria-hidden="true">-&gt;</span>
                         </button>
                     )}
 
@@ -531,7 +537,7 @@ export default function VideoQuestion({
                                 width: 10,
                                 height: 10,
                                 borderRadius: '50%',
-                                background: isLow ? '#dc2626' : '#2563eb',
+                                background: isLow ? '#dc2626' : '#3b82f6',
                                 boxShadow: isLow
                                     ? '0 0 0 5px rgba(220,38,38,0.16), 0 0 18px rgba(220,38,38,0.45)'
                                     : '0 0 0 5px rgba(37,99,235,0.12), 0 0 18px rgba(37,99,235,0.32)',
@@ -539,19 +545,16 @@ export default function VideoQuestion({
                                 flexShrink: 0,
                             }}
                         />
-                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', color: isLow ? '#b91c1c' : '#1d4ed8' }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', color: '#6b7280' }}>
                             TIMER
                         </span>
                         <span
                             style={{
                                 fontFamily: 'monospace',
                                 fontWeight: 800,
-                                fontSize: 22,
+                                fontSize: 20,
                                 letterSpacing: '0.04em',
-                                color: isLow ? '#991b1b' : '#0f172a',
-                                textShadow: isLow
-                                    ? '0 0 14px rgba(220,38,38,0.18)'
-                                    : '0 0 18px rgba(59,130,246,0.14)',
+                                color: isLow ? '#991b1b' : '#111827',
                             }}
                         >
                             {formatTime(timeLeft)}
