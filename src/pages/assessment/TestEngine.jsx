@@ -12,6 +12,7 @@ const DEFAULT_PROCTORING_POLICY = {
     MAX_TAB_WARNINGS: 3,
     MAX_WEBCAM_WARNINGS: 3,
     FULLSCREEN_REENTRY_GRACE_SECONDS: 10,
+    SNAPSHOT_INTERVAL_MS: 20000,
 };
 const ENABLE_DEV_DIAGNOSTICS = import.meta.env.DEV && String(
     import.meta.env.VITE_PROCTORING_DEBUG ?? 'false'
@@ -28,8 +29,8 @@ const FACE_LANDMARKER_MODEL_URL =
 const TASKS_VISION_WASM_BASE_URL =
     String(import.meta.env.VITE_TASKS_VISION_WASM_BASE_URL || '').trim()
     || 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
-const MCQ_SNAPSHOT_BASE_MS = 10000;
-const VIDEO_SNAPSHOT_BASE_MS = 10000;
+const MCQ_SNAPSHOT_BASE_MS = 20000;
+const VIDEO_SNAPSHOT_BASE_MS = 20000;
 const AUDIO_RMS_THRESHOLD = 0.035;
 const AUDIO_TELEMETRY_SAMPLE_MS = 200;
 const AUDIO_TELEMETRY_POST_MS = 5000;
@@ -42,7 +43,7 @@ const MAX_SILENT_FAILURES = 5;
 const SNAPSHOT_MAX_RETRIES = 8;
 const SNAPSHOT_RETRY_BASE_MS = 2000;
 const SNAPSHOT_RETRY_MAX_MS = 60000;
-const MIN_SNAPSHOT_INTERVAL_MS = 6000;
+const MIN_SNAPSHOT_INTERVAL_MS = 12000;
 const VIDEO_QUESTION_TIME_SECONDS = 120;
 
 const computeSnapshotRetryDelayMs = (retryCount) => {
@@ -443,6 +444,7 @@ const TestEngine = () => {
                     MAX_TAB_WARNINGS: thresholds.max_tab_warnings ?? DEFAULT_PROCTORING_POLICY.MAX_TAB_WARNINGS,
                     MAX_WEBCAM_WARNINGS: thresholds.max_webcam_warnings ?? DEFAULT_PROCTORING_POLICY.MAX_WEBCAM_WARNINGS,
                     FULLSCREEN_REENTRY_GRACE_SECONDS: thresholds.fullscreen_reentry_grace_seconds ?? DEFAULT_PROCTORING_POLICY.FULLSCREEN_REENTRY_GRACE_SECONDS,
+                    SNAPSHOT_INTERVAL_MS: thresholds.snapshot_interval_ms ?? DEFAULT_PROCTORING_POLICY.SNAPSHOT_INTERVAL_MS,
                 });
             } catch (err) {
                 console.error('Failed to load proctoring policy:', err);
@@ -815,8 +817,8 @@ const TestEngine = () => {
     }, []);
 
     const getAdaptiveSnapshotCadenceMs = useCallback(() => {
-        return isVideoSection ? VIDEO_SNAPSHOT_BASE_MS : MCQ_SNAPSHOT_BASE_MS;
-    }, [isVideoSection]);
+        return proctoringPolicy.SNAPSHOT_INTERVAL_MS;
+    }, [proctoringPolicy.SNAPSHOT_INTERVAL_MS]);
 
     const setSnapshotDebugTelemetry = useCallback((updater) => {
         if (!SHOW_PROCTORING_DEBUG && !SHOW_DETECTOR_FALLBACK_NOTICE) return;
@@ -1276,7 +1278,7 @@ const TestEngine = () => {
                         console.error("Heartbeat failed", e);
                     });
             }
-        }, 10000);
+        }, 20000);
         return () => clearInterval(pingInterval);
     }, [session?.id, submissionResult, loading, isSessionExpiredError, redirectToCategoryReselect]);
 
@@ -1741,11 +1743,11 @@ const TestEngine = () => {
 
             setSubmitStatusText('Submitting answers…');
             await submitTest(session.id, { answers });
-            
+
             if (session?.id) {
                 await clearAnswersLocally(session.id);
             }
-            
+
             navigate('/success', {
                 state: { assessment_submitted: true }
             });
@@ -2042,16 +2044,79 @@ const TestEngine = () => {
                             {serverViolationCount > 0 && (
                                 <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>Violations: {serverViolationCount}
                                 </span>
-                            )}
-                            {Object.entries(serverViolationCounters)
-                                .filter(([, count]) => Number(count) > 0)
-                                .map(([vType, count]) => (
-                                    <span key={`server-${vType}`} style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
-                                        {violationTypeLabel(vType)}: {count}
+                            </div>
+                        )}
+                        {isVideoSection && !videoCompleted && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '9px 16px',
+                                borderRadius: 18,
+                                border: `1px solid ${isVideoTimerLow ? 'rgba(254,202,202,0.9)' : 'rgba(125,211,252,0.55)'}`,
+                                background: isVideoTimerLow
+                                    ? 'linear-gradient(135deg, rgba(127,29,29,0.92) 0%, rgba(220,38,38,0.86) 100%)'
+                                    : 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.94) 45%, rgba(30,64,175,0.88) 100%)',
+                                boxShadow: isVideoTimerLow
+                                    ? '0 14px 32px rgba(239,68,68,0.22), inset 0 1px 0 rgba(255,255,255,0.16)'
+                                    : '0 16px 34px rgba(37,99,235,0.18), inset 0 1px 0 rgba(255,255,255,0.14)',
+                            }}>
+                                <span
+                                    style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: '50%',
+                                        background: isVideoTimerLow ? '#fee2e2' : '#67e8f9',
+                                        boxShadow: isVideoTimerLow
+                                            ? '0 0 0 5px rgba(254,226,226,0.14), 0 0 20px rgba(254,226,226,0.34)'
+                                            : '0 0 0 5px rgba(103,232,249,0.12), 0 0 20px rgba(103,232,249,0.26)',
+                                        animation: 'pulse 1.4s infinite',
+                                        flexShrink: 0,
+                                    }}
+                                />
+                                <span style={{ fontSize: 10, fontWeight: 800, color: isVideoTimerLow ? '#fee2e2' : '#bae6fd', letterSpacing: '0.16em' }}>
+                                    VIDEO TIMER
+                                </span>
+                                <span style={{
+                                    fontFamily: 'monospace',
+                                    fontSize: 24,
+                                    fontWeight: 800,
+                                    letterSpacing: '0.05em',
+                                    color: '#f8fafc',
+                                    textShadow: isVideoTimerLow
+                                        ? '0 0 20px rgba(254,202,202,0.32)'
+                                        : '0 0 22px rgba(125,211,252,0.2)',
+                                }}>
+                                    {Math.floor(currentVideoTimeLeft / 60)}:{String(Math.max(0, currentVideoTimeLeft % 60)).padStart(2, '0')}
+                                </span>
+                            </div>
+                        )}
+                        <span style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            padding: '5px 12px',
+                            borderRadius: 20,
+                            background: isOnline ? '#ecfdf5' : '#fff7ed',
+                            color: isOnline ? '#065f46' : '#9a3412',
+                            border: isOnline ? '1px solid #86efac' : '1px solid #fdba74'
+                        }}>
+                            {isOnline ? 'Online' : 'Offline'}
+                        </span>
+                        {serverViolationCount > 0 && (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                {serverViolationCount > 0 && (
+                                    <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>Violations: {serverViolationCount}
                                     </span>
-                                ))}
-                        </div>
-                    )}
+                                )}
+                                {Object.entries(serverViolationCounters)
+                                    .filter(([, count]) => Number(count) > 0)
+                                    .map(([vType, count]) => (
+                                        <span key={`server-${vType}`} style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                            {violationTypeLabel(vType)}: {count}
+                                        </span>
+                                    ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
@@ -2238,8 +2303,8 @@ const TestEngine = () => {
 
                         <div style={{ marginTop: 26, display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             <button className="tp-btn" onClick={beginVideoAssessment} style={{ ...s.btnPrimary, minWidth: 390 }}>
-                                <p style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#fff',letterSpacing: '0.08em' }}>
-                               Start video assessment</p>
+                                <p style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#fff', letterSpacing: '0.08em' }}>
+                                    Start video assessment</p>
                             </button>
                         </div>
                     </section>
