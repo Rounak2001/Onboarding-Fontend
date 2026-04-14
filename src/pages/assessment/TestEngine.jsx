@@ -2026,8 +2026,9 @@ const TestEngine = () => {
                                 }}>
                                     {String(questionTimeLeft).padStart(2, '0')}s
                                 </span>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    )}
                         {isVideoSection && !videoCompleted && (
                             <div style={{
                                 display: 'flex',
