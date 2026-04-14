@@ -2215,10 +2215,8 @@ const TestEngine = () => {
                                 }}>
                                     {String(questionTimeLeft).padStart(2, '0')}s
                                 </span>
-                            )}
-                        </div>
-                    )}
-
+                            </div>
+                        )}
                         <span style={{
                             fontSize: 12,
                             fontWeight: 700,
