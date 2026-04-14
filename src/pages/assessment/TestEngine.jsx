@@ -2044,8 +2044,9 @@ const TestEngine = () => {
                             {serverViolationCount > 0 && (
                                 <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>Violations: {serverViolationCount}
                                 </span>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    )}
                         {isVideoSection && !videoCompleted && (
                             <div style={{
                                 display: 'flex',
