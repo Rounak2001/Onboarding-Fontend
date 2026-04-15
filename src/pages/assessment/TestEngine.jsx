@@ -241,6 +241,7 @@ const TestEngine = () => {
     const [permissionRetrying, setPermissionRetrying] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(() => !!document.fullscreenElement);
     const [submissionResult] = useState(null);
+
     const lastViolationTime = useRef(0);
     const hasStartedAssessmentRef = useRef(false);
     const hasSessionExpiryRedirectedRef = useRef(false);
@@ -2029,51 +2030,7 @@ const TestEngine = () => {
                             )}
                         </div>
                     )}
-                        {isVideoSection && !videoCompleted && (
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                padding: '9px 16px',
-                                borderRadius: 18,
-                                border: `1px solid ${isVideoTimerLow ? 'rgba(254,202,202,0.9)' : 'rgba(125,211,252,0.55)'}`,
-                                background: isVideoTimerLow
-                                    ? 'linear-gradient(135deg, rgba(127,29,29,0.92) 0%, rgba(220,38,38,0.86) 100%)'
-                                    : 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.94) 45%, rgba(30,64,175,0.88) 100%)',
-                                boxShadow: isVideoTimerLow
-                                    ? '0 14px 32px rgba(239,68,68,0.22), inset 0 1px 0 rgba(255,255,255,0.16)'
-                                    : '0 16px 34px rgba(37,99,235,0.18), inset 0 1px 0 rgba(255,255,255,0.14)',
-                            }}>
-                                <span
-                                    style={{
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: '50%',
-                                        background: isVideoTimerLow ? '#fee2e2' : '#67e8f9',
-                                        boxShadow: isVideoTimerLow
-                                            ? '0 0 0 5px rgba(254,226,226,0.14), 0 0 20px rgba(254,226,226,0.34)'
-                                            : '0 0 0 5px rgba(103,232,249,0.12), 0 0 20px rgba(103,232,249,0.26)',
-                                        animation: 'pulse 1.4s infinite',
-                                        flexShrink: 0,
-                                    }}
-                                />
-                                <span style={{ fontSize: 10, fontWeight: 800, color: isVideoTimerLow ? '#fee2e2' : '#bae6fd', letterSpacing: '0.16em' }}>
-                                    VIDEO TIMER
-                                </span>
-                                <span style={{
-                                    fontFamily: 'monospace',
-                                    fontSize: 24,
-                                    fontWeight: 800,
-                                    letterSpacing: '0.05em',
-                                    color: '#f8fafc',
-                                    textShadow: isVideoTimerLow
-                                        ? '0 0 20px rgba(254,202,202,0.32)'
-                                        : '0 0 22px rgba(125,211,252,0.2)',
-                                }}>
-                                    {Math.floor(currentVideoTimeLeft / 60)}:{String(Math.max(0, currentVideoTimeLeft % 60)).padStart(2, '0')}
-                                </span>
-                            </div>
-                        )}
+
                         <span style={{
                             fontSize: 12,
                             fontWeight: 700,
