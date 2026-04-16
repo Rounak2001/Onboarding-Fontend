@@ -143,6 +143,7 @@ const Feedback = ({ embedded = false }) => {
     const [feedbackSaving, setFeedbackSaving] = useState(false);
     const [feedbackError, setFeedbackError] = useState('');
     const [feedbackEntries, setFeedbackEntries] = useState([]);
+    const [canSubmitFeedback, setCanSubmitFeedback] = useState(true);
     const [toastMessage, setToastMessage] = useState('');
     const [historyOpen, setHistoryOpen] = useState(false);
     const [hoveredRating, setHoveredRating] = useState(null);
@@ -166,6 +167,7 @@ const Feedback = ({ embedded = false }) => {
             const data = await getOnboardingFeedback();
             const entries = Array.isArray(data?.feedback_entries) ? data.feedback_entries : [];
             setFeedbackEntries(entries);
+            setCanSubmitFeedback(data?.can_submit_feedback !== false);
 
             const latest = data?.latest_feedback || data?.feedback || null;
             if (latest) {
@@ -222,11 +224,23 @@ const Feedback = ({ embedded = false }) => {
                 payload.difficulty_categories = [];
                 payload.difficulties_details = '';
             }
+            payload.submission_id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+                ? crypto.randomUUID()
+                : `feedback-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
             const response = await submitOnboardingFeedback(payload);
             const entry = response?.feedback_entry || response?.feedback;
-            if (entry) setFeedbackEntries((prev) => [entry, ...prev]);
+            if (entry) {
+                setFeedbackEntries((prev) => {
+                    const withoutEntry = prev.filter((item) => item.id !== entry.id);
+                    return [entry, ...withoutEntry];
+                });
+            }
+            setCanSubmitFeedback(response?.can_edit !== false);
             setToastMessage(response?.message || 'Feedback submitted — thank you!');
         } catch (error) {
+            if (error?.response?.data?.code === 'FEEDBACK_ALREADY_SUBMITTED') {
+                setCanSubmitFeedback(false);
+            }
             setFeedbackError(error?.response?.data?.error || 'Could not submit feedback right now.');
         } finally {
             setFeedbackSaving(false);
@@ -614,30 +628,35 @@ const Feedback = ({ embedded = false }) => {
                         <div style={{ textAlign: 'center' }}>
                             <button
                                 type="submit"
-                                disabled={feedbackSaving}
+                                disabled={feedbackSaving || !canSubmitFeedback}
                                 style={{
                                     fontSize: 14,
                                     fontWeight: 600,
                                     fontFamily: 'inherit',
-                                    background: feedbackSaving ? '#94a3b8' : '#0f172a',
+                                    background: feedbackSaving || !canSubmitFeedback ? '#94a3b8' : '#0f172a',
                                     color: '#fff',
                                     padding: isPhoneScreen ? '14px 0' : '14px 48px',
                                     width: isPhoneScreen ? '100%' : 'auto',
                                     borderRadius: 10,
                                     border: 'none',
-                                    cursor: feedbackSaving ? 'not-allowed' : 'pointer',
+                                    cursor: feedbackSaving || !canSubmitFeedback ? 'not-allowed' : 'pointer',
                                     transition: 'all 200ms ease',
-                                    boxShadow: feedbackSaving ? 'none' : '0 4px 12px rgba(15,23,42,0.12)',
+                                    boxShadow: feedbackSaving || !canSubmitFeedback ? 'none' : '0 4px 12px rgba(15,23,42,0.12)',
                                 }}
                                 onMouseEnter={(e) => {
-                                    if (!feedbackSaving) e.currentTarget.style.background = '#1e293b';
+                                    if (!feedbackSaving && canSubmitFeedback) e.currentTarget.style.background = '#1e293b';
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (!feedbackSaving) e.currentTarget.style.background = '#0f172a';
+                                    if (!feedbackSaving && canSubmitFeedback) e.currentTarget.style.background = '#0f172a';
                                 }}
                             >
-                                {feedbackSaving ? 'Submitting…' : 'Submit Feedback'}
+                                {feedbackSaving ? 'Submitting...' : canSubmitFeedback ? 'Submit Feedback' : 'Feedback Submitted'}
                             </button>
+                            {!canSubmitFeedback && (
+                                <div style={{ marginTop: 10, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                                    Your feedback has already been submitted.
+                                </div>
+                            )}
                         </div>
                     </form>
                 )}

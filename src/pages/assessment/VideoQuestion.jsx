@@ -570,8 +570,12 @@ export default function VideoQuestion({
             <div style={{ background: '#111827', borderRadius: 12, overflow: 'hidden', position: 'relative', aspectRatio: '16/9', marginBottom: 8 }}>
                 {uploaded ? (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4' }}>
-                        <div style={{ fontSize: 48, marginBottom: 8 }}>OK</div>
-                        <p style={{ fontWeight: 600, color: '#059669', fontSize: 16 }}>Queued. Moving next...</p>
+                        <div style={{ fontSize: 34, fontWeight: 800, color: '#065f46', marginBottom: 8 }}>
+                            Saving your answer...
+                        </div>
+                        <p style={{ fontWeight: 600, color: '#047857', fontSize: 16, margin: 0 }}>
+                            Please keep this tab open.
+                        </p>
                     </div>
                 ) : preview ? (
                     <video src={preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} controls />
