@@ -240,11 +240,20 @@ export const getVideoUploadUrl = async (sessionId, data) => {
 };
 
 // Direct multipart video upload
-export const submitVideo = async (sessionId, questionId, blob, questionText = '', durationSeconds = null) => {
+export const submitVideo = async (sessionId, questionId, blob, questionText = '', durationSeconds = null, metadata = {}) => {
     const formData = new FormData();
     const fileName = `video_${questionId}.webm`;
     formData.append('video', blob, fileName);
     formData.append('question_id', String(questionId ?? ''));
+    if (metadata.uploadId) {
+        formData.append('upload_id', String(metadata.uploadId));
+    }
+    if (Number.isFinite(metadata.fileSize) && metadata.fileSize >= 0) {
+        formData.append('file_size', String(metadata.fileSize));
+    }
+    if (metadata.clientUploadedAt) {
+        formData.append('client_uploaded_at', String(metadata.clientUploadedAt));
+    }
     if (questionText) {
         formData.append('question_text', questionText);
     }

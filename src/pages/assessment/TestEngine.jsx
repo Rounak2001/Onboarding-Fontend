@@ -40,6 +40,12 @@ const VIDEO_QUEUE_STORE_NAME = 'video-upload-queue';
 const MAX_QUEUED_SNAPSHOTS = 120;
 const MAX_QUEUED_VIDEOS = 25;
 const MAX_SILENT_FAILURES = 5;
+const VIDEO_UPLOAD_STATUS = {
+    QUEUED: 'queued',
+    UPLOADING: 'uploading',
+    FAILED_RETRYABLE: 'failed_retryable',
+    FAILED_TERMINAL: 'failed_terminal',
+};
 const SNAPSHOT_MAX_RETRIES = 8;
 const SNAPSHOT_RETRY_BASE_MS = 2000;
 const SNAPSHOT_RETRY_MAX_MS = 60000;
@@ -63,6 +69,20 @@ const idbRequest = (request) => new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
 });
+
+const idbTransactionDone = (tx) => new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+});
+
+const logVideoUploadEvent = (eventName, payload = {}) => {
+    try {
+        console.info(`[video-upload] ${eventName}`, payload);
+    } catch {
+        // Upload telemetry must never block assessment flow.
+    }
+};
 
 const openSnapshotQueueDb = () => new Promise((resolve, reject) => {
     if (!supportsIndexedDb()) {
@@ -147,7 +167,9 @@ const videoQueueUpsert = async (item) => {
     try {
         const tx = db.transaction(VIDEO_QUEUE_STORE_NAME, 'readwrite');
         const store = tx.objectStore(VIDEO_QUEUE_STORE_NAME);
+        const txDone = idbTransactionDone(tx);
         await idbRequest(store.put(item));
+        await txDone;
     } finally {
         db.close();
     }
@@ -158,7 +180,9 @@ const videoQueueDelete = async (uploadId) => {
     try {
         const tx = db.transaction(VIDEO_QUEUE_STORE_NAME, 'readwrite');
         const store = tx.objectStore(VIDEO_QUEUE_STORE_NAME);
+        const txDone = idbTransactionDone(tx);
         await idbRequest(store.delete(uploadId));
+        await txDone;
     } finally {
         db.close();
     }
@@ -227,9 +251,11 @@ const TestEngine = () => {
     const [currentVideoDeadlineAt, setCurrentVideoDeadlineAt] = useState(null);
     const [videoCompleted, setVideoCompleted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitStatusText, setSubmitStatusText] = useState('Submitting assessment…');
+    const [submitStatusText, setSubmitStatusText] = useState('Submitting assessment...');
     const [pendingVideoUploads, setPendingVideoUploads] = useState(0);
     const [failedVideoUploads, setFailedVideoUploads] = useState(0);
+    const [isUploadingVideoAnswer, setIsUploadingVideoAnswer] = useState(false);
+    const [videoUploadError, setVideoUploadError] = useState('');
     const [pendingSnapshotUploads, setPendingSnapshotUploads] = useState(0);
     const [failedSnapshotUploads, setFailedSnapshotUploads] = useState(0);
     const [snapshotRecordedCount, setSnapshotRecordedCount] = useState(0);
@@ -264,6 +290,7 @@ const TestEngine = () => {
     const snapshotCaptureInFlightRef = useRef(false);
     const videoSnapshotGetterRef = useRef(null);
     const isVideoUploadWorkerRunningRef = useRef(false);
+    const videoUploadDrainPromiseRef = useRef(null);
     const isSnapshotUploadWorkerRunningRef = useRef(false);
     const audioTelemetryRef = useRef({
         windowStartMs: 0,
@@ -881,14 +908,19 @@ const TestEngine = () => {
     const refreshVideoQueueStats = useCallback(async () => {
         if (!supportsIndexedDb() || !session?.id) {
             setPendingVideoUploads(0);
+            setFailedVideoUploads(0);
             return;
         }
         try {
             const allItems = await videoQueueGetAll();
-            const pending = allItems.filter((item) => item?.session_id === session.id).length;
+            const sessionItems = allItems.filter((item) => item?.session_id === session.id);
+            const failed = sessionItems.filter((item) => item?.status === VIDEO_UPLOAD_STATUS.FAILED_TERMINAL).length;
+            const pending = sessionItems.length - failed;
             setPendingVideoUploads(pending + (isVideoUploadWorkerRunningRef.current ? 1 : 0));
+            setFailedVideoUploads(failed);
         } catch {
             setPendingVideoUploads(0);
+            setFailedVideoUploads(0);
         }
     }, [session?.id]);
 
@@ -907,50 +939,117 @@ const TestEngine = () => {
     }, []);
 
     const drainVideoUploadQueue = useCallback(async () => {
-        if (!supportsIndexedDb() || !session?.id || isVideoUploadWorkerRunningRef.current) return;
-        isVideoUploadWorkerRunningRef.current = true;
-        await refreshVideoQueueStats();
+        if (!supportsIndexedDb() || !session?.id) return { ok: true };
+        if (videoUploadDrainPromiseRef.current) return videoUploadDrainPromiseRef.current;
 
-        try {
+        const runDrain = async () => {
+            isVideoUploadWorkerRunningRef.current = true;
+            await refreshVideoQueueStats();
+            const result = { ok: true, failed: 0, terminal: 0, lastError: null };
             while (true) {
                 const allItems = await videoQueueGetAll();
                 const item = allItems
                     .filter((row) => row?.session_id === session.id)
+                    .filter((row) => row?.status !== VIDEO_UPLOAD_STATUS.FAILED_TERMINAL)
                     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
                 if (!item) break;
 
                 try {
+                    await videoQueueUpsert({
+                        ...item,
+                        status: VIDEO_UPLOAD_STATUS.UPLOADING,
+                        last_attempt_at: new Date().toISOString(),
+                    });
+                    logVideoUploadEvent('video_upload_started', {
+                        session_id: session.id,
+                        question_id: item.questionId,
+                        upload_id: item.upload_id,
+                        file_size: item.fileSize || item.blob?.size || null,
+                    });
                     await submitVideo(
                         session.id,
                         item.questionId,
                         item.blob,
                         item.questionText,
-                        Number(item.durationSeconds)
+                        Number(item.durationSeconds),
+                        {
+                            uploadId: item.upload_id,
+                            fileSize: item.fileSize || item.blob?.size || null,
+                            clientUploadedAt: item.client_uploaded_at || item.created_at,
+                        }
                     );
                     await videoQueueDelete(item.upload_id);
+                    logVideoUploadEvent('video_upload_success', {
+                        session_id: session.id,
+                        question_id: item.questionId,
+                        upload_id: item.upload_id,
+                    });
                 } catch (err) {
                     if (isSessionExpiredError(err)) {
-                        await videoQueueDelete(item.upload_id);
+                        const errMsg = err?.response?.data?.error || err?.message || 'Assessment session expired';
+                        await videoQueueUpsert({
+                            ...item,
+                            status: VIDEO_UPLOAD_STATUS.FAILED_TERMINAL,
+                            last_error: errMsg,
+                            failed_at: new Date().toISOString(),
+                        });
                         redirectToCategoryReselect(err);
+                        result.ok = false;
+                        result.terminal += 1;
+                        result.lastError = errMsg;
                         break;
                     }
                     const nextRetries = (Number(item.retries) || 0) + 1;
+                    const errMsg = err?.response?.data?.error || err?.message || 'Video upload failed';
                     if (nextRetries <= 5) {
-                        await videoQueueUpsert({ ...item, retries: nextRetries });
+                        await videoQueueUpsert({
+                            ...item,
+                            status: VIDEO_UPLOAD_STATUS.FAILED_RETRYABLE,
+                            retries: nextRetries,
+                            last_error: errMsg,
+                            last_failed_at: new Date().toISOString(),
+                        });
+                        logVideoUploadEvent('video_upload_retrying', {
+                            session_id: session.id,
+                            question_id: item.questionId,
+                            upload_id: item.upload_id,
+                            retries: nextRetries,
+                            error: errMsg,
+                        });
                         await sleep(Math.min(2000 * nextRetries, 6000));
                     } else {
-                        await videoQueueDelete(item.upload_id);
-                        setFailedVideoUploads(prev => prev + 1);
+                        await videoQueueUpsert({
+                            ...item,
+                            status: VIDEO_UPLOAD_STATUS.FAILED_TERMINAL,
+                            retries: nextRetries,
+                            last_error: errMsg,
+                            failed_at: new Date().toISOString(),
+                        });
+                        logVideoUploadEvent('video_upload_terminal_failure', {
+                            session_id: session.id,
+                            question_id: item.questionId,
+                            upload_id: item.upload_id,
+                            retries: nextRetries,
+                            error: errMsg,
+                        });
                     }
+                    result.ok = false;
+                    result.failed += 1;
+                    result.lastError = errMsg;
                     break;
                 } finally {
                     await refreshVideoQueueStats();
                 }
             }
-        } finally {
+            return result;
+        };
+
+        videoUploadDrainPromiseRef.current = runDrain().finally(async () => {
             isVideoUploadWorkerRunningRef.current = false;
+            videoUploadDrainPromiseRef.current = null;
             await refreshVideoQueueStats();
-        }
+        });
+        return videoUploadDrainPromiseRef.current;
     }, [session?.id, refreshVideoQueueStats, isSessionExpiredError, redirectToCategoryReselect]);
 
     const enqueueVideoUpload = useCallback(async (uploadPayload) => {
@@ -962,29 +1061,57 @@ const TestEngine = () => {
             upload_id: uploadId,
             session_id: session.id,
             created_at: new Date().toISOString(),
+            client_uploaded_at: new Date().toISOString(),
+            status: VIDEO_UPLOAD_STATUS.QUEUED,
             questionId: uploadPayload.questionId,
             questionText: uploadPayload.questionText || '',
             durationSeconds: Number(uploadPayload.durationSeconds),
             blob: uploadPayload.blob,
             fileName: uploadPayload.fileName,
+            fileSize: uploadPayload.blob?.size || null,
             retries: 0,
+        });
+        logVideoUploadEvent('video_queued', {
+            session_id: session.id,
+            question_id: uploadPayload.questionId,
+            upload_id: uploadId,
+            file_size: uploadPayload.blob?.size || null,
         });
         await trimVideoQueue();
         await refreshVideoQueueStats();
-        drainVideoUploadQueue();
-    }, [drainVideoUploadQueue, refreshVideoQueueStats, session?.id, trimVideoQueue]);
+        return uploadId;
+    }, [refreshVideoQueueStats, session?.id, trimVideoQueue]);
 
     const waitForVideoUploadsToFinish = useCallback(async (maxWaitMs = 30000) => {
         const deadline = Date.now() + maxWaitMs;
         while (Date.now() < deadline) {
             const allItems = supportsIndexedDb() ? await videoQueueGetAll() : [];
-            const pending = allItems.filter((row) => row?.session_id === session?.id).length;
-            const hasPending = isVideoUploadWorkerRunningRef.current || pending > 0;
+            const sessionItems = allItems.filter((row) => row?.session_id === session?.id);
+            const terminal = sessionItems.some((row) => row?.status === VIDEO_UPLOAD_STATUS.FAILED_TERMINAL);
+            if (terminal) return false;
+            const hasPending = isVideoUploadWorkerRunningRef.current || sessionItems.length > 0;
             if (!hasPending) return true;
             await sleep(250);
         }
         return false;
     }, [session?.id]);
+
+    const resetFailedVideoUploadsForSession = useCallback(async () => {
+        if (!supportsIndexedDb() || !session?.id) return;
+        const allItems = await videoQueueGetAll();
+        const failedItems = allItems.filter(
+            (item) => item?.session_id === session.id && item?.status === VIDEO_UPLOAD_STATUS.FAILED_TERMINAL
+        );
+        for (const item of failedItems) {
+            await videoQueueUpsert({
+                ...item,
+                status: VIDEO_UPLOAD_STATUS.QUEUED,
+                retries: 0,
+                retry_requested_at: new Date().toISOString(),
+            });
+        }
+        await refreshVideoQueueStats();
+    }, [refreshVideoQueueStats, session?.id]);
 
     const buildSnapshotId = useCallback(() => {
         try {
@@ -1724,14 +1851,26 @@ const TestEngine = () => {
     const handleSubmitTest = async () => {
         try {
             setIsSubmitting(true);
-            setSubmitStatusText('Finalizing uploads…');
+            setSubmitStatusText('Finalizing uploads...');
             if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current); // Stop snapshots
 
             // Give background video uploads a chance to finish before final submission.
-            drainVideoUploadQueue();
+            const videoDrainResult = await drainVideoUploadQueue();
             drainSnapshotUploadQueue();
-            await waitForVideoUploadsToFinish(30000);
+            const videosUploaded = await waitForVideoUploadsToFinish(30000);
             await waitForSnapshotUploadsToFinish(12000);
+
+            if (!videoDrainResult?.ok || !videosUploaded) {
+                const msg = 'Your answer was recorded, but it has not uploaded yet. Please tap Retry.';
+                logVideoUploadEvent('final_submit_blocked_pending_videos', {
+                    session_id: session.id,
+                    error: msg,
+                });
+                setVideoUploadError(msg);
+                setSubmitStatusText('Saving your video answers...');
+                setIsSubmitting(false);
+                return;
+            }
 
             // Exit fullscreen and wait for it to complete
             if (document.fullscreenElement) {
@@ -1742,7 +1881,7 @@ const TestEngine = () => {
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
 
-            setSubmitStatusText('Submitting answers…');
+            setSubmitStatusText('Submitting answers...');
             await submitTest(session.id, { answers });
 
             if (session?.id) {
@@ -1758,16 +1897,18 @@ const TestEngine = () => {
                 return;
             }
             console.error('Failed to submit test:', err);
-            alert('Submission failed. Please try again.');
+            const code = err?.response?.data?.code;
+            const msg = err?.response?.data?.error || 'Submission failed. Please try again.';
+            if (code === 'VIDEO_UPLOADS_PENDING') {
+                setVideoUploadError(msg);
+            } else {
+                alert(msg);
+            }
             setIsSubmitting(false);
         }
     };
 
-    const handleVideoComplete = useCallback((uploadPayload) => {
-        if (uploadPayload?.blob && uploadPayload?.questionId) {
-            void enqueueVideoUpload(uploadPayload);
-        }
-
+    const advanceAfterSuccessfulVideoUpload = useCallback(async () => {
         if (currentVideoQuestionIndex < videoQuestions.length - 1) {
             setCurrentVideoQuestionIndex(prev => prev + 1);
             setCurrentVideoDeadlineAt(null);
@@ -1775,9 +1916,56 @@ const TestEngine = () => {
         } else {
             setVideoCompleted(true);
             setCurrentVideoDeadlineAt(null);
-            handleSubmitTest();
+            await handleSubmitTest();
         }
-    }, [currentVideoQuestionIndex, videoQuestions.length, enqueueVideoUpload, handleSubmitTest]);
+    }, [currentVideoQuestionIndex, videoQuestions.length, handleSubmitTest]);
+
+    const handleVideoComplete = useCallback(async (uploadPayload) => {
+        if (!uploadPayload?.blob || !uploadPayload?.questionId) return;
+
+        setVideoUploadError('');
+        setIsUploadingVideoAnswer(true);
+        try {
+            logVideoUploadEvent('video_recorded', {
+                session_id: session?.id,
+                question_id: uploadPayload.questionId,
+                file_size: uploadPayload.blob?.size || null,
+            });
+            await enqueueVideoUpload(uploadPayload);
+            const drainResult = await drainVideoUploadQueue();
+            if (!drainResult?.ok) {
+                setVideoUploadError(
+                    'Your answer was recorded, but it has not uploaded yet. Please tap Retry.'
+                );
+                return;
+            }
+            await advanceAfterSuccessfulVideoUpload();
+        } catch (err) {
+            setVideoUploadError('Your answer was recorded, but it has not uploaded yet. Please tap Retry.');
+        } finally {
+            setIsUploadingVideoAnswer(false);
+        }
+    }, [advanceAfterSuccessfulVideoUpload, drainVideoUploadQueue, enqueueVideoUpload, session?.id]);
+
+    const retryVideoUpload = useCallback(async () => {
+        setVideoUploadError('');
+        setIsUploadingVideoAnswer(true);
+        try {
+            await resetFailedVideoUploadsForSession();
+            const drainResult = await drainVideoUploadQueue();
+            if (!drainResult?.ok) {
+                setVideoUploadError(
+                    'We could not save your answer. Check your internet connection and tap Retry.'
+                );
+                return;
+            }
+            await advanceAfterSuccessfulVideoUpload();
+        } catch (err) {
+            setVideoUploadError('We could not save your answer. Please tap Retry.');
+        } finally {
+            setIsUploadingVideoAnswer(false);
+        }
+    }, [advanceAfterSuccessfulVideoUpload, drainVideoUploadQueue, resetFailedVideoUploadsForSession]);
 
     const handleVideoRecordingStart = useCallback(() => {
         if (currentVideoDeadlineAt) return;
@@ -2264,6 +2452,32 @@ const TestEngine = () => {
                             timeLeft={currentVideoTimeLeft}
                             totalTime={VIDEO_QUESTION_TIME_SECONDS}
                         />
+                        {(isUploadingVideoAnswer || videoUploadError || failedVideoUploads > 0) && (
+                            <div style={{
+                                marginTop: 16,
+                                padding: 14,
+                                borderRadius: 10,
+                                border: `1px solid ${videoUploadError ? '#fecaca' : '#bbf7d0'}`,
+                                background: videoUploadError ? '#fef2f2' : '#f0fdf4',
+                                color: videoUploadError ? '#991b1b' : '#166534',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 12,
+                                flexWrap: 'wrap',
+                            }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>
+                                    {videoUploadError
+                                        ? videoUploadError
+                                        : 'Saving your answer... Please keep this tab open.'}
+                                </div>
+                                {videoUploadError && (
+                                    <button className="tp-btn" onClick={retryVideoUpload} style={{ ...s.btnPrimary, padding: '10px 18px' }}>
+                                        Retry
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -2272,8 +2486,25 @@ const TestEngine = () => {
                         <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
                         <h2 style={{ fontSize: 22, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>Video section completed</h2>
                         <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 0 }}>
-                            {isSubmitting ? submitStatusText : 'Submitting your assessment…'}
+                            {isSubmitting ? submitStatusText : 'Submitting your assessment...'}
                         </p>
+                    </div>
+                )}
+
+                {isVideoSection && videoCompleted && (videoUploadError || failedVideoUploads > 0 || pendingVideoUploads > 0) && (
+                    <div style={{
+                        ...s.card,
+                        margin: '16px auto 0',
+                        border: '1px solid #fecaca',
+                        background: '#fef2f2',
+                        color: '#991b1b',
+                    }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>
+                            {videoUploadError || 'Saving your video answers... Please keep this tab open.'}
+                        </div>
+                        <button className="tp-btn" onClick={retryVideoUpload} style={{ ...s.btnPrimary, marginTop: 12, padding: '10px 18px' }}>
+                            Retry
+                        </button>
                     </div>
                 )}
 
