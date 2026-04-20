@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
@@ -65,10 +66,16 @@ const CheckIcon = ({ visible }) => (
 );
 
 const CloseIcon = () => (
-    <svg width="11" height="11" viewBox="0 0 20 20" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true" style={{ display: 'block' }}>
         <path d="M6 6L14 14M14 6L6 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
 );
+
+const cleanErrorMessage = (payload, fallback) => {
+    const message = String(payload?.error || payload?.detail || fallback || '').trim();
+    if (!message || message.startsWith('<!DOCTYPE') || message.startsWith('<html')) return fallback;
+    return message.length > 180 ? `${message.slice(0, 180)}...` : message;
+};
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -92,8 +99,16 @@ const AdminDashboard = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [exporting, setExporting] = useState(false);
-    const [dispatchingDueNotifications, setDispatchingDueNotifications] = useState(false);
     const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+    const [exportModalOpen, setExportModalOpen] = useState(false);
+    const [exportColumns, setExportColumns] = useState([]);
+    const [defaultExportColumns, setDefaultExportColumns] = useState([]);
+    const [selectedExportColumns, setSelectedExportColumns] = useState([]);
+    const [savedExportColumns, setSavedExportColumns] = useState([]);
+    const [exportPreferencesLoaded, setExportPreferencesLoaded] = useState(false);
+    const [exportPreferencesLoading, setExportPreferencesLoading] = useState(false);
+    const [exportPreferencesSaving, setExportPreferencesSaving] = useState(false);
+    const [exportPreferencesError, setExportPreferencesError] = useState('');
     const [viewportWidth, setViewportWidth] = useState(
         () => (typeof window !== 'undefined' ? window.innerWidth : 1280),
     );
@@ -161,11 +176,11 @@ const AdminDashboard = () => {
         },
     ];
 
-    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-    const resetSession = () => {
+    const authHeaders = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
+    const resetSession = useCallback(() => {
         localStorage.removeItem('admin_token');
         navigate(adminUrl());
-    };
+    }, [navigate]);
 
     const fetchConsultants = useCallback(async (
         pg = 1,
@@ -199,7 +214,7 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [assessmentSubstatusFilter, cardFilter, joinedDateFilter, navigate, search, statusFilters, token]);
+    }, [assessmentSubstatusFilter, authHeaders, cardFilter, joinedDateFilter, resetSession, search, statusFilters]);
 
     // Fetch once on mount, then debounce search/filter changes into a single request.
     useEffect(() => {
@@ -237,6 +252,15 @@ const AdminDashboard = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    useEffect(() => {
+        if (!exportModalOpen || typeof document === 'undefined') return undefined;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [exportModalOpen]);
 
     useEffect(() => {
         if (!statusMenuOpen) return undefined;
@@ -353,6 +377,31 @@ const AdminDashboard = () => {
             ? statusFilters[0]
             : `${statusFilters.length} statuses`;
 
+    const selectedExportColumnSet = useMemo(() => new Set(selectedExportColumns), [selectedExportColumns]);
+    const exportColumnsByKey = useMemo(() => {
+        const map = new Map();
+        exportColumns.forEach((column) => map.set(column.key, column));
+        return map;
+    }, [exportColumns]);
+    const exportColumnGroups = useMemo(() => {
+        const groups = [];
+        const groupMap = new Map();
+        exportColumns.forEach((column) => {
+            const groupName = column.group || 'Other';
+            if (!groupMap.has(groupName)) {
+                const group = { name: groupName, columns: [] };
+                groupMap.set(groupName, group);
+                groups.push(group);
+            }
+            groupMap.get(groupName).columns.push(column);
+        });
+        return groups;
+    }, [exportColumns]);
+    const selectedExportColumnLabels = useMemo(() => (
+        selectedExportColumns.map((key) => exportColumnsByKey.get(key)?.header || key)
+    ), [exportColumnsByKey, selectedExportColumns]);
+    const hasExportPreferenceChanges = selectedExportColumns.join('|') !== savedExportColumns.join('|');
+
     const handleCardFilterChange = (nextCardFilter) => {
         setCardFilter(nextCardFilter);
         setStatusMenuOpen(false);
@@ -360,55 +409,141 @@ const AdminDashboard = () => {
         setAssessmentSubstatusFilter('all');
     };
 
-    const handleExportExcel = async () => {
+    const loadExportPreferences = async (force = false) => {
+        if (exportPreferencesLoaded && !force) return;
+        setExportPreferencesLoading(true);
+        setExportPreferencesError('');
+        try {
+            const res = await fetch(apiUrl('/admin-panel/consultants/export/preferences/'), { headers: authHeaders });
+            if (res.status === 401 || res.status === 403) return resetSession();
+            const payload = await readResponsePayload(res);
+            if (!res.ok) {
+                setExportPreferencesError(cleanErrorMessage(payload, 'Failed to load export columns. Refresh after the backend migration is applied.'));
+                return;
+            }
+            const columns = Array.isArray(payload.columns) ? payload.columns : [];
+            const defaults = Array.isArray(payload.default_columns) ? payload.default_columns : columns.map((column) => column.key);
+            const selected = Array.isArray(payload.selected_columns) ? payload.selected_columns : defaults;
+            setExportColumns(columns);
+            setDefaultExportColumns(defaults);
+            setSelectedExportColumns(selected);
+            setSavedExportColumns(selected);
+            setExportPreferencesLoaded(true);
+        } catch {
+            setExportPreferencesError('Failed to load export columns');
+        } finally {
+            setExportPreferencesLoading(false);
+        }
+    };
+
+    const openExportModal = () => {
+        setExportModalOpen(true);
+        loadExportPreferences();
+    };
+
+    const buildExportParams = (columns) => {
+        const params = new URLSearchParams();
+        if (search.trim()) params.set('search', search.trim());
+        statusFilters.forEach((statusValue) => params.append('status', statusValue));
+        if (showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
+            params.set('assessment_substatus', assessmentSubstatusFilter);
+        }
+        if (joinedDateFilter !== 'all') params.set('joined_range', joinedDateFilter);
+        if (cardFilter && cardFilter !== 'total') params.set('card_filter', cardFilter);
+        if (columns?.length) params.set('columns', columns.join(','));
+        return params;
+    };
+
+    const downloadExportExcel = async (columns = selectedExportColumns) => {
+        if (!columns.length) {
+            alert('Select at least one column to export.');
+            return false;
+        }
         setExporting(true);
         try {
-            const params = new URLSearchParams();
-            if (search.trim()) params.set('search', search.trim());
-            statusFilters.forEach((statusValue) => params.append('status', statusValue));
-            if (showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
-                params.set('assessment_substatus', assessmentSubstatusFilter);
-            }
-            if (joinedDateFilter !== 'all') params.set('joined_range', joinedDateFilter);
-            if (cardFilter && cardFilter !== 'total') params.set('card_filter', cardFilter);
+            const params = buildExportParams(columns);
             const res = await fetch(apiUrl(`/admin-panel/consultants/export/?${params}`), { headers: authHeaders });
             if (res.status === 401 || res.status === 403) return resetSession();
             if (!res.ok) {
                 const payload = await readResponsePayload(res);
-                return alert(payload.error || payload.detail || 'Export failed');
+                return alert(cleanErrorMessage(payload, 'Export failed'));
             }
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             const contentDisposition = res.headers.get('content-disposition') || '';
-            const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+            const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
             const serverFilename = filenameMatch ? decodeURIComponent(filenameMatch[1].replace(/"/g, '')) : '';
             a.download = serverFilename || `consultants_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
             document.body.appendChild(a);
             a.click();
             window.setTimeout(() => window.URL.revokeObjectURL(url), 1200);
             document.body.removeChild(a);
+            setExportModalOpen(false);
+            return true;
         } catch {
             alert('Failed to export');
+            return false;
         } finally {
             setExporting(false);
         }
     };
 
-    const handleDispatchDueNotifications = async () => {
-        setDispatchingDueNotifications(true);
+    const saveExportPreferences = async () => {
+        if (!selectedExportColumns.length) {
+            alert('Select at least one column to save.');
+            return false;
+        }
+        setExportPreferencesSaving(true);
+        setExportPreferencesError('');
         try {
-            const res = await fetch(apiUrl('/admin-panel/notifications/dispatch-due/'), { method: 'POST', headers: authHeaders });
+            const res = await fetch(apiUrl('/admin-panel/consultants/export/preferences/'), {
+                method: 'PUT',
+                headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ selected_columns: selectedExportColumns }),
+            });
             if (res.status === 401 || res.status === 403) return resetSession();
             const payload = await readResponsePayload(res);
-            if (!res.ok) return alert(payload.error || 'Failed to dispatch due onboarding notifications');
-            alert(payload.message || `Queued ${payload.queued || 0} due onboarding notification(s).`);
+            if (!res.ok) {
+                setExportPreferencesError(cleanErrorMessage(payload, 'Failed to save export columns'));
+                return false;
+            }
+            const selected = Array.isArray(payload.selected_columns) ? payload.selected_columns : selectedExportColumns;
+            setSelectedExportColumns(selected);
+            setSavedExportColumns(selected);
+            setExportColumns(Array.isArray(payload.columns) ? payload.columns : exportColumns);
+            setDefaultExportColumns(Array.isArray(payload.default_columns) ? payload.default_columns : defaultExportColumns);
+            return true;
         } catch {
-            alert('Failed to connect to server');
+            setExportPreferencesError('Failed to save export columns');
+            return false;
         } finally {
-            setDispatchingDueNotifications(false);
+            setExportPreferencesSaving(false);
         }
+    };
+
+    const saveAndDownloadExport = async () => {
+        const saved = await saveExportPreferences();
+        if (saved) await downloadExportExcel(selectedExportColumns);
+    };
+
+    const toggleExportColumn = (key) => {
+        setSelectedExportColumns((prev) => (
+            prev.includes(key)
+                ? prev.filter((value) => value !== key)
+                : [...prev, key]
+        ));
+    };
+
+    const moveExportColumn = (index, direction) => {
+        setSelectedExportColumns((prev) => {
+            const nextIndex = index + direction;
+            if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+            const next = [...prev];
+            [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+            return next;
+        });
     };
 
     return (
@@ -437,14 +572,165 @@ const AdminDashboard = () => {
                     }}>
                         <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
                         <span style={{ padding: isMobile ? '4px 10px' : '4px 12px', borderRadius: 20, fontSize: isMobile ? 10 : 11, fontWeight: 600, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>Showing {totalCount} total</span>
-                        <button className="tp-btn" onClick={handleExportExcel} disabled={exporting || loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', border: '1px solid rgba(16,185,129,0.25)', cursor: exporting || loading ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Export Excel'}</button>
+                        <button className="tp-btn" onClick={openExportModal} disabled={exporting || loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', border: '1px solid rgba(16,185,129,0.25)', cursor: exporting || loading ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Export Excel'}</button>
                         <button className="tp-btn" onClick={() => fetchConsultants(page)} disabled={loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: loading ? 'not-allowed' : 'pointer' }}>{loading ? 'Refreshing...' : 'Refresh'}</button>
                         <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)', cursor: 'pointer' }}>Email Monitor</button>
-                        <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)', color: dispatchingDueNotifications ? 'var(--admin-text-secondary)' : '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', cursor: dispatchingDueNotifications ? 'not-allowed' : 'pointer' }}>{dispatchingDueNotifications ? 'Dispatching...' : 'Send Due Emails'}</button>
                         <button className="tp-btn" onClick={resetSession} style={{ padding: isMobile ? '7px 10px' : '8px 16px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 600, background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}>Logout</button>
                     </div>
                 </div>
             </header>
+
+            {exportModalOpen && typeof document !== 'undefined' && createPortal((
+                <div
+                    role="presentation"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget) setExportModalOpen(false);
+                    }}
+                    style={{
+                        ...themeVars,
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: '100vw',
+                        height: '100dvh',
+                        zIndex: 9999,
+                        background: 'rgba(15,23,42,0.58)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: isMobile ? 10 : 24,
+                        boxSizing: 'border-box',
+                        color: 'var(--admin-text-primary)',
+                    }}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="export-columns-title"
+                        style={{
+                            width: isMobile ? 'calc(100vw - 20px)' : 'min(980px, calc(100vw - 48px))',
+                            height: isMobile ? 'calc(100dvh - 20px)' : 'min(720px, calc(100dvh - 48px))',
+                            overflow: 'hidden',
+                            borderRadius: 8,
+                            background: isLight ? '#ffffff' : '#111827',
+                            border: '1px solid var(--admin-border-mid)',
+                            boxShadow: isLight ? '0 30px 90px rgba(15,23,42,0.22)' : '0 30px 90px rgba(0,0,0,0.56)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }}
+                    >
+                        <div style={{ padding: isMobile ? '12px 14px' : '14px 18px', borderBottom: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                            <div>
+                                <h2 id="export-columns-title" style={{ margin: 0, fontSize: isMobile ? 16 : 18, color: 'var(--admin-text-strong)' }}>Customize Excel Export</h2>
+                                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--admin-text-secondary)' }}>
+                                    {selectedExportColumns.length} of {exportColumns.length || 0} columns selected
+                                    {hasExportPreferenceChanges ? ' - unsaved changes' : ''}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setExportModalOpen(false)}
+                                aria-label="Close export columns"
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    padding: 0,
+                                    borderRadius: 8,
+                                    border: '1px solid var(--admin-border-mid)',
+                                    background: isLight ? '#f8fafc' : '#0f172a',
+                                    color: 'var(--admin-text-secondary)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    lineHeight: 0,
+                                    appearance: 'none',
+                                }}
+                            >
+                                <CloseIcon />
+                            </button>
+                        </div>
+
+                        <div style={{ flex: 1, minHeight: 0, padding: isMobile ? 14 : 18, overflow: isMobile ? 'auto' : 'hidden', display: 'flex', flexDirection: 'column', background: isLight ? '#f8fafc' : '#0f172a' }}>
+                            {exportPreferencesLoading ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-secondary)', fontSize: 13 }}>Loading export columns...</div>
+                            ) : exportPreferencesError && !exportColumns.length ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: 'min(460px, 100%)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.24)', background: 'rgba(239,68,68,0.08)', padding: 18, textAlign: 'center' }}>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>Unable to load export columns</div>
+                                        <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>{exportPreferencesError}</div>
+                                        <button type="button" onClick={() => loadExportPreferences(true)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.28)', background: 'rgba(239,68,68,0.12)', color: '#f87171', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Retry</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {exportPreferencesError && (
+                                        <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.22)', fontSize: 12 }}>
+                                            {exportPreferencesError}
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                                        <button type="button" onClick={() => setSelectedExportColumns(exportColumns.map((column) => column.key))} disabled={!exportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: exportColumns.length ? 'pointer' : 'not-allowed' }}>Select All</button>
+                                        <button type="button" onClick={() => setSelectedExportColumns(defaultExportColumns)} disabled={!defaultExportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: defaultExportColumns.length ? 'pointer' : 'not-allowed' }}>Reset Default</button>
+                                    </div>
+
+                                    <div style={{ flex: isMobile ? '0 0 auto' : 1, minHeight: isMobile ? 'auto' : 0, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.3fr) minmax(250px, 0.8fr)', gap: 14 }}>
+                                        <div style={{ minHeight: isMobile ? 'auto' : 0, overflow: isMobile ? 'visible' : 'auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', alignContent: 'start', gap: 12, paddingRight: isMobile ? 0 : 2 }}>
+                                            {exportColumnGroups.map((group) => (
+                                                <section key={group.name} style={{ border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827' }}>
+                                                    <h3 style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>{group.name}</h3>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                        {group.columns.map((column) => (
+                                                            <label key={column.key} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedExportColumnSet.has(column.key)}
+                                                                    onChange={() => toggleExportColumn(column.key)}
+                                                                />
+                                                                <span>{column.header}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </section>
+                                            ))}
+                                        </div>
+
+                                        <aside style={{ minHeight: 0, border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827', display: 'flex', flexDirection: 'column' }}>
+                                            <h3 style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>Column Order</h3>
+                                            <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>Top to bottom becomes left to right in Excel.</p>
+                                            {selectedExportColumns.length ? (
+                                                <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }}>
+                                                    {selectedExportColumns.map((key, index) => (
+                                                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-strong)' }}>
+                                                            <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--admin-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {selectedExportColumnLabels[index]}
+                                                            </span>
+                                                            <button type="button" onClick={() => moveExportColumn(index, -1)} disabled={index === 0} style={{ width: 32, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === 0 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === 0 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Up</button>
+                                                            <button type="button" onClick={() => moveExportColumn(index, 1)} disabled={index === selectedExportColumns.length - 1} style={{ width: 44, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === selectedExportColumns.length - 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === selectedExportColumns.length - 1 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Down</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div style={{ padding: 18, borderRadius: 8, border: '1px dashed var(--admin-border-mid)', color: 'var(--admin-text-secondary)', fontSize: 12, textAlign: 'center' }}>Select at least one column.</div>
+                                            )}
+                                        </aside>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div style={{ padding: isMobile ? '14px 16px' : '16px 22px', borderTop: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+                            <button type="button" onClick={() => setExportModalOpen(false)} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                            <button type="button" onClick={saveExportPreferences} disabled={exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)', background: hasExportPreferenceChanges ? 'rgba(59,130,246,0.14)' : 'var(--admin-surface-strong)', color: hasExportPreferenceChanges ? '#60a5fa' : 'var(--admin-text-muted)', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving ? 'Saving...' : 'Save'}</button>
+                            <button type="button" onClick={() => downloadExportExcel()} disabled={exportPreferencesLoading || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.14)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Download'}</button>
+                            <button type="button" onClick={saveAndDownloadExport} disabled={exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.20)', color: exportPreferencesSaving || exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 800, cursor: exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving || exporting ? 'Working...' : 'Save & Download'}</button>
+                        </div>
+                    </div>
+                </div>
+            ), document.body)}
 
             <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '14px 12px 18px' : '28px 32px' }}>
                 <div style={{
