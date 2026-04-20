@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://main.taxplanadvisor.co/api/$1"
+      "destination": "https://api.taxplanadvisor.co/api/$1"
     },
     {
       "source": "/((?!assets/).*)",
