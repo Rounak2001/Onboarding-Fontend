@@ -610,6 +610,7 @@ const ConsultantDetail = () => {
                                     {fieldRow('Last Name', p.last_name)}
                                     {fieldRow('Date of Birth', p.dob)}
                                     {fieldRow('Age', p.age)}
+                                    {fieldRow('Gender', p.gender_label || p.gender)}
                                     {fieldRow('Phone', p.phone_number)}
                                     {fieldRow('Phone Verified', statusTag(!!p.is_phone_verified, 'Verified', 'Not Verified'))}
                                     {fieldRow('Email', p.email)}

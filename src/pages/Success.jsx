@@ -178,8 +178,17 @@ const Success = () => {
     }, [showReviewCompletionBanner]);
     const retryUnlockText = formatRetryUnlockAt(retryAvailableAt);
     const retryCountdownText = formatRetryCountdown(retrySecondsRemaining);
+    const hasGender = Boolean(String(user?.gender || '').trim());
     const steps = [
-        { label: 'Profile Details', desc: 'Personal and practice information', done: user?.is_onboarded, icon: '\u{1F464}' },
+        {
+            label: 'Profile Details',
+            desc: hasGender
+                ? 'Personal and practice information'
+                : 'Add your gender to finish your personal information',
+            done: Boolean(user?.is_onboarded && hasGender),
+            action: () => navigate(user?.is_onboarded ? '/onboarding/details' : '/onboarding'),
+            icon: '\u{1F464}',
+        },
         { label: 'Identity Verification', desc: 'Upload government-issued ID', done: hasIdentity, action: () => navigate('/onboarding/identity'), icon: '\u{1FAAA}' },
         { label: 'Face Verification', desc: 'Verify your identity via camera', done: isVerified, requires: hasIdentity, action: () => navigate('/onboarding/face-verification'), icon: '\u{1F4F8}' },
         {

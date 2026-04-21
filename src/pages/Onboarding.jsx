@@ -30,6 +30,12 @@ const HIGHEST_QUALIFICATION_OPTIONS = [
     'LLB (Taxation)',
     'LLM (Taxation)',
 ];
+const GENDER_OPTIONS = [
+    { value: 'male', label: 'Male' },
+    { value: 'female', label: 'Female' },
+    { value: 'other', label: 'Other' },
+    { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
 
 const getQualificationOptionMatch = (value) => {
     const normalized = String(value || '').trim().toLowerCase();
@@ -50,6 +56,7 @@ const Onboarding = () => {
     const firstNameRef = useRef(null);
     const lastNameRef = useRef(null);
     const dobRef = useRef(null);
+    const genderRef = useRef(null);
     const address1Ref = useRef(null);
     const cityRef = useRef(null);
     const stateRef = useRef(null);
@@ -71,6 +78,7 @@ const Onboarding = () => {
         last_name: user?.last_name || '',
         age: user?.age || '',
         dob: user?.dob || '',
+        gender: user?.gender || '',
         phone_number: user?.phone_number || '',
         address_line1: user?.address_line1 || '',
         address_line2: user?.address_line2 || '',
@@ -250,6 +258,7 @@ const Onboarding = () => {
             if (age > 100) e.dob = 'Please enter a valid date of birth';
             if (new Date(formData.dob) > new Date()) e.dob = 'Date of birth cannot be in the future';
         }
+        if (!formData.gender) e.gender = 'Please select your gender';
         if (!formData.phone_number?.trim() || formData.phone_number.trim().length < 10) e.phone_number = 'Valid phone number required (10+ digits)';
         if (formData.phone_number?.trim() && !currentPhoneE164) e.phone_number = 'Please enter a valid Indian mobile number (+91 XXXXXXXXXX)';
         if (currentPhoneE164 && !isPhoneVerified) e.phone_number = 'Please verify your number via Whatsaap OTP to continue';
@@ -267,6 +276,7 @@ const Onboarding = () => {
         ['first_name', firstNameRef],
         ['last_name', lastNameRef],
         ['dob', dobRef],
+        ['gender', genderRef],
         ['phone_number', phoneInputRef],
         ['address_line1', address1Ref],
         ['city', cityRef],
@@ -711,6 +721,24 @@ const Onboarding = () => {
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: threeColumnGrid, gap: 16, marginTop: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>Gender <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <select
+                                        ref={genderRef}
+                                        name="gender"
+                                        value={formData.gender}
+                                        onChange={handleChange}
+                                        style={inputStyle(errors.gender)}
+                                    >
+                                        <option value="">Select gender</option>
+                                        {GENDER_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                    {errors.gender && <p style={errorStyle}>{errors.gender}</p>}
                                 </div>
                             </div>
                             <div style={{ marginTop: 16 }}>
