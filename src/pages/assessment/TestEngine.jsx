@@ -2205,33 +2205,15 @@ const TestEngine = () => {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    {/* MCQ timer only - video timer is inside VideoQuestion */}
-                    {!isVideoSection && !showVideoPrepScreen && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Time</span>
-                            <span style={{
-                                fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
-                                color: questionTimeLeft < 10 ? '#f87171' : '#f8fafc',
-                            }}>
-                                {String(questionTimeLeft).padStart(2, '0')}s
-                            </span>
-                        </div>
-                    )}
-                    <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        padding: '5px 12px',
-                        borderRadius: 20,
-                        background: isOnline ? '#ecfdf5' : '#fff7ed',
-                        color: isOnline ? '#065f46' : '#9a3412',
-                        border: isOnline ? '1px solid #86efac' : '1px solid #fdba74'
-                    }}>
-                        {isOnline ? 'Online' : 'Offline'}
-                    </span>
-                    {serverViolationCount > 0 && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                            {serverViolationCount > 0 && (
-                                <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>Violations: {serverViolationCount}
+                        {/* MCQ timer only - video timer is inside VideoQuestion */}
+                        {!isVideoSection && !showVideoPrepScreen && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Time</span>
+                                <span style={{
+                                    fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
+                                    color: questionTimeLeft < 10 ? '#f87171' : '#f8fafc',
+                                }}>
+                                    {String(questionTimeLeft).padStart(2, '0')}s
                                 </span>
                             )}
                         </div>

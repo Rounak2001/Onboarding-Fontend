@@ -118,7 +118,7 @@ const Declaration = () => {
 
             {anyDisagreed && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', padding: '12px 16px', borderRadius: 8, marginBottom: 24, fontSize: 14, fontWeight: 500 }}>
-                    You have not agreed to all our terms, cannot proceed further.
+                    You have not agreed to all our terms, cannot proceed further.thankx
                 </div>
             )}
 

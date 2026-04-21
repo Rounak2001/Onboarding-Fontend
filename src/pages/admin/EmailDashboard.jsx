@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, LabelList,
 } from 'recharts';
+import { apiUrl } from '../../utils/apiBase';
+import { adminUrl } from '../../utils/adminPath';
+import { clearAdminSession, getAdminToken } from '../../utils/adminSession';
 
-const API_BASE = '/api/admin-panel/email-dashboard';
+const API_BASE = apiUrl('/admin-panel/email-dashboard');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const fmt    = (n) => (n ?? 0).toLocaleString();
@@ -307,6 +311,9 @@ const Alert = ({ color, icon, children, action }) => (
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
 export default function EmailDashboard() {
+  const navigate = useNavigate();
+  const token = getAdminToken();
+  const authHeaders = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
   const [summary,    setSummary]    = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -334,14 +341,20 @@ export default function EmailDashboard() {
 
   const PAGE_SIZE = 25;
 
+  const resetSession = useCallback(() => {
+    clearAdminSession();
+    navigate(adminUrl());
+  }, [navigate]);
+
   // ── fetch helpers ──────────────────────────────────────────────────────
   const fetchSummary = useCallback(async () => {
     setRefreshing(true);
     try {
-      const r = await fetch(`${API_BASE}/`, { credentials: 'include' });
+      const r = await fetch(`${API_BASE}/`, { credentials: 'include', headers: authHeaders });
+      if (r.status === 401 || r.status === 403) return resetSession();
       if (r.ok) setSummary(await r.json());
     } finally { setRefreshing(false); setLoading(false); }
-  }, []);
+  }, [authHeaders, resetSession]);
 
   const fetchLogs = useCallback(async () => {
     const p = new URLSearchParams({ page: logPage, page_size: PAGE_SIZE, days: 30, sort_by: logSort, sort_dir: logDir });
@@ -350,18 +363,21 @@ export default function EmailDashboard() {
     if (logStatus)  p.set('status', logStatus);
     if (logBucket)  p.set('bucket', logBucket);
     if (cardFilter) p.set('card_filter', cardFilter);
-    const r = await fetch(`${API_BASE}/logs/?${p}`, { credentials: 'include' });
+    const r = await fetch(`${API_BASE}/logs/?${p}`, { credentials: 'include', headers: authHeaders });
+    if (r.status === 401 || r.status === 403) return resetSession();
     if (r.ok) { const d = await r.json(); setLogs(d.logs || []); setLT(d.total || 0); }
-  }, [logPage, logSearch, logType, logStatus, logBucket, cardFilter, logSort, logDir]);
+  }, [logPage, logSearch, logType, logStatus, logBucket, cardFilter, logSort, logDir, authHeaders, resetSession]);
 
   const fetchNotifs = useCallback(async () => {
     const p = new URLSearchParams({ page: notifPage, page_size: PAGE_SIZE });
     if (notifSearch) p.set('search', notifSearch);
     if (notifStatus) p.set('status', notifStatus);
-    const r = await fetch(`${API_BASE}/notifications/?${p}`, { credentials: 'include' });
+    const r = await fetch(`${API_BASE}/notifications/?${p}`, { credentials: 'include', headers: authHeaders });
+    if (r.status === 401 || r.status === 403) return resetSession();
     if (r.ok) { const d = await r.json(); setNotifs(d.notifications || []); setNT(d.total || 0); }
-  }, [notifPage, notifSearch, notifStatus]);
+  }, [notifPage, notifSearch, notifStatus, authHeaders, resetSession]);
 
+  useEffect(() => { if (!token && !import.meta.env.DEV) resetSession(); }, [resetSession, token]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { const id = setInterval(fetchSummary, 60000); return () => clearInterval(id); }, [fetchSummary]);
   useEffect(() => { if (activeTab === 'log')  fetchLogs();   }, [activeTab, fetchLogs]);
@@ -378,7 +394,11 @@ export default function EmailDashboard() {
   const action = async (url, method = 'POST', label = '') => {
     setActionMsg({ text: `Running: ${label}…`, type: 'ok' });
     try {
-      const r = await fetch(url, { method, credentials: 'include' });
+      const r = await fetch(url, { method, credentials: 'include', headers: authHeaders });
+      if (r.status === 401 || r.status === 403) {
+        resetSession();
+        return;
+      }
       const text = await r.text();
       let data;
       try { data = JSON.parse(text); } catch {
