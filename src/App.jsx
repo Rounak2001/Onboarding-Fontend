@@ -21,6 +21,7 @@ import PartnerInfo from './pages/PartnerInfo';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
+import AdminClientDetail from './pages/admin/AdminClientDetail';
 import EmailDashboard from './pages/admin/EmailDashboard';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
@@ -271,11 +272,13 @@ function AppRoutes() {
       <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
       <Route path={adminUrl('emails')} element={<EmailDashboard />} />
       <Route path={adminUrl('consultant/:id')} element={<ConsultantDetail />} />
+      <Route path={adminUrl('client/:id')} element={<AdminClientDetail />} />
       {!IS_DEFAULT_ADMIN_PATH && (
         <>
           <Route path="/admin" element={<Navigate to="/" replace />} />
           <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/admin/consultant/:id" element={<Navigate to="/" replace />} />
+          <Route path="/admin/client/:id" element={<Navigate to="/" replace />} />
         </>
       )}
 
