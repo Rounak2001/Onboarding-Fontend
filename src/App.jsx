@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -23,9 +23,12 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
 import AdminClientDetail from './pages/admin/AdminClientDetail';
 import EmailDashboard from './pages/admin/EmailDashboard';
+import CallLogs from './pages/admin/CallLogs';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
 import { isFaceVerificationSatisfied } from './utils/devBypass';
+import { apiUrl } from './utils/apiBase';
+import { Phone, Bell, X, Calendar, Clock, ChevronRight, Search, RefreshCw } from 'lucide-react';
 import './index.css';
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
@@ -146,6 +149,113 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+
+const AdminReminderLayout = () => {
+    const [reminders, setReminders] = useState([]);
+    const [dismissedIds, setDismissedIds] = useState(new Set());
+    const audioRef = useRef(new Audio(NOTIFICATION_SOUND_URL));
+    const location = useLocation();
+    const token = localStorage.getItem('admin_token');
+
+    useEffect(() => {
+        if (!token) return;
+
+        const fetchFollowups = async () => {
+            try {
+                const res = await fetch(apiUrl('/admin-panel/upcoming-followups/'), {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                setReminders(data);
+            } catch (err) {
+                console.error('Followup fetch failed', err);
+            }
+        };
+
+        fetchFollowups();
+        const interval = setInterval(fetchFollowups, 600000); // Fetch from server every 10 minutes
+        return () => clearInterval(interval);
+    }, [token]);
+
+    // Local check for reminders every minute
+    const [activeReminders, setActiveReminders] = useState([]);
+    useEffect(() => {
+        const checkLocalReminders = () => {
+            const now = new Date().getTime();
+            const upcoming = reminders.filter(r => {
+                const fTime = new Date(r.follow_up_time).getTime();
+                const diff = fTime - now;
+                // Trigger if within 5.5 minutes and not in the past and not dismissed
+                return diff > 0 && diff <= 5.5 * 60 * 1000 && !dismissedIds.has(r.id);
+            });
+
+            if (upcoming.length > 0 && upcoming.length > activeReminders.length) {
+                audioRef.current.play().catch(e => console.log('Audio play blocked', e));
+            }
+            setActiveReminders(upcoming);
+        };
+
+        checkLocalReminders();
+        const t = setInterval(checkLocalReminders, 30000); // Check local list every 30 seconds
+        return () => clearInterval(t);
+    }, [reminders, dismissedIds, activeReminders.length]);
+
+    const dismiss = (id) => {
+        setDismissedIds(prev => new Set([...prev, id]));
+        setActiveReminders(prev => prev.filter(r => r.id !== id));
+    };
+
+    return (
+        <div style={{ position: 'relative', minHeight: '100vh' }}>
+            {activeReminders.length > 0 && (
+                <div style={{ 
+                    position: 'fixed', 
+                    top: 20, 
+                    left: '50%', 
+                    transform: 'translateX(-50%)', 
+                    zIndex: 9999, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 10,
+                    width: '90%',
+                    maxWidth: 400
+                }}>
+                    {activeReminders.map(r => (
+                        <div key={r.id} style={{ 
+                            background: 'white', 
+                            borderRadius: 12, 
+                            padding: '16px', 
+                            boxShadow: '0 20px 40px rgba(0,0,0,0.15)', 
+                            borderLeft: '4px solid #ef4444',
+                            display: 'flex',
+                            gap: 12,
+                            animation: 'slideDown 0.3s ease-out'
+                        }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                                <Phone size={20} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <span style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Follow-up Reminder</span>
+                                    <button onClick={() => dismiss(r.id)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}>
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginTop: 4 }}>{r.consultant_name}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#ef4444', fontWeight: 800, marginTop: 4 }}>
+                                    <Calendar size={12} /> {new Date(r.follow_up_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (In 5 mins)
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <Outlet />
+        </div>
+    );
+};
 
 const StepGuard = ({ step, children }) => {
   const { user, stepFlags, loading, getNextRoute } = useAuth();
@@ -267,12 +377,17 @@ function AppRoutes() {
         <Route path="/onboarding/complete" element={<OnboardingComplete />} />
       </Route>
 
-      {/* Admin Panel Routes — standalone */}
-      <Route path={ADMIN_BASE} element={<AdminLogin />} />
-      <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
-      <Route path={adminUrl('emails')} element={<EmailDashboard />} />
-      <Route path={adminUrl('consultant/:id')} element={<ConsultantDetail />} />
-      <Route path={adminUrl('client/:id')} element={<AdminClientDetail />} />
+      {/* Admin Panel Routes — with Reminder Layout */}
+      <Route element={<AdminReminderLayout />}>
+        <Route path={ADMIN_BASE} element={<AdminLogin />} />
+        <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
+        <Route path={adminUrl('consultants')} element={<AdminDashboard />} />
+        <Route path={adminUrl('clients')} element={<AdminDashboard />} />
+        <Route path={adminUrl('emails')} element={<EmailDashboard />} />
+        <Route path={adminUrl('call-logs')} element={<CallLogs />} />
+        <Route path="/Consultants/:id" element={<ConsultantDetail />} />
+        <Route path="/Clients/:id" element={<AdminClientDetail />} />
+      </Route>
       {!IS_DEFAULT_ADMIN_PATH && (
         <>
           <Route path="/admin" element={<Navigate to="/" replace />} />
