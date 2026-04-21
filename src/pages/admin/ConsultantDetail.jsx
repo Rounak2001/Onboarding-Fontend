@@ -11,10 +11,12 @@ import { useAdminTheme } from './adminTheme';
 
 const CALL_STATUS_OPTIONS = [
     { value: '', label: 'Not Set' },
-    { value: 'not_called', label: 'Not Called' },
-    { value: 'called', label: 'Called' },
-    { value: 'follow_up', label: 'Follow Up' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'no-answer', label: 'No Answer' },
+    { value: 'busy', label: 'Busy' },
+    { value: 'ringing', label: 'Ringing' },
+    { value: 'initiated', label: 'Initiated' },
 ];
 
 const buildCallTrackingDraft = (profile = {}) => ({
@@ -1682,7 +1684,7 @@ const ConsultantDetail = () => {
                                 <div>
                                     <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', marginBottom: 6, fontWeight: 700 }}>Next Follow Up</div>
                                     <input
-                                        type="date"
+                                        type="datetime-local"
                                         value={callTrackingDraft.next_follow_up}
                                         onChange={(e) => handleCallTrackingChange('next_follow_up', e.target.value)}
                                         style={formInputStyle}

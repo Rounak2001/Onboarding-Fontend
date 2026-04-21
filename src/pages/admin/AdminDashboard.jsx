@@ -3,10 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { readResponsePayload } from '../../utils/http'; 
+import { readResponsePayload } from '../../utils/http';
 import AdminThemeToggle from './AdminThemeToggle';
 import AdminBrandLogo from './AdminBrandLogo';
 import { useAdminTheme } from './adminTheme';
+import AdminClientList from './AdminClientList';
+import AdminDateRangePicker from './AdminDateRangePicker';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const PAGE_SIZE = 50;
 const STATUS_FILTER_OPTIONS = [
@@ -98,6 +102,7 @@ const AdminDashboard = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
+    const [dashboardClientTotal, setDashboardClientTotal] = useState(0);
     const [exporting, setExporting] = useState(false);
     const [statusMenuOpen, setStatusMenuOpen] = useState(false);
     const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -109,9 +114,23 @@ const AdminDashboard = () => {
     const [exportPreferencesLoading, setExportPreferencesLoading] = useState(false);
     const [exportPreferencesSaving, setExportPreferencesSaving] = useState(false);
     const [exportPreferencesError, setExportPreferencesError] = useState('');
+    const [stateFilter, setStateFilter] = useState('');
+    const [serviceFilter, setServiceFilter] = useState('');
+    const [activeTab, setActiveTab] = useState(() => {
+        const path = window.location.pathname.toLowerCase();
+        if (path.includes('consultant')) return 'consultant';
+        if (path.includes('client')) return 'client';
+        return 'dashboard';
+    });
+    const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
+    const [onboardingRange, setOnboardingRange] = useState('30d');
+    const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+    const [dispatchingDueNotifications, setDispatchingDueNotifications] = useState(false);
+
     const [viewportWidth, setViewportWidth] = useState(
         () => (typeof window !== 'undefined' ? window.innerWidth : 1280),
     );
+    const [isChartReady, setIsChartReady] = useState(false);
     const showAssessmentSubstatus = statusFilters.includes('Assessment Ongoing');
     const isMobile = viewportWidth <= 768;
     const isNarrowMobile = viewportWidth <= 430;
@@ -189,6 +208,8 @@ const AdminDashboard = () => {
         currentAssessmentSubstatus = assessmentSubstatusFilter,
         currentJoinedDate = joinedDateFilter,
         currentCardFilter = cardFilter,
+        currentState = stateFilter,
+        currentService = serviceFilter,
     ) => {
         setLoading(true);
         setError('');
@@ -201,6 +222,8 @@ const AdminDashboard = () => {
             }
             if (currentJoinedDate !== 'all') params.set('joined_range', currentJoinedDate);
             if (currentCardFilter && currentCardFilter !== 'total') params.set('card_filter', currentCardFilter);
+            if (currentState) params.set('state', currentState);
+            if (currentService) params.set('service', currentService);
             const res = await fetch(apiUrl(`/admin-panel/consultants/?${params}`), { headers: authHeaders });
             if (res.status === 401 || res.status === 403) return resetSession();
             const data = await res.json();
@@ -214,7 +237,7 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [assessmentSubstatusFilter, authHeaders, cardFilter, joinedDateFilter, resetSession, search, statusFilters]);
+    }, [assessmentSubstatusFilter, authHeaders, cardFilter, joinedDateFilter, resetSession, search, statusFilters, stateFilter, serviceFilter]);
 
     // Fetch once on mount, then debounce search/filter changes into a single request.
     useEffect(() => {
@@ -228,7 +251,7 @@ const AdminDashboard = () => {
         }
         searchRef.current = search;
         const timer = setTimeout(() => {
-            if (searchRef.current === search) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter);
+            if (searchRef.current === search) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter);
         }, 350);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,15 +259,20 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         if (!token && !import.meta.env.DEV) return;
-        fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter);
+        fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter]);
+    }, [statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter]);
 
     useEffect(() => {
         if (!showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
             setAssessmentSubstatusFilter('all');
         }
     }, [showAssessmentSubstatus, assessmentSubstatusFilter]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setIsChartReady(true), 500);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (typeof window === 'undefined') return undefined;
@@ -401,12 +429,13 @@ const AdminDashboard = () => {
         selectedExportColumns.map((key) => exportColumnsByKey.get(key)?.header || key)
     ), [exportColumnsByKey, selectedExportColumns]);
     const hasExportPreferenceChanges = selectedExportColumns.join('|') !== savedExportColumns.join('|');
-
     const handleCardFilterChange = (nextCardFilter) => {
         setCardFilter(nextCardFilter);
         setStatusMenuOpen(false);
         setStatusFilters([]);
         setAssessmentSubstatusFilter('all');
+        setStateFilter('');
+        setServiceFilter('');
     };
 
     const loadExportPreferences = async (force = false) => {
@@ -450,6 +479,8 @@ const AdminDashboard = () => {
         }
         if (joinedDateFilter !== 'all') params.set('joined_range', joinedDateFilter);
         if (cardFilter && cardFilter !== 'total') params.set('card_filter', cardFilter);
+        if (stateFilter) params.set('state', stateFilter);
+        if (serviceFilter) params.set('service', serviceFilter);
         if (columns?.length) params.set('columns', columns.join(','));
         return params;
     };
@@ -546,634 +577,1013 @@ const AdminDashboard = () => {
         });
     };
 
+    const handleExportExcel = () => {
+        openExportModal();
+    };
+
+    const handleDispatchDueNotifications = async () => {
+        if (!token) return;
+        setDispatchingDueNotifications(true);
+        try {
+            const res = await fetch(apiUrl('/admin-panel/consultants/dispatch-due-notifications/'), {
+                method: 'POST',
+                headers: authHeaders,
+            });
+            const payload = await readResponsePayload(res);
+            if (res.ok) {
+                alert(payload.message || 'Due notifications dispatched successfully');
+            } else {
+                alert(cleanErrorMessage(payload, 'Failed to dispatch notifications'));
+            }
+        } catch {
+            alert('Failed to dispatch notifications');
+        } finally {
+            setExportPreferencesSaving(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!token) return;
+        fetch(apiUrl('/admin-panel/clients/?page_size=1'), { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => res.ok ? res.json() : { total: 0 })
+            .then(data => setDashboardClientTotal(data.total || 0))
+            .catch(() => setDashboardClientTotal(0));
+    }, [token]);
+
+    const [callLogsStats, setCallLogsStats] = useState(null);
+    useEffect(() => {
+        if (!token) return;
+        fetch(apiUrl('/calls/admin-logs/?limit=1'), { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => res.ok ? res.json() : { stats: null })
+            .then(data => setCallLogsStats(data.stats || null))
+            .catch(() => setCallLogsStats(null));
+    }, [token]);
+
+    const dynamicConTotal = Math.max(1, totalCount);
+    const dynClientTotal = Math.max(0, dashboardClientTotal);
+
+    const chartData = stats?.growth_distribution || [];
+    const ageData = stats?.age_distribution || [];
+    // Build call logs chart from daily/weekly breakdown if available, else use daily/weekly/monthly as bar points
+    const callLogsData = callLogsStats?.daily_distribution || (callLogsStats ? [
+        { name: 'Daily', value: callLogsStats.daily || 0 },
+        { name: 'Weekly', value: callLogsStats.weekly || 0 },
+        { name: 'Monthly', value: callLogsStats.monthly || 0 },
+    ] : []);
+    const serviceData = stats?.service_distribution || [];
+    const stateData = stats?.state_distribution || [];
+
+    const consultantNumbers = Number(statusCounts['Credentials Sent'] ?? stats?.working ?? 0);
+    const payingClients = dynClientTotal;
+    const todaysCalls = Number(callLogsStats?.daily ?? stats?.todays_calls ?? 0);
+    const consultantClientRatio = payingClients === 0 ? `${consultantNumbers}:0` : `${consultantNumbers}:${payingClients}`;
+
+    const dynamicRatioText = dynClientTotal === 0 ? '0:1' : `${(dynClientTotal / dynamicConTotal).toFixed(1)}:1`;
+    const dynamicSpamPct = totalCount === 0 ? 0 : Math.round((Number(stats?.status_counts?.['New Join'] || 0) / totalCount) * 100);
+    const leadRatio = totalCount === 0 ? 0 : 100 - dynamicSpamPct;
+
+
     return (
-        <div className="tp-page" style={{ ...themeVars, minHeight: '100vh', background: 'var(--admin-page-bg)', fontFamily: "'Inter', system-ui, sans-serif", color: 'var(--admin-text-strong)' }}>
-            <header style={{ background: 'var(--admin-header-bg)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--admin-border-soft)', position: 'sticky', top: 0, zIndex: 30 }}>
-                <div style={{
-                    maxWidth: 1500,
-                    margin: '0 auto',
-                    padding: isMobile ? '10px 14px' : '0 32px',
-                    minHeight: 60,
-                    display: 'flex',
-                    alignItems: isMobile ? 'flex-start' : 'center',
-                    flexWrap: isMobile ? 'wrap' : 'nowrap',
-                    gap: isMobile ? 10 : 14,
-                }}>
-                    <AdminBrandLogo isLight={isLight} height={28} />
-                    <span style={{ fontWeight: 700, fontSize: 16 }}>Admin Dashboard</span>
-                    <div style={{
-                        marginLeft: isMobile ? 0 : 'auto',
-                        width: isMobile ? '100%' : 'auto',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: isMobile ? 'flex-start' : 'flex-end',
-                        flexWrap: 'wrap',
-                        gap: isMobile ? 8 : 12,
-                    }}>
-                        <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
-                        <span style={{ padding: isMobile ? '4px 10px' : '4px 12px', borderRadius: 20, fontSize: isMobile ? 10 : 11, fontWeight: 600, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>Showing {totalCount} total</span>
-                        <button className="tp-btn" onClick={openExportModal} disabled={exporting || loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', border: '1px solid rgba(16,185,129,0.25)', cursor: exporting || loading ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Export Excel'}</button>
-                        <button className="tp-btn" onClick={() => fetchConsultants(page)} disabled={loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: loading ? 'not-allowed' : 'pointer' }}>{loading ? 'Refreshing...' : 'Refresh'}</button>
-                        <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)', cursor: 'pointer' }}>Email Monitor</button>
-                        <button className="tp-btn" onClick={resetSession} style={{ padding: isMobile ? '7px 10px' : '8px 16px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 600, background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}>Logout</button>
-                    </div>
+        <div className="tp-page" style={{ ...themeVars, height: '100vh', display: 'flex', overflow: 'hidden', background: 'var(--admin-page-bg)', fontFamily: "'Inter', system-ui, sans-serif", color: 'var(--admin-text-strong)' }}>
+
+            {/* SIDEBAR NAVIGATION */}
+            <div style={{
+                width: sidebarOpen ? 260 : (isMobile ? 0 : 80),
+                transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                background: 'var(--admin-header-bg)',
+                borderRight: '1px solid var(--admin-border-soft)',
+                display: 'flex', flexDirection: 'column', flexShrink: 0,
+                overflow: 'hidden', position: isMobile ? 'absolute' : 'relative',
+                height: '100%', zIndex: 40,
+                transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)'
+            }}>
+                <div style={{ height: 72, padding: sidebarOpen ? '0 24px' : '0', display: 'flex', alignItems: 'center', justifyContent: sidebarOpen ? 'flex-start' : 'center', borderBottom: '1px solid var(--admin-border-soft)' }}>
+                    {sidebarOpen ? <AdminBrandLogo isLight={isLight} height={26} /> : <div onClick={() => setSidebarOpen(true)} style={{ cursor: 'pointer' }}><AdminBrandLogo isLight={isLight} height={20} iconOnly /></div>}
                 </div>
-            </header>
 
-            {exportModalOpen && typeof document !== 'undefined' && createPortal((
-                <div
-                    role="presentation"
-                    onMouseDown={(event) => {
-                        if (event.target === event.currentTarget) setExportModalOpen(false);
-                    }}
-                    style={{
-                        ...themeVars,
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        width: '100vw',
-                        height: '100dvh',
-                        zIndex: 9999,
-                        background: 'rgba(15,23,42,0.58)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: isMobile ? 10 : 24,
-                        boxSizing: 'border-box',
-                        color: 'var(--admin-text-primary)',
-                    }}
-                >
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="export-columns-title"
-                        style={{
-                            width: isMobile ? 'calc(100vw - 20px)' : 'min(980px, calc(100vw - 48px))',
-                            height: isMobile ? 'calc(100dvh - 20px)' : 'min(720px, calc(100dvh - 48px))',
-                            overflow: 'hidden',
-                            borderRadius: 8,
-                            background: isLight ? '#ffffff' : '#111827',
-                            border: '1px solid var(--admin-border-mid)',
-                            boxShadow: isLight ? '0 30px 90px rgba(15,23,42,0.22)' : '0 30px 90px rgba(0,0,0,0.56)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                        }}
-                    >
-                        <div style={{ padding: isMobile ? '12px 14px' : '14px 18px', borderBottom: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                            <div>
-                                <h2 id="export-columns-title" style={{ margin: 0, fontSize: isMobile ? 16 : 18, color: 'var(--admin-text-strong)' }}>Customize Excel Export</h2>
-                                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--admin-text-secondary)' }}>
-                                    {selectedExportColumns.length} of {exportColumns.length || 0} columns selected
-                                    {hasExportPreferenceChanges ? ' - unsaved changes' : ''}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setExportModalOpen(false)}
-                                aria-label="Close export columns"
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    padding: 0,
-                                    borderRadius: 8,
-                                    border: '1px solid var(--admin-border-mid)',
-                                    background: isLight ? '#f8fafc' : '#0f172a',
-                                    color: 'var(--admin-text-secondary)',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    lineHeight: 0,
-                                    appearance: 'none',
-                                }}
-                            >
-                                <CloseIcon />
-                            </button>
-                        </div>
-
-                        <div style={{ flex: 1, minHeight: 0, padding: isMobile ? 14 : 18, overflow: isMobile ? 'auto' : 'hidden', display: 'flex', flexDirection: 'column', background: isLight ? '#f8fafc' : '#0f172a' }}>
-                            {exportPreferencesLoading ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-secondary)', fontSize: 13 }}>Loading export columns...</div>
-                            ) : exportPreferencesError && !exportColumns.length ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <div style={{ width: 'min(460px, 100%)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.24)', background: 'rgba(239,68,68,0.08)', padding: 18, textAlign: 'center' }}>
-                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>Unable to load export columns</div>
-                                        <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>{exportPreferencesError}</div>
-                                        <button type="button" onClick={() => loadExportPreferences(true)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.28)', background: 'rgba(239,68,68,0.12)', color: '#f87171', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Retry</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {exportPreferencesError && (
-                                        <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.22)', fontSize: 12 }}>
-                                            {exportPreferencesError}
-                                        </div>
-                                    )}
-
-                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                                        <button type="button" onClick={() => setSelectedExportColumns(exportColumns.map((column) => column.key))} disabled={!exportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: exportColumns.length ? 'pointer' : 'not-allowed' }}>Select All</button>
-                                        <button type="button" onClick={() => setSelectedExportColumns(defaultExportColumns)} disabled={!defaultExportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: defaultExportColumns.length ? 'pointer' : 'not-allowed' }}>Reset Default</button>
-                                    </div>
-
-                                    <div style={{ flex: isMobile ? '0 0 auto' : 1, minHeight: isMobile ? 'auto' : 0, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.3fr) minmax(250px, 0.8fr)', gap: 14 }}>
-                                        <div style={{ minHeight: isMobile ? 'auto' : 0, overflow: isMobile ? 'visible' : 'auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', alignContent: 'start', gap: 12, paddingRight: isMobile ? 0 : 2 }}>
-                                            {exportColumnGroups.map((group) => (
-                                                <section key={group.name} style={{ border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827' }}>
-                                                    <h3 style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>{group.name}</h3>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                        {group.columns.map((column) => (
-                                                            <label key={column.key} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedExportColumnSet.has(column.key)}
-                                                                    onChange={() => toggleExportColumn(column.key)}
-                                                                />
-                                                                <span>{column.header}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </section>
-                                            ))}
-                                        </div>
-
-                                        <aside style={{ minHeight: 0, border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827', display: 'flex', flexDirection: 'column' }}>
-                                            <h3 style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>Column Order</h3>
-                                            <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>Top to bottom becomes left to right in Excel.</p>
-                                            {selectedExportColumns.length ? (
-                                                <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }}>
-                                                    {selectedExportColumns.map((key, index) => (
-                                                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-strong)' }}>
-                                                            <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--admin-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {selectedExportColumnLabels[index]}
-                                                            </span>
-                                                            <button type="button" onClick={() => moveExportColumn(index, -1)} disabled={index === 0} style={{ width: 32, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === 0 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === 0 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Up</button>
-                                                            <button type="button" onClick={() => moveExportColumn(index, 1)} disabled={index === selectedExportColumns.length - 1} style={{ width: 44, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === selectedExportColumns.length - 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === selectedExportColumns.length - 1 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Down</button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div style={{ padding: 18, borderRadius: 8, border: '1px dashed var(--admin-border-mid)', color: 'var(--admin-text-secondary)', fontSize: 12, textAlign: 'center' }}>Select at least one column.</div>
-                                            )}
-                                        </aside>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div style={{ padding: isMobile ? '14px 16px' : '16px 22px', borderTop: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-                            <button type="button" onClick={() => setExportModalOpen(false)} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                            <button type="button" onClick={saveExportPreferences} disabled={exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)', background: hasExportPreferenceChanges ? 'rgba(59,130,246,0.14)' : 'var(--admin-surface-strong)', color: hasExportPreferenceChanges ? '#60a5fa' : 'var(--admin-text-muted)', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving ? 'Saving...' : 'Save'}</button>
-                            <button type="button" onClick={() => downloadExportExcel()} disabled={exportPreferencesLoading || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.14)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Download'}</button>
-                            <button type="button" onClick={saveAndDownloadExport} disabled={exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.20)', color: exportPreferencesSaving || exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 800, cursor: exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving || exporting ? 'Working...' : 'Save & Download'}</button>
-                        </div>
-                    </div>
-                </div>
-            ), document.body)}
-
-            <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '14px 12px 18px' : '28px 32px' }}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(210px, 1fr))',
-                    gap: isMobile ? 10 : 14,
-                    marginBottom: isMobile ? 14 : 22,
-                }}>
-                    {summaryCards.map((card) => (
+                <div style={{ flex: 1, padding: '24px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                        { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics' },
+                        { id: 'consultant', icon: Users, label: 'Consultants' },
+                        { id: 'client', icon: UserSquare, label: 'Clients' },
+                        { id: 'call-logs', icon: Phone, label: 'Call Logs' },
+                    ].map(item => (
                         <button
-                            type="button"
-                            key={card.label}
-                            onClick={() => handleCardFilterChange(card.filterKey)}
+                            key={item.id}
+                            onClick={() => {
+                                if (item.id === 'call-logs') {
+                                    navigate(adminUrl('call-logs'));
+                                } else if (item.id === 'dashboard') {
+                                    navigate(adminUrl('dashboard'));
+                                    setActiveTab('dashboard');
+                                } else if (item.id === 'consultant') {
+                                    navigate(adminUrl('consultants'));
+                                    setActiveTab('consultant');
+                                } else if (item.id === 'client') {
+                                    navigate(adminUrl('clients'));
+                                    setActiveTab('client');
+                                }
+                                if (isMobile) setSidebarOpen(false);
+                            }}
                             style={{
-                                minHeight: isMobile ? 90 : 108,
-                                borderRadius: 18,
-                                border: `1px solid ${cardFilter === card.filterKey ? card.accent : card.border}`,
-                                background: card.background,
-                                boxShadow: isLight
-                                    ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
-                                    : 'inset 0 1px 0 rgba(255,255,255,0.03)',
-                                padding: isMobile ? '12px 12px 10px' : '18px 18px 16px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                width: '100%',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                outline: 'none',
-                                transform: cardFilter === card.filterKey ? 'translateY(-1px)' : 'none',
-                                transition: 'border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease',
+                                display: 'flex', alignItems: 'center', padding: '12px', borderRadius: 12,
+                                background: activeTab === item.id ? (isLight ? '#eff6ff' : 'rgba(59,130,246,0.15)') : 'transparent',
+                                color: activeTab === item.id ? '#3b82f6' : 'var(--admin-text-secondary)',
+                                border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                                justifyContent: sidebarOpen ? 'flex-start' : 'center', gap: sidebarOpen ? 16 : 0,
+                                whiteSpace: 'nowrap'
                             }}
                         >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{
-                                    fontSize: 13,
-                                    fontWeight: 800,
-                                    letterSpacing: '0.08em',
-                                    textTransform: 'uppercase',
-                                    color: isLight ? '#64748b' : '#6f89b4',
-                                }}>
-                                    {card.label}
-                                </span>
-                                <span style={{
-                                    width: 12,
-                                    height: 12,
-                                    borderRadius: '50%',
-                                    background: card.accent,
-                                    boxShadow: `0 0 0 8px ${card.accent}1c`,
-                                    flexShrink: 0,
-                                }} />
-                            </div>
-                            <div style={{
-                                fontSize: isMobile ? 24 : 32,
-                                lineHeight: 1,
-                                fontWeight: 800,
-                                color: isLight ? '#0f172a' : '#ffffff',
-                                letterSpacing: '-0.03em',
-                            }}>
-                                {card.value}
-                            </div>
+                            <item.icon size={22} />
+                            {sidebarOpen && <span style={{ fontWeight: 600, fontSize: 14 }}>{item.label}</span>}
                         </button>
                     ))}
                 </div>
 
-                <div style={{ marginBottom: isMobile ? 12 : 18 }}>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
-                        <input value={search} placeholder="Search by name, email, or phone..." onChange={(e) => setSearch(e.target.value)} style={{ flex: isMobile ? '0 0 auto' : '1 1 320px', width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 'none' : 520, padding: '11px 16px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-strong)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                        <div ref={statusMenuRef} style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
-                            <button
-                                type="button"
-                                onClick={() => setStatusMenuOpen((open) => !open)}
-                                style={{
-                                    padding: '10px 12px',
-                                    borderRadius: 12,
-                                    background: 'var(--admin-surface-strong)',
-                                    border: '1px solid var(--admin-border-mid)',
-                                    boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none',
-                                    color: 'var(--admin-text-primary)',
-                                    fontSize: 13,
-                                    cursor: 'pointer',
-                                    minWidth: isMobile ? 0 : 172,
-                                    width: isMobile ? '100%' : 'auto',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    gap: 10,
-                                }}
-                            >
-                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 240 : 130 }}>{statusSelectionLabel}</span>
-                                <span style={{ color: 'var(--admin-text-muted)', display: 'inline-flex', alignItems: 'center' }}>
-                                    <ChevronIcon open={statusMenuOpen} />
-                                </span>
-                            </button>
-                            {statusMenuOpen && (
-                                <div
-                                    style={{
-                                        position: 'absolute',
-                                        top: 'calc(100% + 8px)',
-                                        left: 0,
-                                        zIndex: 12,
-                                        width: isMobile ? '100%' : 250,
-                                        maxHeight: 280,
-                                        overflowY: 'auto',
-                                        padding: 10,
-                                        borderRadius: 12,
-                                        background: 'var(--admin-surface-strong)',
-                                        border: '1px solid var(--admin-border-mid)',
-                                        boxShadow: isLight ? '0 18px 30px rgba(148,163,184,0.2)' : '0 18px 34px rgba(2,6,23,0.45)',
-                                    }}
-                                >
-                                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
-                                        Select Statuses
-                                    </div>
-                                    {STATUS_FILTER_OPTIONS.map((statusOption) => {
-                                        const selected = statusFilters.includes(statusOption);
-                                        return (
-                                            <button
-                                                key={statusOption}
-                                                type="button"
-                                                onClick={() => toggleStatusFilter(statusOption)}
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '8px 10px',
-                                                    borderRadius: 9,
-                                                    border: `1px solid ${selected ? 'rgba(16,185,129,0.34)' : 'var(--admin-border-mid)'}`,
-                                                    background: selected ? 'rgba(16,185,129,0.12)' : 'var(--admin-surface)',
-                                                    color: selected ? '#10b981' : 'var(--admin-text-secondary)',
-                                                    fontSize: 12,
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 8,
-                                                    marginBottom: 6,
-                                                    textAlign: 'left',
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        width: 14,
-                                                        height: 14,
-                                                        borderRadius: 3,
-                                                        border: `1px solid ${selected ? 'rgba(16,185,129,0.55)' : 'var(--admin-border-mid)'}`,
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        fontSize: 10,
-                                                        lineHeight: 1,
-                                                        color: selected ? '#10b981' : 'transparent',
-                                                        flexShrink: 0,
-                                                    }}
-                                                >
-                                                    <CheckIcon visible={selected} />
-                                                </span>
-                                                <span>{statusOption}</span>
-                                            </button>
-                                        );
-                                    })}
-                                    {statusFilters.length > 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setCardFilter('total');
-                                                setStatusFilters([]);
-                                                setAssessmentSubstatusFilter('all');
-                                            }}
-                                            style={{
-                                                width: '100%',
-                                                marginTop: 4,
-                                                padding: '7px 10px',
-                                                borderRadius: 9,
-                                                border: '1px solid var(--admin-border-mid)',
-                                                background: 'var(--admin-surface)',
-                                                color: 'var(--admin-text-muted)',
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                            }}
-                                        >
-                                            Clear status selection
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={() => setStatusMenuOpen(false)}
-                                        style={{
-                                            width: '100%',
-                                            marginTop: 6,
-                                            padding: '7px 10px',
-                                            borderRadius: 9,
-                                            border: '1px solid rgba(16,185,129,0.34)',
-                                            background: 'rgba(16,185,129,0.14)',
-                                            color: '#10b981',
-                                            fontSize: 12,
-                                            fontWeight: 800,
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        Done
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                        <select value={joinedDateFilter} onChange={(e) => setJoinedDateFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
-                            {JOINED_DATE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
-                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total') && <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilters([]); setAssessmentSubstatusFilter('all'); setJoinedDateFilter('all'); setCardFilter('total'); setStatusMenuOpen(false); }} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>Clear</button>}
+                {!isMobile && (
+                    <div style={{ padding: '16px', borderTop: '1px solid var(--admin-border-soft)', display: 'flex', justifyContent: sidebarOpen ? 'flex-end' : 'center' }}>
+                        <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: 'var(--admin-surface)', border: '1px solid var(--admin-border-soft)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--admin-text-secondary)', transition: 'transform 0.2s' }}>
+                            {sidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+                        </button>
                     </div>
-                    {statusFilters.length > 0 && (
-                        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {statusFilters.map((statusValue) => (
-                                <button
-                                    key={statusValue}
-                                    type="button"
-                                    onClick={() => toggleStatusFilter(statusValue)}
-                                    style={{
-                                        padding: '5px 10px',
-                                        borderRadius: 999,
-                                        border: '1px solid rgba(16,185,129,0.35)',
-                                        background: 'rgba(16,185,129,0.14)',
-                                        color: '#10b981',
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 6,
-                                    }}
-                                >
-                                    <span>{statusValue}</span>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                        <CloseIcon />
-                                    </span>
-                                </button>
-                            ))}
+                )}
+            </div>
+
+            {/* MAIN CONTENT */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', position: 'relative', background: 'var(--admin-page-bg)' }}>
+
+                {isMobile && sidebarOpen && (
+                    <div onClick={() => setSidebarOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 35 }} />
+                )}
+
+                <header style={{ background: 'var(--admin-header-bg)', borderBottom: '1px solid var(--admin-border-soft)', position: 'relative', zIndex: 30 }}>
+                    <div style={{
+                        padding: isMobile ? '10px 14px' : '0 32px',
+                        minHeight: 72,
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: isMobile ? 'wrap' : 'nowrap',
+                        gap: isMobile ? 10 : 14,
+                    }}>
+                        {isMobile && (
+                            <button onClick={() => setSidebarOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-primary)' }}>
+                                <Menu size={24} />
+                            </button>
+                        )}
+                        <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--admin-text-primary)' }}>
+                            {activeTab === 'dashboard' ? 'Platform Analytics' : activeTab === 'consultant' ? 'Consultants' : 'Clients'}
+                        </span>
+
+                        <div style={{
+                            marginLeft: 'auto',
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexWrap: 'nowrap',
+                            gap: isMobile ? 8 : 12,
+                        }}>
+                            {activeTab === 'dashboard' && <AdminDateRangePicker value={analyticsDateRange} onChange={setAnalyticsDateRange} isLight={isLight} />}
+                            <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
+                            {activeTab === 'consultant' && <span style={{ padding: isMobile ? '4px 10px' : '4px 12px', borderRadius: 20, fontSize: isMobile ? 10 : 11, fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>Showing {totalCount}</span>}
+                            <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)', cursor: 'pointer' }}>Emails</button>
+                            {activeTab === 'consultant' && <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)', color: dispatchingDueNotifications ? 'var(--admin-text-secondary)' : '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', cursor: dispatchingDueNotifications ? 'not-allowed' : 'pointer' }}>{dispatchingDueNotifications ? 'Dispatching...' : 'Due Emails'}</button>}
+                            {activeTab === 'consultant' && <button className="tp-btn" onClick={handleExportExcel} disabled={exporting || loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', border: '1px solid rgba(16,185,129,0.25)', cursor: exporting || loading ? 'not-allowed' : 'pointer' }}>Export</button>}
+                            <button className="tp-btn" onClick={() => (activeTab === 'consultant' ? fetchConsultants(page) : null)} disabled={loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: loading ? 'not-allowed' : 'pointer' }}>Refresh</button>
+                            <button className="tp-btn" onClick={resetSession} style={{ padding: isMobile ? '7px 10px' : '8px 16px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 600, background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}>Logout</button>
                         </div>
-                    )}
-                    {showAssessmentSubstatus && (
+                    </div>
+                </header>
+
+                <main style={{ flex: 'none' }}>
+                    {exportModalOpen && typeof document !== 'undefined' && createPortal((
                         <div
+                            role="presentation"
+                            onMouseDown={(event) => {
+                                if (event.target === event.currentTarget) setExportModalOpen(false);
+                            }}
                             style={{
-                                marginTop: 10,
+                                ...themeVars,
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                width: '100vw',
+                                height: '100dvh',
+                                zIndex: 9999,
+                                background: 'rgba(15,23,42,0.58)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 8,
-                                flexWrap: 'wrap',
-                                padding: '8px 10px',
-                                borderRadius: 12,
-                                background: isLight ? 'rgba(248,250,252,0.92)' : 'rgba(15,23,42,0.48)',
-                                border: '1px solid var(--admin-border-soft)',
+                                justifyContent: 'center',
+                                padding: isMobile ? 10 : 24,
+                                boxSizing: 'border-box',
+                                color: 'var(--admin-text-primary)',
                             }}
                         >
-                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>
-                                Assessment Stage
-                            </span>
-                            {ASSESSMENT_SUBSTATUS_OPTIONS.map((option) => {
-                                const isActive = assessmentSubstatusFilter === option.value;
-                                return (
+                            <div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="export-columns-title"
+                                style={{
+                                    width: isMobile ? 'calc(100vw - 20px)' : 'min(980px, calc(100vw - 48px))',
+                                    height: isMobile ? 'calc(100dvh - 20px)' : 'min(720px, calc(100dvh - 48px))',
+                                    overflow: 'hidden',
+                                    borderRadius: 8,
+                                    background: isLight ? '#ffffff' : '#111827',
+                                    border: '1px solid var(--admin-border-mid)',
+                                    boxShadow: isLight ? '0 30px 90px rgba(15,23,42,0.22)' : '0 30px 90px rgba(0,0,0,0.56)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                }}
+                            >
+                                <div style={{ padding: isMobile ? '12px 14px' : '14px 18px', borderBottom: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                                    <div>
+                                        <h2 id="export-columns-title" style={{ margin: 0, fontSize: isMobile ? 16 : 18, color: 'var(--admin-text-strong)' }}>Customize Excel Export</h2>
+                                        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--admin-text-secondary)' }}>
+                                            {selectedExportColumns.length} of {exportColumns.length || 0} columns selected
+                                            {hasExportPreferenceChanges ? ' - unsaved changes' : ''}
+                                        </p>
+                                    </div>
                                     <button
-                                        key={option.value}
                                         type="button"
-                                        onClick={() => setAssessmentSubstatusFilter(option.value)}
+                                        onClick={() => setExportModalOpen(false)}
+                                        aria-label="Close export columns"
                                         style={{
-                                            padding: '6px 10px',
-                                            borderRadius: 999,
-                                            border: `1px solid ${isActive ? 'rgba(16,185,129,0.34)' : 'var(--admin-border-mid)'}`,
-                                            background: isActive ? 'rgba(16,185,129,0.14)' : 'var(--admin-surface-strong)',
-                                            color: isActive ? '#10b981' : 'var(--admin-text-secondary)',
-                                            fontSize: 12,
-                                            fontWeight: 700,
+                                            width: 32,
+                                            height: 32,
+                                            padding: 0,
+                                            borderRadius: 8,
+                                            border: '1px solid var(--admin-border-mid)',
+                                            background: isLight ? '#f8fafc' : '#0f172a',
+                                            color: 'var(--admin-text-secondary)',
                                             cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            lineHeight: 0,
+                                            appearance: 'none',
                                         }}
                                     >
-                                        {option.label}
+                                        <CloseIcon />
                                     </button>
-                                );
-                            })}
+                                </div>
+
+                                <div style={{ flex: 1, minHeight: 0, padding: isMobile ? 14 : 18, overflow: isMobile ? 'auto' : 'hidden', display: 'flex', flexDirection: 'column', background: isLight ? '#f8fafc' : '#0f172a' }}>
+                                    {exportPreferencesLoading ? (
+                                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-secondary)', fontSize: 13 }}>Loading export columns...</div>
+                                    ) : exportPreferencesError && !exportColumns.length ? (
+                                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <div style={{ width: 'min(460px, 100%)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.24)', background: 'rgba(239,68,68,0.08)', padding: 18, textAlign: 'center' }}>
+                                                <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>Unable to load export columns</div>
+                                                <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>{exportPreferencesError}</div>
+                                                <button type="button" onClick={() => loadExportPreferences(true)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.28)', background: 'rgba(239,68,68,0.12)', color: '#f87171', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Retry</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {exportPreferencesError && (
+                                                <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.22)', fontSize: 12 }}>
+                                                    {exportPreferencesError}
+                                                </div>
+                                            )}
+
+                                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                                                <button type="button" onClick={() => setSelectedExportColumns(exportColumns.map((column) => column.key))} disabled={!exportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: exportColumns.length ? 'pointer' : 'not-allowed' }}>Select All</button>
+                                                <button type="button" onClick={() => setSelectedExportColumns(defaultExportColumns)} disabled={!defaultExportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: defaultExportColumns.length ? 'pointer' : 'not-allowed' }}>Reset Default</button>
+                                            </div>
+
+                                            <div style={{ flex: isMobile ? '0 0 auto' : 1, minHeight: isMobile ? 'auto' : 0, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.3fr) minmax(250px, 0.8fr)', gap: 14 }}>
+                                                <div style={{ minHeight: isMobile ? 'auto' : 0, overflow: isMobile ? 'visible' : 'auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', alignContent: 'start', gap: 12, paddingRight: isMobile ? 0 : 2 }}>
+                                                    {exportColumnGroups.map((group) => (
+                                                        <section key={group.name} style={{ border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827' }}>
+                                                            <h3 style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>{group.name}</h3>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                                {group.columns.map((column) => (
+                                                                    <label key={column.key} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedExportColumnSet.has(column.key)}
+                                                                            onChange={() => toggleExportColumn(column.key)}
+                                                                        />
+                                                                        <span>{column.header}</span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </section>
+                                                    ))}
+                                                </div>
+                                                <aside style={{ minHeight: 0, border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827', display: 'flex', flexDirection: 'column' }}>
+                                                    <h3 style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>Column Order</h3>
+                                                    <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>Top to bottom becomes left to right in Excel.</p>
+                                                    {selectedExportColumns.length ? (
+                                                        <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }}>
+                                                            {selectedExportColumns.map((key, index) => (
+                                                                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-strong)' }}>
+                                                                    <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--admin-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        {selectedExportColumnLabels[index]}
+                                                                    </span>
+                                                                    <button type="button" onClick={() => moveExportColumn(index, -1)} disabled={index === 0} style={{ width: 32, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === 0 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === 0 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Up</button>
+                                                                    <button type="button" onClick={() => moveExportColumn(index, 1)} disabled={index === selectedExportColumns.length - 1} style={{ width: 44, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === selectedExportColumns.length - 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === selectedExportColumns.length - 1 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Down</button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ padding: 18, borderRadius: 8, border: '1px dashed var(--admin-border-mid)', color: 'var(--admin-text-secondary)', fontSize: 12, textAlign: 'center' }}>Select at least one column.</div>
+                                                    )}
+                                                </aside>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div style={{ padding: isMobile ? '14px 16px' : '16px 22px', borderTop: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+                                    <button type="button" onClick={() => setExportModalOpen(false)} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                                    <button type="button" onClick={saveExportPreferences} disabled={exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)', background: hasExportPreferenceChanges ? 'rgba(59,130,246,0.14)' : 'var(--admin-surface-strong)', color: hasExportPreferenceChanges ? '#60a5fa' : 'var(--admin-text-muted)', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving ? 'Saving...' : 'Save'}</button>
+                                    <button type="button" onClick={() => downloadExportExcel()} disabled={exportPreferencesLoading || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.14)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Download'}</button>
+                                    <button type="button" onClick={saveAndDownloadExport} disabled={exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.20)', color: exportPreferencesSaving || exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 800, cursor: exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving || exporting ? 'Working...' : 'Save & Download'}</button>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </div>
+                    ), document.body)}
 
-                {loading && <div style={{ textAlign: 'center', padding: 60, color: 'var(--admin-text-muted)' }}>Loading consultants...</div>}
-                {error && <div style={{ textAlign: 'center', padding: 40, color: '#f87171' }}>{error}</div>}
+                    <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '16px' : '32px' }}>
+                        {activeTab === 'dashboard' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                {/* Top Row - Key Metrics */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 24 }}>
+                                    {[
+                                        { label: 'Consultant Numbers', value: consultantNumbers, sub: 'Credentials sent', icon: Users, color: '#3b82f6' },
+                                        { label: 'Paying Clients', value: payingClients, sub: 'Total registered clients', icon: UserSquare, color: '#10b981' },
+                                        { label: "Total Today's Calls", value: todaysCalls, sub: 'Calls made today', icon: Phone, color: '#f59e0b' },
+                                        { label: 'Consultant : Client Ratio', value: consultantClientRatio, sub: 'Consultants to paying clients', icon: Activity, color: '#8b5cf6' },
+                                    ].map((metric, i) => (
+                                        <div key={i} style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                                                <div style={{ width: 40, height: 40, borderRadius: 12, background: `${metric.color}15`, color: metric.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <metric.icon size={20} />
+                                                </div>
+                                                <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{metric.label}</span>
+                                            </div>
+                                            <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--admin-text-primary)', marginBottom: 4 }}>{metric.value}</div>
+                                            <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>{metric.sub}</div>
+                                        </div>
+                                    ))}
+                                </div>
 
-                {!loading && !error && (
-                    <div style={{ background: 'var(--admin-surface-strong)', borderRadius: 18, border: '1px solid var(--admin-border-soft)', boxShadow: isLight ? '0 18px 40px rgba(148,163,184,0.12)' : 'none', overflow: 'hidden' }}>
-                        {isMobile ? (
-                            <div style={{ padding: '10px 10px 0', display: 'grid', gap: 10 }}>
-                                {sorted.map((c, i) => {
-                                    const displayStatus = normalizeAdminStatus(c.assessment_display_status || c.assessment_status);
-                                    const style = STATUS_COLORS[displayStatus] || STATUS_COLORS['New Join'];
-                                    const substatusStyle = c.assessment_substatus ? (SUBSTATUS_COLORS[c.assessment_substatus] || SUBSTATUS_COLORS.MCQ) : null;
-                                    return (
-                                        <article
-                                            key={c.id}
-                                            onClick={() => window.open(adminUrl(`consultant/${c.id}`), '_blank', 'noopener,noreferrer')}
+                                {/* Second Row - Main Charts */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+                                    {/* Platform Growth */}
+                                    <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
+                                        <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 800, color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <TrendingUp size={18} color="#3b82f6" /> Platform Growth
+                                        </h3>
+                                        <div style={{ height: 320, width: '100%' }}>
+                                            {isChartReady && (
+                                                <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
+                                                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                        <defs>
+                                                            <linearGradient id="colorCons" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                            </linearGradient>
+                                                            <linearGradient id="colorCli" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <XAxis dataKey="name" stroke="var(--admin-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                                                        <YAxis stroke="var(--admin-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--admin-border-soft)" />
+                                                        <RechartsTooltip contentStyle={{ background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-soft)', borderRadius: 12, color: 'var(--admin-text-primary)', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
+                                                        <Area type="monotone" dataKey="value" name="Onboarded" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorCons)" />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Call Logs */}
+                                    <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
+                                        <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 800, color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Phone size={18} color="#f59e0b" /> Call Logs
+                                        </h3>
+                                        <div style={{ height: 320, width: '100%' }}>
+                                            {isChartReady && (
+                                                <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
+                                                    <AreaChart data={callLogsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                        <defs>
+                                                            <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                                                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <XAxis dataKey="name" stroke="var(--admin-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                                                        <YAxis stroke="var(--admin-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--admin-border-soft)" />
+                                                        <RechartsTooltip contentStyle={{ background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-soft)', borderRadius: 12, color: 'var(--admin-text-primary)', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
+                                                        <Area type="monotone" dataKey="value" name="Calls" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorCalls)" />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Age Distribution */}
+                                    <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
+                                        <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 800, color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <UserSquare size={18} color="#8b5cf6" /> Consultant Age Distribution
+                                        </h3>
+                                        <div style={{ height: 320, width: '100%' }}>
+                                            {isChartReady && (
+                                                <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
+                                                    <BarChart data={[...ageData, ...(stats?.not_specified_age != null ? [{ name: 'Not Specified', value: stats.not_specified_age }] : [])]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                        <XAxis dataKey="name" stroke="var(--admin-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                                                        <YAxis stroke="var(--admin-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--admin-border-soft)" />
+                                                        <RechartsTooltip cursor={{ fill: 'var(--admin-row-alt)' }} contentStyle={{ background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-soft)', borderRadius: 12 }} />
+                                                        <Bar dataKey="value" name="Consultants" radius={[6, 6, 0, 0]} barSize={40}>
+                                                            {[...ageData, ...(stats?.not_specified_age != null ? [{ name: 'Not Specified', value: stats.not_specified_age }] : [])].map((entry, index, arr) => (
+                                                                <Cell key={`cell-${index}`} fill={index === arr.length - 1 && entry.name === 'Not Specified' ? '#94a3b8' : '#8b5cf6'} />
+                                                            ))}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Service Wise Consultants */}
+                                <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
+                                    <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 800, color: 'var(--admin-text-primary)' }}>Service Wise Consultants</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                                        {serviceData.map((srv, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => { setServiceFilter(srv.name); setActiveTab('consultant'); setPage(1); }}
+                                                style={{ padding: 16, borderRadius: 16, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-strong)', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                                                onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--admin-border-soft)'}
+                                            >
+                                                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--admin-text-primary)', marginBottom: 12, textTransform: 'uppercase' }}>{srv.name}</div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 10, color: 'var(--admin-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Reg. Recd</div>
+                                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#3b82f6' }}>{srv.registered}</div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontSize: 10, color: 'var(--admin-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Cred. Recd</div>
+                                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{srv.credentials}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* State Wise List */}
+                                <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
+                                    <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 800, color: 'var(--admin-text-primary)' }}>State Wise Consultant Distribution</h3>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: isMobile ? '1fr' : (viewportWidth < 1024 ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)'),
+                                        gap: 16
+                                    }}>
+                                        {stateData.map((st, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => { setStateFilter(st.name); setActiveTab('consultant'); setPage(1); }}
+                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-strong)', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                onMouseOver={(e) => e.currentTarget.style.background = 'var(--admin-row-alt)'}
+                                                onMouseOut={(e) => e.currentTarget.style.background = 'var(--admin-surface-strong)'}
+                                            >
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{st.name}</div>
+                                                <div style={{ display: 'flex', gap: 16, textAlign: 'right' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 9, color: 'var(--admin-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Reg</div>
+                                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#3b82f6' }}>{st.registered}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 9, color: 'var(--admin-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Cred</div>
+                                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#10b981' }}>{st.credentials}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'client' && (
+                            <AdminClientList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
+                        )}
+
+                        <div style={{ display: activeTab === 'consultant' ? 'block' : 'none' }}>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(210px, 1fr))',
+                                gap: isMobile ? 10 : 14,
+                                marginBottom: isMobile ? 14 : 22,
+                            }}>
+                                {summaryCards.map((card) => (
+                                    <button
+                                        type="button"
+                                        key={card.label}
+                                        onClick={() => handleCardFilterChange(card.filterKey)}
+                                        style={{
+                                            minHeight: isMobile ? 90 : 108,
+                                            borderRadius: 18,
+                                            border: `1px solid ${cardFilter === card.filterKey ? card.accent : card.border}`,
+                                            background: card.background,
+                                            boxShadow: isLight
+                                                ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
+                                                : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                                            padding: isMobile ? '12px 12px 10px' : '18px 18px 16px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'space-between',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                            cursor: 'pointer',
+                                            outline: 'none',
+                                            transform: cardFilter === card.filterKey ? 'translateY(-1px)' : 'none',
+                                            transition: 'border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease',
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{
+                                                fontSize: 13,
+                                                fontWeight: 800,
+                                                letterSpacing: '0.08em',
+                                                textTransform: 'uppercase',
+                                                color: isLight ? '#64748b' : '#6f89b4',
+                                            }}>
+                                                {card.label}
+                                            </span>
+                                            <span style={{
+                                                width: 12,
+                                                height: 12,
+                                                borderRadius: '50%',
+                                                background: card.accent,
+                                                boxShadow: `0 0 0 8px ${card.accent}1c`,
+                                                flexShrink: 0,
+                                            }} />
+                                        </div>
+                                        <div style={{
+                                            fontSize: isMobile ? 24 : 32,
+                                            lineHeight: 1,
+                                            fontWeight: 800,
+                                            color: isLight ? '#0f172a' : '#ffffff',
+                                            letterSpacing: '-0.03em',
+                                        }}>
+                                            {card.value}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div style={{ marginBottom: isMobile ? 12 : 18 }}>
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
+                                    <input value={search} placeholder="Search by name, email, or phone..." onChange={(e) => setSearch(e.target.value)} style={{ flex: isMobile ? '0 0 auto' : '1 1 320px', width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 'none' : 520, padding: '11px 16px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-strong)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                                    <div ref={statusMenuRef} style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setStatusMenuOpen((open) => !open)}
                                             style={{
-                                                border: '1px solid var(--admin-border-soft)',
-                                                borderRadius: 14,
-                                                padding: '12px 12px 10px',
-                                                background: i % 2 === 0 ? 'var(--admin-surface-strong)' : 'var(--admin-row-alt)',
+                                                padding: '10px 12px',
+                                                borderRadius: 12,
+                                                background: 'var(--admin-surface-strong)',
+                                                border: '1px solid var(--admin-border-mid)',
+                                                boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none',
+                                                color: 'var(--admin-text-primary)',
+                                                fontSize: 13,
                                                 cursor: 'pointer',
+                                                minWidth: isMobile ? 0 : 172,
+                                                width: isMobile ? '100%' : 'auto',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: 10,
                                             }}
                                         >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                                                <div style={{ minWidth: 0 }}>
-                                                    <a
-                                                        href={adminUrl(`consultant/${c.id}`)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        onClick={(event) => event.stopPropagation()}
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 240 : 130 }}>{statusSelectionLabel}</span>
+                                            <span style={{ color: 'var(--admin-text-muted)', display: 'inline-flex', alignItems: 'center' }}>
+                                                <ChevronIcon open={statusMenuOpen} />
+                                            </span>
+                                        </button>
+                                        {statusMenuOpen && (
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 'calc(100% + 8px)',
+                                                    left: 0,
+                                                    zIndex: 12,
+                                                    width: isMobile ? '100%' : 250,
+                                                    maxHeight: 280,
+                                                    overflowY: 'auto',
+                                                    padding: 10,
+                                                    borderRadius: 12,
+                                                    background: 'var(--admin-surface-strong)',
+                                                    border: '1px solid var(--admin-border-mid)',
+                                                    boxShadow: isLight ? '0 18px 30px rgba(148,163,184,0.2)' : '0 18px 34px rgba(2,6,23,0.45)',
+                                                }}
+                                            >
+                                                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
+                                                    Select Statuses
+                                                </div>
+                                                {STATUS_FILTER_OPTIONS.map((statusOption) => {
+                                                    const selected = statusFilters.includes(statusOption);
+                                                    return (
+                                                        <button
+                                                            key={statusOption}
+                                                            type="button"
+                                                            onClick={() => toggleStatusFilter(statusOption)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '8px 10px',
+                                                                borderRadius: 9,
+                                                                border: `1px solid ${selected ? 'rgba(16,185,129,0.34)' : 'var(--admin-border-mid)'}`,
+                                                                background: selected ? 'rgba(16,185,129,0.12)' : 'var(--admin-surface)',
+                                                                color: selected ? '#10b981' : 'var(--admin-text-secondary)',
+                                                                fontSize: 12,
+                                                                fontWeight: 700,
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 8,
+                                                                marginBottom: 6,
+                                                                textAlign: 'left',
+                                                            }}
+                                                        >
+                                                            <span
+                                                                style={{
+                                                                    width: 14,
+                                                                    height: 14,
+                                                                    borderRadius: 3,
+                                                                    border: `1px solid ${selected ? 'rgba(16,185,129,0.55)' : 'var(--admin-border-mid)'}`,
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    fontSize: 10,
+                                                                    lineHeight: 1,
+                                                                    color: selected ? '#10b981' : 'transparent',
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            >
+                                                                <CheckIcon visible={selected} />
+                                                            </span>
+                                                            <span>{statusOption}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {statusFilters.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setCardFilter('total');
+                                                            setStatusFilters([]);
+                                                            setAssessmentSubstatusFilter('all');
+                                                        }}
                                                         style={{
-                                                            color: 'var(--admin-text-primary)',
-                                                            textDecoration: 'none',
-                                                            fontSize: 14,
-                                                            fontWeight: 800,
-                                                            display: 'block',
-                                                            whiteSpace: 'nowrap',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
+                                                            width: '100%',
+                                                            marginTop: 4,
+                                                            padding: '7px 10px',
+                                                            borderRadius: 9,
+                                                            border: '1px solid var(--admin-border-mid)',
+                                                            background: 'var(--admin-surface)',
+                                                            color: 'var(--admin-text-muted)',
+                                                            fontSize: 12,
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
                                                         }}
                                                     >
-                                                        {c.full_name || '-'}
-                                                    </a>
-                                                    <div style={{ marginTop: 4, fontSize: 12, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {c.email || '-'}
-                                                    </div>
-                                                    <div style={{ marginTop: 2, fontSize: 12, color: 'var(--admin-text-muted)' }}>
-                                                        {c.phone_number || '-'}
-                                                    </div>
-                                                </div>
-                                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--admin-text-muted)', whiteSpace: 'nowrap' }}>
-                                                    {c.assessment_count ?? 0} attempts
-                                                </span>
-                                            </div>
-
-                                            <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                                <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: style.bg, color: style.color }}>
-                                                    {displayStatus}
-                                                </span>
-                                                {c.assessment_substatus && (
-                                                    <span style={{ padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, background: substatusStyle.bg, color: substatusStyle.color, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                                                        {c.assessment_substatus}
-                                                    </span>
+                                                        Clear status selection
+                                                    </button>
                                                 )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStatusMenuOpen(false)}
+                                                    style={{
+                                                        width: '100%',
+                                                        marginTop: 6,
+                                                        padding: '7px 10px',
+                                                        borderRadius: 9,
+                                                        border: '1px solid rgba(16,185,129,0.34)',
+                                                        background: 'rgba(16,185,129,0.14)',
+                                                        color: '#10b981',
+                                                        fontSize: 12,
+                                                        fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    Done
+                                                </button>
                                             </div>
-
-                                            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                                                <div style={{ padding: 8, borderRadius: 10, background: 'var(--admin-surface)', border: '1px solid rgba(148,163,184,0.08)' }}>
-                                                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>MCQ</div>
-                                                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{c.assessment_score != null ? `${c.assessment_score}/50` : '-'}</div>
-                                                </div>
-                                                <div style={{ padding: 8, borderRadius: 10, background: 'var(--admin-surface)', border: '1px solid rgba(148,163,184,0.08)' }}>
-                                                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>Video</div>
-                                                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '-'}</div>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--admin-text-muted)', display: 'grid', gap: 4 }}>
-                                                <span>Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</span>
-                                                <span>Updated: {c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'}</span>
-                                            </div>
-                                        </article>
-                                    );
-                                })}
-                                {sorted.length === 0 && (
-                                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>
-                                        {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total')
-                                            ? 'No consultants match your current filters.'
-                                            : 'No consultants found.'}
+                                        )}
+                                    </div>
+                                    <select value={joinedDateFilter} onChange={(e) => setJoinedDateFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                                        {JOINED_DATE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                    </select>
+                                    {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total' || stateFilter || serviceFilter) && <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilters([]); setAssessmentSubstatusFilter('all'); setJoinedDateFilter('all'); setCardFilter('total'); setStateFilter(''); setServiceFilter(''); setStatusMenuOpen(false); }} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>Clear</button>}
+                                </div>
+                                {statusFilters.length > 0 && (
+                                    <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                        {statusFilters.map((statusValue) => (
+                                            <button
+                                                key={statusValue}
+                                                type="button"
+                                                onClick={() => toggleStatusFilter(statusValue)}
+                                                style={{
+                                                    padding: '5px 10px',
+                                                    borderRadius: 999,
+                                                    border: '1px solid rgba(16,185,129,0.35)',
+                                                    background: 'rgba(16,185,129,0.14)',
+                                                    color: '#10b981',
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                }}
+                                            >
+                                                <span>{statusValue}</span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                    <CloseIcon />
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {(stateFilter || serviceFilter) && (
+                                    <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                        {stateFilter && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setStateFilter('')}
+                                                style={{
+                                                    padding: '5px 10px',
+                                                    borderRadius: 999,
+                                                    border: '1px solid rgba(59,130,246,0.35)',
+                                                    background: 'rgba(59,130,246,0.14)',
+                                                    color: '#3b82f6',
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                }}
+                                            >
+                                                <span>State: {stateFilter}</span>
+                                                <CloseIcon />
+                                            </button>
+                                        )}
+                                        {serviceFilter && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setServiceFilter('')}
+                                                style={{
+                                                    padding: '5px 10px',
+                                                    borderRadius: 999,
+                                                    border: '1px solid rgba(139,92,246,0.35)',
+                                                    background: 'rgba(139,92,246,0.14)',
+                                                    color: '#8b5cf6',
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                }}
+                                            >
+                                                <span>Service: {serviceFilter}</span>
+                                                <CloseIcon />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                {showAssessmentSubstatus && (
+                                    <div
+                                        style={{
+                                            marginTop: 10,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            flexWrap: 'wrap',
+                                            padding: '8px 10px',
+                                            borderRadius: 12,
+                                            background: isLight ? 'rgba(248,250,252,0.92)' : 'rgba(15,23,42,0.48)',
+                                            border: '1px solid var(--admin-border-soft)',
+                                        }}
+                                    >
+                                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>
+                                            Assessment Stage
+                                        </span>
+                                        {ASSESSMENT_SUBSTATUS_OPTIONS.map((option) => {
+                                            const isActive = assessmentSubstatusFilter === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setAssessmentSubstatusFilter(option.value)}
+                                                    style={{
+                                                        padding: '6px 10px',
+                                                        borderRadius: 999,
+                                                        border: `1px solid ${isActive ? 'rgba(16,185,129,0.34)' : 'var(--admin-border-mid)'}`,
+                                                        background: isActive ? 'rgba(16,185,129,0.14)' : 'var(--admin-surface-strong)',
+                                                        color: isActive ? '#10b981' : 'var(--admin-text-secondary)',
+                                                        fontSize: 12,
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    {option.label}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
-                        ) : (
-                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1060, tableLayout: 'fixed' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                            <th onClick={() => setSort('name')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 220 }}>Name{sortIndicator('name')}</th>
-                                            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, width: 300 }}>Details</th>
-                                            <th onClick={() => setSort('status')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 150 }}>Status{sortIndicator('status')}</th>
-                                            <th onClick={() => setSort('score')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 180 }}>Score{sortIndicator('score')}</th>
-                                            <th onClick={() => setSort('created_at')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 120 }}>Joining{sortIndicator('created_at')}</th>
-                                            <th onClick={() => setSort('updated_at')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 140 }}>Latest Changes{sortIndicator('updated_at')}</th>
-                                            <th onClick={() => setSort('assessment_count')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 120 }}>Attempts{sortIndicator('assessment_count')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sorted.map((c, i) => {
-                                            const displayStatus = normalizeAdminStatus(c.assessment_display_status || c.assessment_status);
-                                            const style = STATUS_COLORS[displayStatus] || STATUS_COLORS['New Join'];
-                                            const substatusStyle = c.assessment_substatus ? (SUBSTATUS_COLORS[c.assessment_substatus] || SUBSTATUS_COLORS.MCQ) : null;
-                                            return (
-                                                <tr key={c.id} onClick={() => window.open(adminUrl(`consultant/${c.id}`), '_blank', 'noopener,noreferrer')} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', cursor: 'pointer', background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
-                                                    <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 800, color: 'var(--admin-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        <a href={adminUrl(`consultant/${c.id}`)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--admin-text-primary)', textDecoration: 'none' }}>{c.full_name || '-'}</a>
-                                                    </td>
-                                                    <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email || '-'}</div>
-                                                        <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 4 }}>{c.phone_number || '-'}</div>
-                                                    </td>
-                                                    <td style={{ padding: '14px 16px' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
-                                                            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: style.bg, color: style.color, whiteSpace: 'nowrap' }}>{displayStatus}</span>
+
+                            {loading && <div style={{ textAlign: 'center', padding: 60, color: 'var(--admin-text-muted)' }}>Loading consultants...</div>}
+                            {error && <div style={{ textAlign: 'center', padding: 40, color: '#f87171' }}>{error}</div>}
+
+                            {!loading && !error && (
+                                <div style={{ background: 'var(--admin-surface-strong)', borderRadius: 18, border: '1px solid var(--admin-border-soft)', boxShadow: isLight ? '0 18px 40px rgba(148,163,184,0.12)' : 'none', overflow: 'hidden' }}>
+                                    {isMobile ? (
+                                        <div style={{ padding: '10px 10px 0', display: 'grid', gap: 10 }}>
+                                            {sorted.map((c, i) => {
+                                                const displayStatus = normalizeAdminStatus(c.assessment_display_status || c.assessment_status);
+                                                const style = STATUS_COLORS[displayStatus] || STATUS_COLORS['New Join'];
+                                                const substatusStyle = c.assessment_substatus ? (SUBSTATUS_COLORS[c.assessment_substatus] || SUBSTATUS_COLORS.MCQ) : null;
+                                                return (
+                                                    <article
+                                                        key={c.id}
+                                                        onClick={() => window.open(`/Consultants/${c.id}`, '_blank', 'noopener,noreferrer')}
+                                                        style={{
+                                                            border: '1px solid var(--admin-border-soft)',
+                                                            borderRadius: 14,
+                                                            padding: '12px 12px 10px',
+                                                            background: i % 2 === 0 ? 'var(--admin-surface-strong)' : 'var(--admin-row-alt)',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                                                            <div style={{ minWidth: 0 }}>
+                                                                <a
+                                                                    href={`/Consultants/${c.id}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    onClick={(event) => event.stopPropagation()}
+                                                                    style={{
+                                                                        color: 'var(--admin-text-primary)',
+                                                                        textDecoration: 'none',
+                                                                        fontSize: 14,
+                                                                        fontWeight: 800,
+                                                                        display: 'block',
+                                                                        whiteSpace: 'nowrap',
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis',
+                                                                    }}
+                                                                >
+                                                                    {c.full_name || '-'}
+                                                                </a>
+                                                                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    {c.email || '-'}
+                                                                </div>
+                                                                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>{c.phone_number || '-'}</div>
+                                                                    <a
+                                                                        href={`tel:${c.phone_number || ''}`}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        style={{ padding: '6px', background: '#3b82f615', borderRadius: 6, color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                                    >
+                                                                        <Phone size={14} />
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--admin-text-muted)', whiteSpace: 'nowrap' }}>
+                                                                {c.assessment_count ?? 0} attempts
+                                                            </span>
+                                                        </div>
+
+                                                        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: style.bg, color: style.color }}>
+                                                                {displayStatus}
+                                                            </span>
                                                             {c.assessment_substatus && (
-                                                                <span style={{ padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, background: substatusStyle.bg, color: substatusStyle.color, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                                                                <span style={{ padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, background: substatusStyle.bg, color: substatusStyle.color, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
                                                                     {c.assessment_substatus}
                                                                 </span>
                                                             )}
                                                         </div>
-                                                    </td>
-                                                    <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                                                        <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700 }}>{c.assessment_score != null ? `MCQ: ${c.assessment_score}/50` : 'MCQ: -'}</div>
-                                                        <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', marginTop: 4, fontWeight: 700 }}>{c.video_score != null ? `Video: ${c.video_score}/${c.video_total || '?'}` : 'Video: -'}</div>
-                                                    </td>
-                                                    <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
-                                                    <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'}</td>
-                                                    <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.assessment_count ?? 0}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                        {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                        <div style={{ padding: isMobile ? '12px' : '10px 16px', borderTop: '1px solid rgba(148,163,184,0.08)', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', color: 'var(--admin-text-muted)', fontSize: 12, flexWrap: 'wrap', gap: 8, background: isLight ? 'rgba(248,250,252,0.9)' : 'transparent' }}>
-                            <span style={{ textAlign: isMobile ? 'center' : 'left' }}>Page <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{page}</span> of <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{totalPages}</span>{' . '}{totalCount} result{totalCount !== 1 ? 's' : ''}</span>
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
-                                <button onClick={() => fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page <= 1 || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page <= 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>{isMobile ? 'First' : '<<'}</button>
-                                <button onClick={() => fetchConsultants(page - 1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page <= 1 || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page <= 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>{'< Prev'}</button>
-                                {!isMobile && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                    const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-                                    const p = start + i;
-                                    return p <= totalPages ? <button key={p} onClick={() => fetchConsultants(p, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: p === page ? 'rgba(16,185,129,0.2)' : 'var(--admin-tab-idle)', color: p === page ? '#34d399' : 'var(--admin-text-secondary)', border: `1px solid ${p === page ? 'rgba(16,185,129,0.35)' : 'var(--admin-border-mid)'}`, cursor: loading ? 'not-allowed' : 'pointer', minWidth: 32 }}>{p}</button> : null;
-                                })}
-                                <button onClick={() => fetchConsultants(page + 1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page >= totalPages || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page >= totalPages ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>{'Next >'}</button>
-                                <button onClick={() => fetchConsultants(totalPages, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter)} disabled={page >= totalPages || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page >= totalPages ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>{isMobile ? 'Last' : '>>'}</button>
-                            </div>
-                            {!isMobile && <span style={{ color: 'var(--admin-text-secondary)' }}>Tip: click headers to sort</span>}
+
+                                                        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                                                            <div style={{ padding: 8, borderRadius: 10, background: 'var(--admin-surface)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                                                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>MCQ</div>
+                                                                <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{c.assessment_score != null ? `${c.assessment_score}/50` : '-'}</div>
+                                                            </div>
+                                                            <div style={{ padding: 8, borderRadius: 10, background: 'var(--admin-surface)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                                                                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--admin-text-muted)' }}>Video</div>
+                                                                <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{c.video_score != null ? `${c.video_score}/${c.video_total || '?'}` : '-'}</div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--admin-text-muted)', display: 'grid', gap: 4 }}>
+                                                            <span>Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</span>
+                                                            <span>Updated: {c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'}</span>
+                                                        </div>
+                                                    </article>
+                                                );
+                                            })}
+                                            {sorted.length === 0 && (
+                                                <div style={{ padding: 24, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>
+                                                    {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total')
+                                                        ? 'No consultants match your current filters.'
+                                                        : 'No consultants found.'}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1060, tableLayout: 'fixed' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                                        <th onClick={() => setSort('name')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 220 }}>Name{sortIndicator('name')}</th>
+                                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, width: 300 }}>Details</th>
+                                                        <th onClick={() => setSort('status')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 150 }}>Status{sortIndicator('status')}</th>
+                                                        <th onClick={() => setSort('score')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 180 }}>Score{sortIndicator('score')}</th>
+                                                        <th onClick={() => setSort('created_at')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 120 }}>Joining{sortIndicator('created_at')}</th>
+                                                        <th onClick={() => setSort('updated_at')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 140 }}>Latest Changes{sortIndicator('updated_at')}</th>
+                                                        <th onClick={() => setSort('assessment_count')} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, cursor: 'pointer', userSelect: 'none', width: 120 }}>Attempts{sortIndicator('assessment_count')}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {sorted.map((c, i) => {
+                                                        const displayStatus = normalizeAdminStatus(c.assessment_display_status || c.assessment_status);
+                                                        const style = STATUS_COLORS[displayStatus] || STATUS_COLORS['New Join'];
+                                                        const substatusStyle = c.assessment_substatus ? (SUBSTATUS_COLORS[c.assessment_substatus] || SUBSTATUS_COLORS.MCQ) : null;
+                                                        return (
+                                                            <tr key={c.id} onClick={() => window.open(`/Consultants/${c.id}`, '_blank', 'noopener,noreferrer')} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', cursor: 'pointer', background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
+                                                                <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 800, color: 'var(--admin-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    <a href={`/Consultants/${c.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--admin-text-primary)', textDecoration: 'none' }}>{c.full_name || '-'}</a>
+                                                                </td>
+                                                                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email || '-'}</div>
+                                                                    <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 4 }}>{c.phone_number || '-'}</div>
+                                                                </td>
+                                                                <td style={{ padding: '14px 16px' }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                                                                        <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: style.bg, color: style.color, whiteSpace: 'nowrap' }}>{displayStatus}</span>
+                                                                        {c.assessment_substatus && (
+                                                                            <span style={{ padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, background: substatusStyle.bg, color: substatusStyle.color, letterSpacing: '0.03em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                                                                                {c.assessment_substatus}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                                                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700 }}>{c.assessment_score != null ? `MCQ: ${c.assessment_score}/50` : 'MCQ: -'}</div>
+                                                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', marginTop: 4, fontWeight: 700 }}>{c.video_score != null ? `Video: ${c.video_score}/${c.video_total || '?'}` : 'Video: -'}</div>
+                                                                </td>
+                                                                <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
+                                                                <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>
+                                                                    {c.credential_sent_at ? (
+                                                                        <div style={{ color: '#10b981', fontWeight: 700 }}>Sent: {new Date(c.credential_sent_at).toLocaleString()}</div>
+                                                                    ) : (
+                                                                        c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.assessment_count ?? 0}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                    <div style={{ padding: isMobile ? '12px' : '10px 16px', borderTop: '1px solid rgba(148,163,184,0.08)', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', color: 'var(--admin-text-muted)', fontSize: 12, flexWrap: 'wrap', gap: 8, background: isLight ? 'rgba(248,250,252,0.9)' : 'transparent' }}>
+                                        <span style={{ textAlign: isMobile ? 'center' : 'left' }}>Page <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{page}</span> of <span style={{ color: 'var(--admin-text-primary)', fontWeight: 800 }}>{totalPages}</span>{' . '}{totalCount} result{totalCount !== 1 ? 's' : ''}</span>
+                                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
+                                            <button onClick={() => fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter)} disabled={page <= 1 || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page <= 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>{isMobile ? 'First' : '<<'}</button>
+                                            <button onClick={() => fetchConsultants(page - 1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter)} disabled={page <= 1 || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page <= 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>{'< Prev'}</button>
+                                            {!isMobile && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                                                const p = start + i;
+                                                return p <= totalPages ? <button key={p} onClick={() => fetchConsultants(p, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter)} disabled={loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: p === page ? 'rgba(16,185,129,0.2)' : 'var(--admin-tab-idle)', color: p === page ? '#34d399' : 'var(--admin-text-secondary)', border: `1px solid ${p === page ? 'rgba(16,185,129,0.35)' : 'var(--admin-border-mid)'}`, cursor: loading ? 'not-allowed' : 'pointer', minWidth: 32 }}>{p}</button> : null;
+                                            })}
+                                            <button onClick={() => fetchConsultants(page + 1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter)} disabled={page >= totalPages || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page >= totalPages ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>{'Next >'}</button>
+                                            <button onClick={() => fetchConsultants(totalPages, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter)} disabled={page >= totalPages || loading} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, background: 'var(--admin-tab-idle)', color: page >= totalPages ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>{isMobile ? 'Last' : '>>'}</button>
+                                        </div>
+                                        {!isMobile && <span style={{ color: 'var(--admin-text-secondary)' }}>Tip: click headers to sort</span>}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
-                )}
+                </main>
             </div>
         </div>
     );
