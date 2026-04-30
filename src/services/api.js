@@ -104,6 +104,11 @@ export const submitOnboardingFeedback = async (payload) => {
     return response.data;
 };
 
+export const unsubscribeOnboardingReminderEmails = async (token) => {
+    const response = await api.post('/email-preferences/unsubscribe/', { token });
+    return response.data;
+};
+
 // Logout
 export const logout = async () => {
     const response = await api.post('/auth/logout/');

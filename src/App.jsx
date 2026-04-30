@@ -16,6 +16,7 @@ import TestEngine from './pages/assessment/TestEngine';
 import AssessmentResult from './pages/assessment/AssessmentResult';
 import AssessmentDeviceRequired from './pages/assessment/AssessmentDeviceRequired';
 import OnboardingComplete from './pages/OnboardingComplete';
+import EmailUnsubscribe from './pages/EmailUnsubscribe';
 import Declaration from './pages/Declaration';
 import PartnerInfo from './pages/PartnerInfo';
 import AdminLogin from './pages/admin/AdminLogin';
@@ -333,6 +334,7 @@ function AppRoutes() {
     <>
       <ScrollToTop />
       <Routes>
+      <Route path="/unsubscribe/onboarding" element={<EmailUnsubscribe />} />
       <Route path="/" element={<PublicRoute><PartnerInfo /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
