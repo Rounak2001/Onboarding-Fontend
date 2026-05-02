@@ -19,6 +19,7 @@ import OnboardingComplete from './pages/OnboardingComplete';
 import EmailUnsubscribe from './pages/EmailUnsubscribe';
 import Declaration from './pages/Declaration';
 import PartnerInfo from './pages/PartnerInfo';
+import WaitlistPage from './pages/WaitlistPage';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
@@ -33,6 +34,9 @@ import { Phone, Bell, X, Calendar, Clock, ChevronRight, Search, RefreshCw } from
 import './index.css';
 const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_OAUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
+
+// Set VITE_ONBOARDING_OPEN=false in env to show the waitlist page and block new signups
+const ONBOARDING_OPEN = String(import.meta.env.VITE_ONBOARDING_OPEN ?? 'true').trim().toLowerCase() !== 'false';
 
 // Layout for onboarding pages — includes a fixed header
 export const OnboardingLayout = () => {
@@ -335,8 +339,8 @@ function AppRoutes() {
       <ScrollToTop />
       <Routes>
       <Route path="/unsubscribe/onboarding" element={<EmailUnsubscribe />} />
-      <Route path="/" element={<PublicRoute><PartnerInfo /></PublicRoute>} />
-      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/" element={ONBOARDING_OPEN ? <PublicRoute><PartnerInfo /></PublicRoute> : <WaitlistPage />} />
+      <Route path="/login" element={ONBOARDING_OPEN ? <PublicRoute><Login /></PublicRoute> : <Navigate to="/" replace />} />
 
       {/* Protected Onboarding Routes with Layout */}
       <Route element={<ProtectedRoute><OnboardingLayout /></ProtectedRoute>}>
