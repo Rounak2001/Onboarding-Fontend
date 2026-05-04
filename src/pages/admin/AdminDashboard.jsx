@@ -166,10 +166,11 @@ const AdminDashboard = () => {
     const isNarrowMobile = viewportWidth <= 430;
 
     const statusCounts = stats?.status_counts || {};
-    const totalValue = Number(stats?.total || 0);
-    const consultantsValue = Number(statusCounts['Credentials Sent'] ?? stats?.working ?? 0);
-    const spamLeadsValue = Number(statusCounts['New Join'] || 0);
-    const disqualifiedValue = Number(statusCounts['Disqualified'] ?? stats?.violated ?? 0);
+    const baseStatusCounts = stats?.base_status_counts || statusCounts;
+    const totalValue = Number(stats?.base_total ?? stats?.total ?? 0);
+    const consultantsValue = Number(baseStatusCounts['Credentials Sent'] ?? stats?.working ?? 0);
+    const spamLeadsValue = Number(baseStatusCounts['New Join'] || 0);
+    const disqualifiedValue = Number(baseStatusCounts['Disqualified'] ?? stats?.violated ?? 0);
     const inProgressValue = Math.max(0, totalValue - spamLeadsValue - consultantsValue - disqualifiedValue);
 
     const revenueValue = Number(stats?.total_revenue || transactionStats?.total_revenue || 0);
