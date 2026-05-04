@@ -387,6 +387,7 @@ function AppRoutes() {
         <Route element={<AdminReminderLayout />}>
           <Route path={ADMIN_BASE} element={<AdminLogin />} />
           <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
+          <Route path={adminUrl('analytics')} element={<AdminDashboard />} />
           <Route path={adminUrl('consultants')} element={<AdminDashboard />} />
           <Route path={adminUrl('clients')} element={<AdminDashboard />} />
           <Route path={adminUrl('support')} element={<AdminDashboard />} />
