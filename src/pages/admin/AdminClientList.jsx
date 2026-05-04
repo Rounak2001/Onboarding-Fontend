@@ -26,7 +26,7 @@ const ONBOARDED_OPTIONS = [
     { value: 'false', label: 'Not Onboarded' },
 ];
 
-const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
+const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasServices = 'all' }) => {
     const navigate = useNavigate();
     const isMobile = viewportWidth <= 768;
     const isNarrowMobile = viewportWidth <= 430;
@@ -39,6 +39,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
     const [joinedDateFilter, setJoinedDateFilter] = useState('all');
     const [hasOrdersFilter, setHasOrdersFilter] = useState('all');
     const [cardFilter, setCardFilter] = useState('total');
+    const [hasServicesFilter, setHasServicesFilter] = useState(initialHasServices);
     
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -111,6 +112,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
         cJoinedRange = joinedDateFilter,
         cHasOrders = hasOrdersFilter,
         cCardFilter = cardFilter,
+        cHasServices = hasServicesFilter,
     ) => {
         setLoading(true);
         setError('');
@@ -121,6 +123,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
             if (cIsOnboarded !== 'all') params.set('is_onboarded', cIsOnboarded);
             if (cJoinedRange !== 'all') params.set('joined_range', cJoinedRange);
             if (cHasOrders !== 'all') params.set('has_orders', cHasOrders);
+            if (cHasServices !== 'all') params.set('has_services', cHasServices);
             if (cCardFilter && cCardFilter !== 'total') params.set('card_filter', cCardFilter);
 
             const res = await fetch(apiUrl(`/admin-panel/clients/?${params}`), {
@@ -144,7 +147,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
         } finally {
             setLoading(false);
         }
-    }, [navigate, search, isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, token]);
+    }, [navigate, search, isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, token]);
 
     // Search effect
     useEffect(() => {
@@ -160,12 +163,18 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
+    useEffect(() => {
+        if (initialHasServices !== 'all') {
+            setHasServicesFilter(initialHasServices);
+        }
+    }, [initialHasServices]);
+
     // Filter effect
     useEffect(() => {
         if (!token && !import.meta.env.DEV) return;
         fetchClients(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, token]);
+    }, [isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, token]);
 
     const handleExportExcel = async () => {
         setExporting(true);
@@ -302,10 +311,15 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars }) => {
                         <option value="false">No Orders</option>
                     </select>
 
-                    {(search || isActiveFilter !== 'all' || isOnboardedFilter !== 'all' || joinedDateFilter !== 'all' || hasOrdersFilter !== 'all' || cardFilter !== 'total') && (
+                    <select value={hasServicesFilter} onChange={(e) => setHasServicesFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                        <option value="all">All Clients</option>
+                        <option value="true">Active (With Services)</option>
+                    </select>
+
+                    {(search || isActiveFilter !== 'all' || isOnboardedFilter !== 'all' || joinedDateFilter !== 'all' || hasOrdersFilter !== 'all' || hasServicesFilter !== 'all' || cardFilter !== 'total') && (
                         <button 
                             className="tp-btn" 
-                            onClick={() => { setSearch(''); setIsActiveFilter('all'); setIsOnboardedFilter('all'); setJoinedDateFilter('all'); setHasOrdersFilter('all'); setCardFilter('total'); }} 
+                            onClick={() => { setSearch(''); setIsActiveFilter('all'); setIsOnboardedFilter('all'); setJoinedDateFilter('all'); setHasOrdersFilter('all'); setHasServicesFilter('all'); setCardFilter('total'); }} 
                             style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>
                             Clear
                         </button>

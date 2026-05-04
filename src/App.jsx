@@ -157,109 +157,109 @@ const PublicRoute = ({ children }) => {
 const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 const AdminReminderLayout = () => {
-    const [reminders, setReminders] = useState([]);
-    const [dismissedIds, setDismissedIds] = useState(new Set());
-    const audioRef = useRef(new Audio(NOTIFICATION_SOUND_URL));
-    const location = useLocation();
-    const token = localStorage.getItem('admin_token');
+  const [reminders, setReminders] = useState([]);
+  const [dismissedIds, setDismissedIds] = useState(new Set());
+  const audioRef = useRef(new Audio(NOTIFICATION_SOUND_URL));
+  const location = useLocation();
+  const token = localStorage.getItem('admin_token');
 
-    useEffect(() => {
-        if (!token) return;
+  useEffect(() => {
+    if (!token) return;
 
-        const fetchFollowups = async () => {
-            try {
-                const res = await fetch(apiUrl('/admin-panel/upcoming-followups/'), {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!res.ok) return;
-                const data = await res.json();
-                setReminders(data);
-            } catch (err) {
-                console.error('Followup fetch failed', err);
-            }
-        };
-
-        fetchFollowups();
-        const interval = setInterval(fetchFollowups, 600000); // Fetch from server every 10 minutes
-        return () => clearInterval(interval);
-    }, [token]);
-
-    // Local check for reminders every minute
-    const [activeReminders, setActiveReminders] = useState([]);
-    useEffect(() => {
-        const checkLocalReminders = () => {
-            const now = new Date().getTime();
-            const upcoming = reminders.filter(r => {
-                const fTime = new Date(r.follow_up_time).getTime();
-                const diff = fTime - now;
-                // Trigger if within 5.5 minutes and not in the past and not dismissed
-                return diff > 0 && diff <= 5.5 * 60 * 1000 && !dismissedIds.has(r.id);
-            });
-
-            if (upcoming.length > 0 && upcoming.length > activeReminders.length) {
-                audioRef.current.play().catch(e => console.log('Audio play blocked', e));
-            }
-            setActiveReminders(upcoming);
-        };
-
-        checkLocalReminders();
-        const t = setInterval(checkLocalReminders, 30000); // Check local list every 30 seconds
-        return () => clearInterval(t);
-    }, [reminders, dismissedIds, activeReminders.length]);
-
-    const dismiss = (id) => {
-        setDismissedIds(prev => new Set([...prev, id]));
-        setActiveReminders(prev => prev.filter(r => r.id !== id));
+    const fetchFollowups = async () => {
+      try {
+        const res = await fetch(apiUrl('/admin-panel/upcoming-followups/'), {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setReminders(data);
+      } catch (err) {
+        console.error('Followup fetch failed', err);
+      }
     };
 
-    return (
-        <div style={{ position: 'relative', minHeight: '100vh' }}>
-            {activeReminders.length > 0 && (
-                <div style={{ 
-                    position: 'fixed', 
-                    top: 20, 
-                    left: '50%', 
-                    transform: 'translateX(-50%)', 
-                    zIndex: 9999, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: 10,
-                    width: '90%',
-                    maxWidth: 400
-                }}>
-                    {activeReminders.map(r => (
-                        <div key={r.id} style={{ 
-                            background: 'white', 
-                            borderRadius: 12, 
-                            padding: '16px', 
-                            boxShadow: '0 20px 40px rgba(0,0,0,0.15)', 
-                            borderLeft: '4px solid #ef4444',
-                            display: 'flex',
-                            gap: 12,
-                            animation: 'slideDown 0.3s ease-out'
-                        }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
-                                <Phone size={20} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <span style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Follow-up Reminder</span>
-                                    <button onClick={() => dismiss(r.id)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}>
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginTop: 4 }}>{r.consultant_name}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#ef4444', fontWeight: 800, marginTop: 4 }}>
-                                    <Calendar size={12} /> {new Date(r.follow_up_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (In 5 mins)
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+    fetchFollowups();
+    const interval = setInterval(fetchFollowups, 600000); // Fetch from server every 10 minutes
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Local check for reminders every minute
+  const [activeReminders, setActiveReminders] = useState([]);
+  useEffect(() => {
+    const checkLocalReminders = () => {
+      const now = new Date().getTime();
+      const upcoming = reminders.filter(r => {
+        const fTime = new Date(r.follow_up_time).getTime();
+        const diff = fTime - now;
+        // Trigger if within 5.5 minutes and not in the past and not dismissed
+        return diff > 0 && diff <= 5.5 * 60 * 1000 && !dismissedIds.has(r.id);
+      });
+
+      if (upcoming.length > 0 && upcoming.length > activeReminders.length) {
+        audioRef.current.play().catch(e => console.log('Audio play blocked', e));
+      }
+      setActiveReminders(upcoming);
+    };
+
+    checkLocalReminders();
+    const t = setInterval(checkLocalReminders, 30000); // Check local list every 30 seconds
+    return () => clearInterval(t);
+  }, [reminders, dismissedIds, activeReminders.length]);
+
+  const dismiss = (id) => {
+    setDismissedIds(prev => new Set([...prev, id]));
+    setActiveReminders(prev => prev.filter(r => r.id !== id));
+  };
+
+  return (
+    <div style={{ position: 'relative', minHeight: '100vh' }}>
+      {activeReminders.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          width: '90%',
+          maxWidth: 400
+        }}>
+          {activeReminders.map(r => (
+            <div key={r.id} style={{
+              background: 'white',
+              borderRadius: 12,
+              padding: '16px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+              borderLeft: '4px solid #ef4444',
+              display: 'flex',
+              gap: 12,
+              animation: 'slideDown 0.3s ease-out'
+            }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                <Phone size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Follow-up Reminder</span>
+                  <button onClick={() => dismiss(r.id)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}>
+                    <X size={16} />
+                  </button>
                 </div>
-            )}
-            <Outlet />
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginTop: 4 }}>{r.consultant_name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#ef4444', fontWeight: 800, marginTop: 4 }}>
+                  <Calendar size={12} /> {new Date(r.follow_up_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (In 5 mins)
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-    );
+      )}
+      <Outlet />
+    </div>
+  );
 };
 
 const StepGuard = ({ step, children }) => {
@@ -282,7 +282,7 @@ const StepGuard = ({ step, children }) => {
   const deviceBlockedForAssessment = isAssessmentDeviceBlocked();
 
   let allowed = false;
-    switch (step) {
+  switch (step) {
     case 'onboarding':
       // Allow profile completion, and allow edits until face verification is completed.
       // This prevents redirect loops when identity docs exist but profile is not marked onboarded yet.
@@ -338,70 +338,75 @@ function AppRoutes() {
     <>
       <ScrollToTop />
       <Routes>
-      <Route path="/unsubscribe/onboarding" element={<EmailUnsubscribe />} />
-      <Route path="/" element={ONBOARDING_OPEN ? <PublicRoute><PartnerInfo /></PublicRoute> : <WaitlistPage />} />
-      <Route path="/login" element={ONBOARDING_OPEN ? <PublicRoute><Login /></PublicRoute> : <Navigate to="/" replace />} />
+        <Route path="/unsubscribe/onboarding" element={<EmailUnsubscribe />} />
+        <Route path="/" element={ONBOARDING_OPEN ? <PublicRoute><PartnerInfo /></PublicRoute> : <WaitlistPage />} />
+        <Route path="/login" element={ONBOARDING_OPEN ? <PublicRoute><Login /></PublicRoute> : <Navigate to="/" replace />} />
 
-      {/* Protected Onboarding Routes with Layout */}
-      <Route element={<ProtectedRoute><OnboardingLayout /></ProtectedRoute>}>
-        <Route path="/declaration" element={<Declaration />} />
-        <Route path="/onboarding" element={
-          <StepGuard step="onboarding"><Onboarding /></StepGuard>
-        } />
-        <Route path="/onboarding/details" element={
-          <StepGuard step="onboarding-details"><Onboarding /></StepGuard>
-        } />
-        <Route path="/success" element={
-          <StepGuard step="dashboard"><Success /></StepGuard>
-        } />
-        <Route path="/feedback" element={<Feedback />} />
-        <Route path="/onboarding/identity" element={
-          <StepGuard step="identity"><IdentityVerification /></StepGuard>
-        } />
-        <Route path="/onboarding/face-verification" element={
-          <StepGuard step="face"><FaceVerification /></StepGuard>
-        } />
-        <Route path="/assessment/select" element={
-          <StepGuard step="assessment"><TestList /></StepGuard>
-        } />
-        <Route path="/assessment/device-required" element={
-          <StepGuard step="assessment-device-required"><AssessmentDeviceRequired /></StepGuard>
-        } />
-        <Route path="/assessment/instructions" element={
-          <StepGuard step="assessment"><Instructions /></StepGuard>
-        } />
-        <Route path="/assessment/preflight" element={
-          <StepGuard step="assessment"><PreFlightCheck /></StepGuard>
-        } />
-        <Route path="/assessment/test" element={
-          <StepGuard step="assessment"><TestEngine /></StepGuard>
-        } />
-        <Route path="/assessment/result" element={<AssessmentResult />} />
-        <Route path="/onboarding/documentation" element={
-          <StepGuard step="documents"><DocumentUpload /></StepGuard>
-        } />
-        <Route path="/onboarding/complete" element={<OnboardingComplete />} />
-      </Route>
+        {/* Protected Onboarding Routes with Layout */}
+        <Route element={<ProtectedRoute><OnboardingLayout /></ProtectedRoute>}>
+          <Route path="/declaration" element={<Declaration />} />
+          <Route path="/onboarding" element={
+            <StepGuard step="onboarding"><Onboarding /></StepGuard>
+          } />
+          <Route path="/onboarding/details" element={
+            <StepGuard step="onboarding-details"><Onboarding /></StepGuard>
+          } />
+          <Route path="/success" element={
+            <StepGuard step="dashboard"><Success /></StepGuard>
+          } />
+          <Route path="/feedback" element={<Feedback />} />
+          <Route path="/onboarding/identity" element={
+            <StepGuard step="identity"><IdentityVerification /></StepGuard>
+          } />
+          <Route path="/onboarding/face-verification" element={
+            <StepGuard step="face"><FaceVerification /></StepGuard>
+          } />
+          <Route path="/assessment/select" element={
+            <StepGuard step="assessment"><TestList /></StepGuard>
+          } />
+          <Route path="/assessment/device-required" element={
+            <StepGuard step="assessment-device-required"><AssessmentDeviceRequired /></StepGuard>
+          } />
+          <Route path="/assessment/instructions" element={
+            <StepGuard step="assessment"><Instructions /></StepGuard>
+          } />
+          <Route path="/assessment/preflight" element={
+            <StepGuard step="assessment"><PreFlightCheck /></StepGuard>
+          } />
+          <Route path="/assessment/test" element={
+            <StepGuard step="assessment"><TestEngine /></StepGuard>
+          } />
+          <Route path="/assessment/result" element={<AssessmentResult />} />
+          <Route path="/onboarding/documentation" element={
+            <StepGuard step="documents"><DocumentUpload /></StepGuard>
+          } />
+          <Route path="/onboarding/complete" element={<OnboardingComplete />} />
+        </Route>
 
-      {/* Admin Panel Routes — with Reminder Layout */}
-      <Route element={<AdminReminderLayout />}>
-        <Route path={ADMIN_BASE} element={<AdminLogin />} />
-        <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
-        <Route path={adminUrl('consultants')} element={<AdminDashboard />} />
-        <Route path={adminUrl('clients')} element={<AdminDashboard />} />
-        <Route path={adminUrl('emails')} element={<EmailDashboard />} />
-        <Route path={adminUrl('call-logs')} element={<CallLogs />} />
-        <Route path="/Consultants/:id" element={<ConsultantDetail />} />
-        <Route path="/Clients/:id" element={<AdminClientDetail />} />
-      </Route>
-      {!IS_DEFAULT_ADMIN_PATH && (
-        <>
-          <Route path="/admin" element={<Navigate to="/" replace />} />
-          <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
-          <Route path="/admin/consultant/:id" element={<Navigate to="/" replace />} />
-          <Route path="/admin/client/:id" element={<Navigate to="/" replace />} />
-        </>
-      )}
+        {/* Admin Panel Routes — with Reminder Layout */}
+        <Route element={<AdminReminderLayout />}>
+          <Route path={ADMIN_BASE} element={<AdminLogin />} />
+          <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
+          <Route path={adminUrl('consultants')} element={<AdminDashboard />} />
+          <Route path={adminUrl('clients')} element={<AdminDashboard />} />
+          <Route path={adminUrl('support')} element={<AdminDashboard />} />
+          <Route path={adminUrl('services')} element={<AdminDashboard />} />
+          <Route path={adminUrl('transactions')} element={<AdminDashboard />} />
+          <Route path={adminUrl('carts')} element={<AdminDashboard />} />
+          <Route path={adminUrl('emails')} element={<EmailDashboard />} />
+          <Route path={adminUrl('call-logs')} element={<AdminDashboard />} />
+          <Route path="/Consultants/:id" element={<ConsultantDetail />} />
+          <Route path="/Clients/:id" element={<AdminClientDetail />} />
+        </Route>
+        {/* Admin Panel Routes — standalone */}
+        {!IS_DEFAULT_ADMIN_PATH && (
+          <>
+            <Route path="/admin" element={<Navigate to="/" replace />} />
+            <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/admin/consultant/:id" element={<Navigate to="/" replace />} />
+            <Route path="/admin/client/:id" element={<Navigate to="/" replace />} />
+          </>
+        )}
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
       },
       dedupe: ['react', 'react-dom'],
     },
+    optimizeDeps: {
+      include: ['react-simple-maps', 'd3-scale', 'topojson-client']
+    },
     server: {
       fs: {
         allow: [path.resolve(__dirname, '..')],
