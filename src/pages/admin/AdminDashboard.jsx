@@ -136,6 +136,7 @@ const AdminDashboard = () => {
     const [ageFilter, setAgeFilter] = useState('');
     const deriveTabFromPath = (path) => {
         const p = path.toLowerCase();
+        if (p.includes('software-survey')) return 'software-survey';
         if (p.includes('analytics') || p.includes('dashboard')) return 'dashboard';
         if (p.includes('call-log')) return 'call-logs';
         if (p.includes('consultant')) return 'consultant';
