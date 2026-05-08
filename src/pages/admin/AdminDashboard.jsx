@@ -13,6 +13,7 @@ import AdminServiceList from './AdminServiceList';
 import AdminTransactionList from './AdminTransactionList';
 import AdminCartList from './AdminCartList';
 import CallLogs from './CallLogs';
+import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
 import AdminDateRangePicker from './AdminDateRangePicker';
 import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -754,6 +755,7 @@ const AdminDashboard = () => {
                         { id: 'transactions', icon: Receipt, label: 'Transactions' },
                         { id: 'carts', icon: ShoppingCart, label: 'Carts' },
                         { id: 'call-logs', icon: Phone, label: 'Call Logs' },
+                        { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
                     ].map(item => (
                         <button
                             key={item.id}
@@ -776,6 +778,7 @@ const AdminDashboard = () => {
                                     'transactions': 'transactions',
                                     'carts': 'carts',
                                     'call-logs': 'call-logs',
+                                    'software-survey': 'software-survey',
                                 };
                                 navigate(adminUrl(urlMap[item.id] || item.id));
                                 setActiveTab(item.id);
@@ -1495,6 +1498,9 @@ const AdminDashboard = () => {
                         )}
                         {activeTab === 'call-logs' && (
                             <CallLogs embedded={true} />
+                        )}
+                        {activeTab === 'software-survey' && (
+                            <SoftwareSurveyDashboard isLight={isLight} token={token} />
                         )}
 
                         <div style={{ display: activeTab === 'consultant' ? 'block' : 'none' }}>
