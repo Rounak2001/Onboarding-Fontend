@@ -66,12 +66,46 @@ const ConsultantDetail = () => {
     const [viewMode, setViewMode] = useState('onboarding');
     const [performanceData, setPerformanceData] = useState(null);
     const [loadingPerformance, setLoadingPerformance] = useState(false);
+    const [survey, setSurvey] = useState(null);
+    const [sendingSurvey, setSendingSurvey] = useState(false);
+    const [surveyMsg, setSurveyMsg] = useState('');
 
     useEffect(() => {
         if (!token) { navigate(adminUrl()); return; }
         fetchDetail();
         fetchPerformanceData();
+        fetchSurvey();
     }, [id]);
+
+    const fetchSurvey = async () => {
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/software-survey/`), {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
+            if (res.ok) {
+                const d = await res.json();
+                setSurvey(d);
+            }
+        } catch (_) {}
+    };
+
+    const handleSendSurvey = async () => {
+        if (!window.confirm('Send the CA Software Survey to this consultant on WhatsApp?')) return;
+        setSendingSurvey(true);
+        setSurveyMsg('');
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/send-software-survey/`), {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            });
+            const d = await res.json();
+            setSurveyMsg(d.message || d.error || 'Done');
+        } catch (_) {
+            setSurveyMsg('Failed to send. Try again.');
+        } finally {
+            setSendingSurvey(false);
+        }
+    };
 
     useEffect(() => {
         if (typeof window === 'undefined') return undefined;
@@ -1760,6 +1794,58 @@ const ConsultantDetail = () => {
                                     )}
                                 </div>
                             )}
+                        </div>
+
+                        {/* Software Survey Section */}
+                        <div style={sectionStyle}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--admin-border)' }}>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--admin-text-strong)' }}>🛠️ CA Software Survey</span>
+                                <button
+                                    onClick={handleSendSurvey}
+                                    disabled={sendingSurvey}
+                                    style={{ background: '#25D366', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: sendingSurvey ? 'not-allowed' : 'pointer', opacity: sendingSurvey ? 0.7 : 1 }}
+                                >
+                                    {sendingSurvey ? 'Sending...' : '📲 Send Survey on WhatsApp'}
+                                </button>
+                            </div>
+                            {surveyMsg && (
+                                <div style={{ padding: '8px 20px', fontSize: 13, color: surveyMsg.includes('Failed') ? '#dc2626' : '#16a34a', background: surveyMsg.includes('Failed') ? '#fef2f2' : '#f0fdf4' }}>
+                                    {surveyMsg}
+                                </div>
+                            )}
+                            <div style={{ padding: '16px 20px' }}>
+                                {!survey || !survey.submitted ? (
+                                    <p style={{ color: 'var(--admin-text-muted)', fontSize: 13, margin: 0 }}>No survey response yet. Send the survey above to collect software preferences.</p>
+                                ) : (
+                                    <div>
+                                        <p style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 12 }}>
+                                            Submitted: {new Date(survey.submitted_at).toLocaleString()}
+                                        </p>
+                                        {[
+                                            { label: 'ITR Filing', items: survey.itr_software, other: survey.itr_other },
+                                            { label: 'GST Filing', items: survey.gst_software, other: survey.gst_other },
+                                            { label: 'TDS Filing', items: survey.tds_software, other: survey.tds_other },
+                                        ].map(({ label, items, other }) => (
+                                            <div key={label} style={{ marginBottom: 14 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--admin-text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                    {(items || []).length === 0 && !other ? (
+                                                        <span style={{ fontSize: 13, color: 'var(--admin-text-muted)' }}>—</span>
+                                                    ) : (
+                                                        <>
+                                                            {(items || []).map(s => (
+                                                                <span key={s} style={{ background: 'var(--admin-accent-light, #eff6ff)', color: 'var(--admin-accent, #2563eb)', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 500 }}>{s}</span>
+                                                            ))}
+                                                            {other && <span style={{ background: '#fef9c3', color: '#854d0e', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 500 }}>Other: {other}</span>}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <button onClick={fetchSurvey} style={{ marginTop: 4, fontSize: 12, color: 'var(--admin-text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Refresh</button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div style={sectionStyle}>
