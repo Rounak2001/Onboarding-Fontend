@@ -19,6 +19,7 @@ import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, M
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
+import { ASSESSMENT_CATEGORIES, REGISTRATIONS_CATEGORY_SLUG } from '../assessment/assessmentCatalog';
 
 const PAGE_SIZE = 50;
 const STATUS_FILTER_OPTIONS = [
@@ -87,6 +88,51 @@ const cleanErrorMessage = (payload, fallback) => {
     const message = String(payload?.error || payload?.detail || fallback || '').trim();
     if (!message || message.startsWith('<!DOCTYPE') || message.startsWith('<html')) return fallback;
     return message.length > 180 ? `${message.slice(0, 180)}...` : message;
+};
+
+const REGISTRATION_CATEGORY = ASSESSMENT_CATEGORIES.find((category) => category.slug === REGISTRATIONS_CATEGORY_SLUG) || null;
+const REGISTRATION_SERVICE_OPTIONS = REGISTRATION_CATEGORY?.services || [];
+const REGISTRATION_SERVICE_LABEL_BY_ID = new Map(
+    REGISTRATION_SERVICE_OPTIONS.map((service) => [service.id, service.label]),
+);
+
+const formatServiceFilterLabel = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '';
+
+    const lower = normalized.toLowerCase();
+    if (lower === 'returns') return 'ITR';
+    if (lower === 'consultation') return 'GSTR';
+    if (lower === 'notices') return 'SCRUTINY';
+    if (lower === 'registrations') return 'REGISTRATIONS';
+    return REGISTRATION_SERVICE_LABEL_BY_ID.get(normalized) || normalized;
+};
+
+const getRegistrationServiceSelection = (row) => {
+    const serviceTitles = Array.isArray(row?.selected_registration_service_titles)
+        ? row.selected_registration_service_titles.filter(Boolean)
+        : [];
+    if (serviceTitles.length > 0) {
+        return serviceTitles;
+    }
+
+    const serviceIds = Array.isArray(row?.selected_registration_service_ids)
+        ? row.selected_registration_service_ids.filter(Boolean)
+        : [];
+    if (serviceIds.length > 0) {
+        return serviceIds.map((serviceId) => REGISTRATION_SERVICE_LABEL_BY_ID.get(serviceId) || serviceId);
+    }
+
+    const rawDetails = row?.selected_test_details?.registrations;
+    if (Array.isArray(rawDetails)) {
+        return rawDetails.filter(Boolean);
+    }
+    if (rawDetails && typeof rawDetails === 'object' && Array.isArray(rawDetails.selected_service_ids)) {
+        return rawDetails.selected_service_ids
+            .filter(Boolean)
+            .map((serviceId) => REGISTRATION_SERVICE_LABEL_BY_ID.get(serviceId) || serviceId);
+    }
+    return [];
 };
 
 const AdminDashboard = () => {
@@ -475,6 +521,13 @@ const AdminDashboard = () => {
         : statusFilters.length === 1
             ? statusFilters[0]
             : `${statusFilters.length} statuses`;
+    const serviceSelectionLabel = serviceFilter ? formatServiceFilterLabel(serviceFilter) : '';
+    const registrationServiceSelectValue = (() => {
+        const normalized = String(serviceFilter || '').toLowerCase();
+        if (normalized === 'registrations') return 'registrations';
+        const matched = REGISTRATION_SERVICE_OPTIONS.find((service) => service.id.toLowerCase() === normalized);
+        return matched?.id || '';
+    })();
 
     const selectedExportColumnSet = useMemo(() => new Set(selectedExportColumns), [selectedExportColumns]);
     const exportColumnsByKey = useMemo(() => {
@@ -711,8 +764,19 @@ const AdminDashboard = () => {
             slug: s.slug || s.name.toLowerCase(),
             registered: s.registered || 0,
             credentials: s.credentials || 0,
-            avg_score: s.avg_score || 0
+            avg_score: s.avg_score || 0,
+            services: Array.isArray(s.services) ? s.services : [],
         }));
+
+    const registrationServiceData = (stats?.registration_service_distribution || [])
+        .filter((service) => (service.code || '').toLowerCase() !== 'not_specified' && service.name !== 'Not Specified')
+        .map((service) => ({
+            code: service.code,
+            title: service.name || service.title || service.code,
+            registered: service.registered || 0,
+            credentials: service.credentials || 0,
+        }))
+        .sort((a, b) => b.registered - a.registered || a.title.localeCompare(b.title));
 
     const notSpecifiedFromBackend = (stats?.service_distribution || []).find(s => s.slug === 'not_specified' || s.name === 'Not Specified');
     const totalNotSpecified = (notSpecifiedFromBackend?.registered || 0);
@@ -1226,6 +1290,73 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
 
+                                {/* Registration Service Analysis */}
+                                <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--admin-text-primary)' }}>Registration Service Analysis</h3>
+                                            <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--admin-text-muted)' }}>
+                                                How many consultants selected each registration service
+                                            </p>
+                                        </div>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--admin-text-muted)' }}>
+                                            {registrationServiceData.length} services tracked
+                                        </div>
+                                    </div>
+
+                                    {registrationServiceData.length > 0 ? (
+                                        <div style={{ display: 'grid', gap: 12, maxHeight: 520, overflowY: 'auto', paddingRight: 4 }}>
+                                            {registrationServiceData.map((service) => {
+                                                const maxCount = Math.max(1, registrationServiceData[0]?.registered || 1);
+                                                const fillWidth = `${Math.min(100, (service.registered / maxCount) * 100)}%`;
+                                                return (
+                                                    <div
+                                                        key={service.code}
+                                                        onClick={() => {
+                                                            setServiceFilter(service.code);
+                                                            setActiveTab('consultant');
+                                                            setPage(1);
+                                                        }}
+                                                        style={{
+                                                            padding: 16,
+                                                            borderRadius: 16,
+                                                            border: '1px solid var(--admin-border-soft)',
+                                                            background: 'var(--admin-surface-strong)',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                        >
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 10 }}>
+                                                                <div style={{ minWidth: 0 }}>
+                                                                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                                                                        {service.title}
+                                                                    </div>
+                                                                    <div style={{ marginTop: 4, fontSize: 12, color: 'var(--admin-text-muted)' }}>
+                                                                        Chosen by {service.registered} consultant{service.registered === 1 ? '' : 's'}
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ textAlign: 'right' }}>
+                                                                    <div style={{ fontSize: 20, fontWeight: 900, color: '#10b981', lineHeight: 1 }}>
+                                                                        {service.registered}
+                                                                    </div>
+                                                                    <div style={{ marginTop: 4, fontSize: 10, color: 'var(--admin-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                        Selected
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ height: 8, background: 'var(--admin-border-soft)', borderRadius: 999, overflow: 'hidden' }}>
+                                                                <div style={{ width: fillWidth, height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #3b82f6, #10b981)' }} />
+                                                            </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: 24, borderRadius: 16, border: '1px dashed var(--admin-border-mid)', color: 'var(--admin-text-muted)', fontSize: 13, textAlign: 'center' }}>
+                                            No registration service selections found yet.
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Domain Wise Distribution */}
                                 <div style={{ padding: 24, background: 'var(--admin-surface)', borderRadius: 24, border: '1px solid var(--admin-border-soft)' }}>
                                     <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 800, color: 'var(--admin-text-primary)' }}>Domain Wise Distribution</h3>
@@ -1714,6 +1845,21 @@ const AdminDashboard = () => {
                                         <option value="all">All Professionals</option>
                                         <option value="true">Active (With Services)</option>
                                     </select>
+                                    <select
+                                        value={registrationServiceSelectValue}
+                                        onChange={(e) => {
+                                            setServiceFilter(e.target.value);
+                                            setActiveTab('consultant');
+                                            setPage(1);
+                                        }}
+                                        style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+                                    >
+                                        <option value="">Registration services</option>
+                                        <option value="registrations">All Registration Services</option>
+                                        {REGISTRATION_SERVICE_OPTIONS.map((service) => (
+                                            <option key={service.id} value={service.id}>{service.label}</option>
+                                        ))}
+                                    </select>
                                     {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total' || stateFilter || serviceFilter || ageFilter || hasServicesFilter !== 'all') && <button className="tp-btn" onClick={() => { setSearch(''); setStatusFilters([]); setAssessmentSubstatusFilter('all'); setJoinedDateFilter('all'); setCardFilter('total'); setStateFilter(''); setServiceFilter(''); setAgeFilter(''); setHasServicesFilter('all'); setStatusMenuOpen(false); }} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>Clear</button>}
                                 </div>
                                 {statusFilters.length > 0 && (
@@ -1787,13 +1933,7 @@ const AdminDashboard = () => {
                                                     gap: 6,
                                                 }}
                                             >
-                                                <span>Service: {
-                                                    serviceFilter.toLowerCase() === 'returns' ? 'ITR' :
-                                                        serviceFilter.toLowerCase() === 'consultation' ? 'GSTR' :
-                                                            serviceFilter.toLowerCase() === 'notices' ? 'SCRUTINY' :
-                                                                serviceFilter.toLowerCase() === 'registrations' ? 'REGISTRATIONS' :
-                                                                    serviceFilter
-                                                }</span>
+                                                <span>Service: {serviceSelectionLabel}</span>
                                                 <CloseIcon />
                                             </button>
                                         )}
@@ -1935,7 +2075,7 @@ const AdminDashboard = () => {
                                             })}
                                             {sorted.length === 0 && (
                                                 <div style={{ padding: 24, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>
-                                                    {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total')
+                                                    {(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total' || stateFilter || serviceFilter || ageFilter || hasServicesFilter !== 'all')
                                                         ? 'No consultants match your current filters.'
                                                         : 'No consultants found.'}
                                                 </div>
@@ -1967,24 +2107,6 @@ const AdminDashboard = () => {
                                                                 </td>
                                                                 <td style={{ padding: '14px 16px' }}>
                                                                     <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', marginBottom: 6, fontWeight: 500 }}>{c.email || '-'}</div>
-
-                                                                    {c.selected_domains && c.selected_domains.length > 0 && (
-                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                                                                            {c.selected_domains.map((domain, di) => (
-                                                                                <div key={di} style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)', padding: '2px 8px', borderRadius: 6 }}>
-                                                                                    <span style={{ fontSize: 10, fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase' }}>{domain}</span>
-                                                                                    {c.selected_test_details && c.selected_test_details[domain] && (
-                                                                                        <div style={{ fontSize: 10, color: 'var(--admin-text-secondary)', marginTop: 1, fontWeight: 500 }}>
-                                                                                            {Array.isArray(c.selected_test_details[domain])
-                                                                                                ? c.selected_test_details[domain].join(', ')
-                                                                                                : String(c.selected_test_details[domain])
-                                                                                            }
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
                                                                 </td>
                                                                 <td style={{ padding: '14px 16px' }}>
                                                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
@@ -2012,7 +2134,7 @@ const AdminDashboard = () => {
                                                             </tr>
                                                         );
                                                     })}
-                                                    {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
+                                                    {sorted.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>{(search || statusFilters.length > 0 || assessmentSubstatusFilter !== 'all' || joinedDateFilter !== 'all' || cardFilter !== 'total' || stateFilter || serviceFilter || ageFilter || hasServicesFilter !== 'all') ? 'No consultants match your current filters.' : 'No consultants found.'}</td></tr>}
                                                 </tbody>
                                             </table>
                                         </div>
