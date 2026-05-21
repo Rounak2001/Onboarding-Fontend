@@ -22,6 +22,15 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
 import EmailDashboard from './pages/admin/EmailDashboard';
+import CallLogs from './pages/admin/CallLogs';
+import WhatsAppAdminLayout from './pages/admin/whatsapp/WhatsAppAdminLayout';
+import WhatsAppInboxPage from './pages/admin/whatsapp/pages/InboxPage';
+import WhatsAppLeadsPage from './pages/admin/whatsapp/pages/LeadsPage';
+import WhatsAppFollowUpsPage from './pages/admin/whatsapp/pages/FollowUpsPage';
+import WhatsAppCampaignsPage from './pages/admin/whatsapp/pages/CampaignsPage';
+import WhatsAppTeamPage from './pages/admin/whatsapp/pages/TeamPage';
+import WhatsAppTemplatesPage from './pages/admin/whatsapp/pages/TemplatesPage';
+import WhatsAppImportPage from './pages/admin/whatsapp/pages/ImportPage';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
 import { isFaceVerificationSatisfied } from './utils/devBypass';
@@ -266,18 +275,44 @@ function AppRoutes() {
         <Route path="/onboarding/complete" element={<OnboardingComplete />} />
       </Route>
 
-      {/* Admin Panel Routes — standalone */}
-      <Route path={ADMIN_BASE} element={<AdminLogin />} />
-      <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
-      <Route path={adminUrl('emails')} element={<EmailDashboard />} />
-      <Route path={adminUrl('consultant/:id')} element={<ConsultantDetail />} />
-      {!IS_DEFAULT_ADMIN_PATH && (
-        <>
-          <Route path="/admin" element={<Navigate to="/" replace />} />
-          <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
-          <Route path="/admin/consultant/:id" element={<Navigate to="/" replace />} />
-        </>
-      )}
+        {/* Admin Panel Routes — with Reminder Layout */}
+        <Route element={<AdminReminderLayout />}>
+          <Route path={ADMIN_BASE} element={<AdminLogin />} />
+          <Route path={adminUrl('dashboard')} element={<AdminDashboard />} />
+          <Route path={adminUrl('analytics')} element={<AdminDashboard />} />
+          <Route path={adminUrl('consultants')} element={<AdminDashboard />} />
+          <Route path={adminUrl('clients')} element={<AdminDashboard />} />
+          <Route path={adminUrl('support')} element={<AdminDashboard />} />
+          <Route path={adminUrl('services')} element={<AdminDashboard />} />
+          <Route path={adminUrl('transactions')} element={<AdminDashboard />} />
+          <Route path={adminUrl('carts')} element={<AdminDashboard />} />
+          <Route path={adminUrl('emails')} element={<EmailDashboard />} />
+          <Route path={adminUrl('call-logs')} element={<AdminDashboard />} />
+          <Route path={adminUrl('software-survey')} element={<AdminDashboard />} />
+          <Route path="/Consultants/:id" element={<ConsultantDetail />} />
+          <Route path="/Clients/:id" element={<AdminClientDetail />} />
+
+          {/* WhatsApp CRM — nested under ADMIN_BASE/whatsapp/* */}
+          <Route path={adminUrl('whatsapp')} element={<WhatsAppAdminLayout />}>
+            <Route index element={<Navigate to="inbox" replace />} />
+            <Route path="inbox" element={<WhatsAppInboxPage />} />
+            <Route path="leads" element={<WhatsAppLeadsPage />} />
+            <Route path="followups" element={<WhatsAppFollowUpsPage />} />
+            <Route path="campaigns" element={<WhatsAppCampaignsPage />} />
+            <Route path="templates" element={<WhatsAppTemplatesPage />} />
+            <Route path="team" element={<WhatsAppTeamPage />} />
+            <Route path="import" element={<WhatsAppImportPage />} />
+          </Route>
+        </Route>
+        {/* Admin Panel Routes — standalone */}
+        {!IS_DEFAULT_ADMIN_PATH && (
+          <>
+            <Route path="/admin" element={<Navigate to="/" replace />} />
+            <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/admin/consultant/:id" element={<Navigate to="/" replace />} />
+            <Route path="/admin/client/:id" element={<Navigate to="/" replace />} />
+          </>
+        )}
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

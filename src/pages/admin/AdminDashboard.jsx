@@ -7,6 +7,19 @@ import { readResponsePayload } from '../../utils/http';
 import AdminThemeToggle from './AdminThemeToggle';
 import AdminBrandLogo from './AdminBrandLogo';
 import { useAdminTheme } from './adminTheme';
+import AdminClientList from './AdminClientList';
+import AdminSupportList from './AdminSupportList';
+import AdminServiceList from './AdminServiceList';
+import AdminTransactionList from './AdminTransactionList';
+import AdminCartList from './AdminCartList';
+import CallLogs from './CallLogs';
+import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
+import AdminDateRangePicker from './AdminDateRangePicker';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, MessageSquare } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
+import IndiaMap from './IndiaMap';
+import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
+import { ASSESSMENT_CATEGORIES, REGISTRATIONS_CATEGORY_SLUG } from '../assessment/assessmentCatalog';
 
 const PAGE_SIZE = 50;
 const STATUS_FILTER_OPTIONS = [
@@ -579,222 +592,6 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             </header>
-
-            {exportModalOpen && typeof document !== 'undefined' && createPortal((
-                <div
-                    role="presentation"
-                    onMouseDown={(event) => {
-                        if (event.target === event.currentTarget) setExportModalOpen(false);
-                    }}
-                    style={{
-                        ...themeVars,
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        width: '100vw',
-                        height: '100dvh',
-                        zIndex: 9999,
-                        background: 'rgba(15,23,42,0.58)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: isMobile ? 10 : 24,
-                        boxSizing: 'border-box',
-                        color: 'var(--admin-text-primary)',
-                    }}
-                >
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="export-columns-title"
-                        style={{
-                            width: isMobile ? 'calc(100vw - 20px)' : 'min(980px, calc(100vw - 48px))',
-                            height: isMobile ? 'calc(100dvh - 20px)' : 'min(720px, calc(100dvh - 48px))',
-                            overflow: 'hidden',
-                            borderRadius: 8,
-                            background: isLight ? '#ffffff' : '#111827',
-                            border: '1px solid var(--admin-border-mid)',
-                            boxShadow: isLight ? '0 30px 90px rgba(15,23,42,0.22)' : '0 30px 90px rgba(0,0,0,0.56)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                        }}
-                    >
-                        <div style={{ padding: isMobile ? '12px 14px' : '14px 18px', borderBottom: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                            <div>
-                                <h2 id="export-columns-title" style={{ margin: 0, fontSize: isMobile ? 16 : 18, color: 'var(--admin-text-strong)' }}>Customize Excel Export</h2>
-                                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--admin-text-secondary)' }}>
-                                    {selectedExportColumns.length} of {exportColumns.length || 0} columns selected
-                                    {hasExportPreferenceChanges ? ' - unsaved changes' : ''}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setExportModalOpen(false)}
-                                aria-label="Close export columns"
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    padding: 0,
-                                    borderRadius: 8,
-                                    border: '1px solid var(--admin-border-mid)',
-                                    background: isLight ? '#f8fafc' : '#0f172a',
-                                    color: 'var(--admin-text-secondary)',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    lineHeight: 0,
-                                    appearance: 'none',
-                                }}
-                            >
-                                <CloseIcon />
-                            </button>
-                        </div>
-
-                        <div style={{ flex: 1, minHeight: 0, padding: isMobile ? 14 : 18, overflow: isMobile ? 'auto' : 'hidden', display: 'flex', flexDirection: 'column', background: isLight ? '#f8fafc' : '#0f172a' }}>
-                            {exportPreferencesLoading ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-secondary)', fontSize: 13 }}>Loading export columns...</div>
-                            ) : exportPreferencesError && !exportColumns.length ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <div style={{ width: 'min(460px, 100%)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.24)', background: 'rgba(239,68,68,0.08)', padding: 18, textAlign: 'center' }}>
-                                        <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>Unable to load export columns</div>
-                                        <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>{exportPreferencesError}</div>
-                                        <button type="button" onClick={() => loadExportPreferences(true)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.28)', background: 'rgba(239,68,68,0.12)', color: '#f87171', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Retry</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {exportPreferencesError && (
-                                        <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.22)', fontSize: 12 }}>
-                                            {exportPreferencesError}
-                                        </div>
-                                    )}
-
-                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                                        <button type="button" onClick={() => setSelectedExportColumns(exportColumns.map((column) => column.key))} disabled={!exportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: exportColumns.length ? 'pointer' : 'not-allowed' }}>Select All</button>
-                                        <button type="button" onClick={() => setSelectedExportColumns(defaultExportColumns)} disabled={!defaultExportColumns.length} style={{ padding: '8px 11px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: defaultExportColumns.length ? 'pointer' : 'not-allowed' }}>Reset Default</button>
-                                    </div>
-
-                                    <div style={{ flex: isMobile ? '0 0 auto' : 1, minHeight: isMobile ? 'auto' : 0, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.3fr) minmax(250px, 0.8fr)', gap: 14 }}>
-                                        <div style={{ minHeight: isMobile ? 'auto' : 0, overflow: isMobile ? 'visible' : 'auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', alignContent: 'start', gap: 12, paddingRight: isMobile ? 0 : 2 }}>
-                                            {exportColumnGroups.map((group) => (
-                                                <section key={group.name} style={{ border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827' }}>
-                                                    <h3 style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>{group.name}</h3>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                        {group.columns.map((column) => (
-                                                            <label key={column.key} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedExportColumnSet.has(column.key)}
-                                                                    onChange={() => toggleExportColumn(column.key)}
-                                                                />
-                                                                <span>{column.header}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </section>
-                                            ))}
-                                        </div>
-
-                                        <aside style={{ minHeight: 0, border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: 12, background: isLight ? '#ffffff' : '#111827', display: 'flex', flexDirection: 'column' }}>
-                                            <h3 style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--admin-text-strong)', textTransform: 'uppercase' }}>Column Order</h3>
-                                            <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--admin-text-secondary)' }}>Top to bottom becomes left to right in Excel.</p>
-                                            {selectedExportColumns.length ? (
-                                                <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }}>
-                                                    {selectedExportColumns.map((key, index) => (
-                                                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-strong)' }}>
-                                                            <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--admin-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {selectedExportColumnLabels[index]}
-                                                            </span>
-                                                            <button type="button" onClick={() => moveExportColumn(index, -1)} disabled={index === 0} style={{ width: 32, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === 0 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === 0 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Up</button>
-                                                            <button type="button" onClick={() => moveExportColumn(index, 1)} disabled={index === selectedExportColumns.length - 1} style={{ width: 44, height: 26, borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: index === selectedExportColumns.length - 1 ? 'var(--admin-text-muted)' : 'var(--admin-text-secondary)', cursor: index === selectedExportColumns.length - 1 ? 'not-allowed' : 'pointer', fontSize: 11 }}>Down</button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div style={{ padding: 18, borderRadius: 8, border: '1px dashed var(--admin-border-mid)', color: 'var(--admin-text-secondary)', fontSize: 12, textAlign: 'center' }}>Select at least one column.</div>
-                                            )}
-                                        </aside>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div style={{ padding: isMobile ? '14px 16px' : '16px 22px', borderTop: '1px solid var(--admin-border-soft)', background: isLight ? '#ffffff' : '#111827', display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-                            <button type="button" onClick={() => setExportModalOpen(false)} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                            <button type="button" onClick={saveExportPreferences} disabled={exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)', background: hasExportPreferenceChanges ? 'rgba(59,130,246,0.14)' : 'var(--admin-surface-strong)', color: hasExportPreferenceChanges ? '#60a5fa' : 'var(--admin-text-muted)', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exportPreferencesSaving || !selectedExportColumns.length || !hasExportPreferenceChanges ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving ? 'Saving...' : 'Save'}</button>
-                            <button type="button" onClick={() => downloadExportExcel()} disabled={exportPreferencesLoading || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.14)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 700, cursor: exportPreferencesLoading || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exporting ? 'Exporting...' : 'Download'}</button>
-                            <button type="button" onClick={saveAndDownloadExport} disabled={exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length} style={{ padding: '9px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.20)', color: exportPreferencesSaving || exporting ? 'var(--admin-text-muted)' : '#34d399', fontSize: 12, fontWeight: 800, cursor: exportPreferencesLoading || exportPreferencesSaving || exporting || !selectedExportColumns.length ? 'not-allowed' : 'pointer' }}>{exportPreferencesSaving || exporting ? 'Working...' : 'Save & Download'}</button>
-                        </div>
-                    </div>
-                </div>
-            ), document.body)}
-
-            <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '14px 12px 18px' : '28px 32px' }}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(210px, 1fr))',
-                    gap: isMobile ? 10 : 14,
-                    marginBottom: isMobile ? 14 : 22,
-                }}>
-                    {summaryCards.map((card) => (
-                        <button
-                            type="button"
-                            key={card.label}
-                            onClick={() => handleCardFilterChange(card.filterKey)}
-                            style={{
-                                minHeight: isMobile ? 90 : 108,
-                                borderRadius: 18,
-                                border: `1px solid ${cardFilter === card.filterKey ? card.accent : card.border}`,
-                                background: card.background,
-                                boxShadow: isLight
-                                    ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
-                                    : 'inset 0 1px 0 rgba(255,255,255,0.03)',
-                                padding: isMobile ? '12px 12px 10px' : '18px 18px 16px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                width: '100%',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                outline: 'none',
-                                transform: cardFilter === card.filterKey ? 'translateY(-1px)' : 'none',
-                                transition: 'border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease',
-                            }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{
-                                    fontSize: 13,
-                                    fontWeight: 800,
-                                    letterSpacing: '0.08em',
-                                    textTransform: 'uppercase',
-                                    color: isLight ? '#64748b' : '#6f89b4',
-                                }}>
-                                    {card.label}
-                                </span>
-                                <span style={{
-                                    width: 12,
-                                    height: 12,
-                                    borderRadius: '50%',
-                                    background: card.accent,
-                                    boxShadow: `0 0 0 8px ${card.accent}1c`,
-                                    flexShrink: 0,
-                                }} />
-                            </div>
-                            <div style={{
-                                fontSize: isMobile ? 24 : 32,
-                                lineHeight: 1,
-                                fontWeight: 800,
-                                color: isLight ? '#0f172a' : '#ffffff',
-                                letterSpacing: '-0.03em',
-                            }}>
-                                {card.value}
-                            </div>
-                        </button>
-                    ))}
-                </div>
 
                 <div style={{ marginBottom: isMobile ? 12 : 18 }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
