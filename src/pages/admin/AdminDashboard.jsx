@@ -9,13 +9,14 @@ import AdminBrandLogo from './AdminBrandLogo';
 import { useAdminTheme } from './adminTheme';
 import AdminClientList from './AdminClientList';
 import AdminSupportList from './AdminSupportList';
+import AdminContactList from './AdminContactList';
 import AdminServiceList from './AdminServiceList';
 import AdminTransactionList from './AdminTransactionList';
 import AdminCartList from './AdminCartList';
 import CallLogs from './CallLogs';
 import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
 import AdminDateRangePicker from './AdminDateRangePicker';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2 } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -188,6 +189,7 @@ const AdminDashboard = () => {
         if (p.includes('consultant')) return 'consultant';
         if (p.includes('client')) return 'client';
         if (p.includes('support')) return 'support';
+        if (p.includes('contact')) return 'contact';
         if (p.includes('service')) return 'services';
         if (p.includes('transaction')) return 'transactions';
         if (p.includes('cart')) return 'carts';
@@ -361,22 +363,24 @@ const AdminDashboard = () => {
         if (!token && !import.meta.env.DEV) return;
         fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter, ageFilter, hasServicesFilter);
 
-        // Fetch dashboard metrics when activeTab is dashboard
+        // Fetch dashboard metrics when activeTab is dashboard.
+        // Empty/non-OK responses (e.g. 401 with no body) are treated as
+        // "no stats yet" instead of throwing — the dashboard cards just
+        // render their zero state.
         if (activeTab === 'dashboard') {
-            fetch(apiUrl('/admin-panel/global-transactions/'), { headers: authHeaders })
-                .then(res => res.json())
-                .then(data => setTransactionStats(data.stats))
-                .catch(err => console.error("Error fetching transactions:", err));
-
-            fetch(apiUrl('/admin-panel/global-carts/'), { headers: authHeaders })
-                .then(res => res.json())
-                .then(data => setCartStats(data.stats))
-                .catch(err => console.error("Error fetching carts:", err));
-
-            fetch(apiUrl('/admin-panel/global-services/'), { headers: authHeaders })
-                .then(res => res.json())
-                .then(data => setServiceStats(data.stats))
-                .catch(err => console.error("Error fetching services:", err));
+            const safeStatsFetch = async (path, setter) => {
+                try {
+                    const res = await fetch(apiUrl(path), { headers: authHeaders });
+                    if (!res.ok) return;
+                    const text = await res.text();
+                    if (!text) return;
+                    const data = JSON.parse(text);
+                    if (data && data.stats) setter(data.stats);
+                } catch { /* swallow — dashboard tiles fall back to zero */ }
+            };
+            safeStatsFetch('/admin-panel/global-transactions/', setTransactionStats);
+            safeStatsFetch('/admin-panel/global-carts/', setCartStats);
+            safeStatsFetch('/admin-panel/global-services/', setServiceStats);
         }
     }, [activeTab, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter, ageFilter, hasServicesFilter, token, authHeaders, fetchConsultants]);
 
@@ -816,6 +820,7 @@ const AdminDashboard = () => {
                         { id: 'consultant', icon: Users, label: 'Consultants' },
                         { id: 'client', icon: UserSquare, label: 'Clients' },
                         { id: 'support', icon: LifeBuoy, label: 'Support' },
+                        { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
                         { id: 'services', icon: Briefcase, label: 'Services' },
                         { id: 'transactions', icon: Receipt, label: 'Transactions' },
                         { id: 'carts', icon: ShoppingCart, label: 'Carts' },
@@ -839,6 +844,7 @@ const AdminDashboard = () => {
                                     'consultant': 'consultants',
                                     'client': 'clients',
                                     'support': 'support',
+                                    'contact': 'contact',
                                     'services': 'services',
                                     'transactions': 'transactions',
                                     'carts': 'carts',
@@ -899,11 +905,12 @@ const AdminDashboard = () => {
                             {activeTab === 'dashboard' ? 'Platform Analytics'
                                 : activeTab === 'consultant' ? 'Consultants'
                                     : activeTab === 'support' ? 'Support Tickets'
-                                        : activeTab === 'services' ? 'Services'
-                                            : activeTab === 'transactions' ? 'Transactions'
-                                                : activeTab === 'carts' ? 'Carts'
-                                                    : activeTab === 'call-logs' ? 'Call Logs'
-                                                        : 'Clients'}
+                                        : activeTab === 'contact' ? 'Contact Inbox'
+                                            : activeTab === 'services' ? 'Services'
+                                                : activeTab === 'transactions' ? 'Transactions'
+                                                    : activeTab === 'carts' ? 'Carts'
+                                                        : activeTab === 'call-logs' ? 'Call Logs'
+                                                            : 'Clients'}
                         </span>
 
                         <div style={{
@@ -1618,6 +1625,9 @@ const AdminDashboard = () => {
                         )}
                         {activeTab === 'support' && (
                             <AdminSupportList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
+                        )}
+                        {activeTab === 'contact' && (
+                            <AdminContactList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
                         )}
                         {activeTab === 'services' && (
                             <AdminServiceList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
