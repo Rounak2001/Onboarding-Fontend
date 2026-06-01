@@ -72,12 +72,23 @@ const PRIORITY_COLORS = {
 
 const formatDate = (iso) => {
     if (!iso) return '-';
-    try { return new Date(iso).toLocaleString(); } catch { return '-'; }
+    try {
+        return new Date(iso).toLocaleString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: true,
+            timeZone: 'Asia/Kolkata',
+        });
+    } catch { return '-'; }
 };
 
 const formatDateShort = (iso) => {
     if (!iso) return '-';
-    try { return new Date(iso).toLocaleDateString(); } catch { return '-'; }
+    try {
+        return new Date(iso).toLocaleDateString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            timeZone: 'Asia/Kolkata',
+        });
+    } catch { return '-'; }
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -185,6 +196,20 @@ const AdminContactList = ({ isLight, viewportWidth, token, themeVars }) => {
         fetchList();
     }, [fetchList]);
 
+    // Silently refresh only the stats counters after an action — no loading spinner.
+    const refreshStats = useCallback(async () => {
+        const authToken = _readAdminToken(token);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/contact-submissions/?${buildQuery()}`), {
+                headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+            });
+            if (res.ok) {
+                const data = await res.json().catch(() => ({}));
+                setStats(data.stats || {});
+            }
+        } catch { /* non-critical */ }
+    }, [buildQuery, token]);
+
     // Fetch the active-recipient pool used by the per-row Assignee dropdown.
     // Re-run on mount, when the recipients modal closes, and whenever the
     // submissions list refreshes (cheap; the endpoint caps at 200 rows).
@@ -206,10 +231,17 @@ const AdminContactList = ({ isLight, viewportWidth, token, themeVars }) => {
         fetchAssignableUsers();
     }, [fetchAssignableUsers]);
 
-    // Generic action runner — POSTs to an action URL and patches the row in state
-    const runAction = useCallback(async (submissionId, path, body, actionKey) => {
+    // Generic action runner with optimistic updates.
+    // Pass optimisticPatch to apply immediately; originalRow to revert on failure.
+    const runAction = useCallback(async (submissionId, path, body, actionKey, optimisticPatch, originalRow) => {
         const key = `${submissionId}:${actionKey}`;
         const authToken = _readAdminToken(token);
+
+        // Apply optimistic update instantly — UI reflects change before server responds
+        if (optimisticPatch) {
+            setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, ...optimisticPatch } : s));
+        }
+
         setActionLoading(prev => ({ ...prev, [key]: true }));
         try {
             const res = await fetch(apiUrl(`/admin-panel/contact-submissions/${submissionId}/${path}/`), {
@@ -222,21 +254,23 @@ const AdminContactList = ({ isLight, viewportWidth, token, themeVars }) => {
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
+                // Revert to original on failure
+                if (originalRow) setSubmissions(prev => prev.map(s => s.id === submissionId ? originalRow : s));
                 alert(data.error || 'Action failed');
                 return null;
             }
-            // Patch the updated row in place
-            setSubmissions(prev => prev.map(s => (s.id === submissionId ? data : s)));
-            // Also refresh stats since status counts may have changed
-            fetchList();
+            // Reconcile with real server data
+            setSubmissions(prev => prev.map(s => s.id === submissionId ? data : s));
+            refreshStats();
             return data;
         } catch {
+            if (originalRow) setSubmissions(prev => prev.map(s => s.id === submissionId ? originalRow : s));
             alert('Network error');
             return null;
         } finally {
             setActionLoading(prev => ({ ...prev, [key]: false }));
         }
-    }, [token, fetchList]);
+    }, [token, refreshStats]);
 
     const handleExport = async () => {
         setExporting(true);
@@ -267,44 +301,54 @@ const AdminContactList = ({ isLight, viewportWidth, token, themeVars }) => {
     };
 
     const handleStatusChange = (s, newStatus) =>
-        runAction(s.id, 'status', { status: newStatus }, `status-${newStatus}`);
+        runAction(s.id, 'status', { status: newStatus }, `status-${newStatus}`,
+            { status: newStatus }, s);
 
     const handlePriorityChange = (s, newPriority) =>
-        runAction(s.id, 'priority', { priority: newPriority }, `priority-${newPriority}`);
+        runAction(s.id, 'priority', { priority: newPriority }, `priority-${newPriority}`,
+            { priority: newPriority }, s);
 
-    const handleAssignChange = (s, recipientId) =>
-        // Backend accepts either `recipient_id` (preferred) or the legacy
-        // `user_id` key — both resolve to a ContactNotificationRecipient now.
-        runAction(s.id, 'assign', { recipient_id: recipientId || null }, 'assign');
+    const handleAssignChange = (s, recipientId) => {
+        const user = recipientId
+            ? assignableUsers.find(u => String(u.id) === String(recipientId)) || null
+            : null;
+        runAction(s.id, 'assign', { recipient_id: recipientId || null }, 'assign',
+            { assigned_to: user }, s);
+    };
 
     const handleAddNote = async (s) => {
         const note = (noteTexts[s.id] || '').trim();
         if (!note) return;
-        const updated = await runAction(s.id, 'notes', { note }, 'note');
+        const updated = await runAction(s.id, 'notes', { note }, 'note', null, s);
         if (updated) setNoteTexts(prev => ({ ...prev, [s.id]: '' }));
     };
 
     const handleAddTag = async (s) => {
         const tag = (tagInputs[s.id] || '').trim();
         if (!tag) return;
-        const updated = await runAction(s.id, 'tags', { add: [tag] }, `tag-add-${tag}`);
+        const updated = await runAction(s.id, 'tags', { add: [tag] }, `tag-add-${tag}`,
+            { tags: [...(s.tags || []), tag] }, s);
         if (updated) setTagInputs(prev => ({ ...prev, [s.id]: '' }));
     };
 
     const handleRemoveTag = (s, tag) =>
-        runAction(s.id, 'tags', { remove: [tag] }, `tag-remove-${tag}`);
+        runAction(s.id, 'tags', { remove: [tag] }, `tag-remove-${tag}`,
+            { tags: (s.tags || []).filter(t => t !== tag) }, s);
 
     const handleSetFollowUp = (s, date) =>
-        runAction(s.id, 'follow-up', { follow_up_date: date || null }, 'follow-up');
+        runAction(s.id, 'follow-up', { follow_up_date: date || null }, 'follow-up',
+            { follow_up_date: date || null }, s);
 
     const handleMarkContacted = (s) =>
-        runAction(s.id, 'contacted', {}, 'contacted');
+        runAction(s.id, 'contacted', {}, 'contacted',
+            { last_contacted_at: new Date().toISOString() }, s);
 
     const handleSendReply = async (s) => {
         const message = (replyTexts[s.id] || '').trim();
         if (!message) return;
         if (!window.confirm(`Send this reply email to ${s.email}?`)) return;
-        const updated = await runAction(s.id, 'reply', { message }, 'reply');
+        const updated = await runAction(s.id, 'reply', { message }, 'reply',
+            { admin_reply_text: message, admin_reply_sent_at: new Date().toISOString() }, s);
         if (updated) setReplyTexts(prev => ({ ...prev, [s.id]: '' }));
     };
 
@@ -661,7 +705,7 @@ const SubmissionRow = ({
                     </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--admin-text-muted)', minWidth: 140 }}>
-                    <div style={{ fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{formatDateShort(s.created_at)}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{formatDate(s.created_at)}</div>
                     {s.assigned_to && (
                         <div style={{ marginTop: 4 }}>Assigned: <span style={{ fontWeight: 700 }}>{s.assigned_to.full_name}</span></div>
                     )}
@@ -675,96 +719,140 @@ const SubmissionRow = ({
             {/* Expanded */}
             {expanded && (
                 <div style={{
-                    padding: isMobile ? '0 16px 16px' : '0 22px 22px',
+                    padding: isMobile ? '0 16px 20px' : '0 24px 24px',
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : '1fr 320px',
-                    gap: 22,
+                    gridTemplateColumns: isMobile ? '1fr' : '1fr 300px',
+                    gap: 20,
                 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                        {/* Message */}
-                        <Section title="Message" icon={FileText}>
-                            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 14, color: 'var(--admin-text-primary)' }}>
-                                {s.message || <span style={{ fontStyle: 'italic', color: 'var(--admin-text-muted)' }}>(no message — lead-capture submission)</span>}
-                            </p>
-                        </Section>
+                    {/* ── Left column ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-                        {/* Admin Notes */}
-                        <Section title="Internal Notes" icon={FileText}>
-                            {s.admin_notes ? (
-                                <pre style={{
-                                    margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit',
-                                    fontSize: 13, color: 'var(--admin-text-secondary)', lineHeight: 1.6,
-                                }}>{s.admin_notes}</pre>
-                            ) : (
-                                <span style={{ fontSize: 13, fontStyle: 'italic', color: 'var(--admin-text-muted)' }}>No notes yet.</span>
-                            )}
-                            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                                <input
-                                    value={noteText}
-                                    onChange={(e) => setNoteText(e.target.value)}
-                                    placeholder="Add an internal note..."
-                                    style={inputStyle}
-                                />
-                                <button
-                                    onClick={() => onAddNote(s)}
-                                    disabled={!noteText.trim() || isLoading('note')}
-                                    style={primaryBtnStyle(!noteText.trim() || isLoading('note'))}
-                                >Add</button>
-                            </div>
-                        </Section>
+                        {/* Services / Message */}
+                        {s.source === 'home_page_lead' ? (
+                            <Section title="Services Requested" icon={FileText}>
+                                {s.message ? (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                        {s.message.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => (
+                                            <span key={tag} style={{
+                                                padding: '5px 14px', borderRadius: 999,
+                                                fontSize: 12, fontWeight: 700,
+                                                background: 'rgba(34,197,94,0.1)',
+                                                color: 'rgb(34,197,94)',
+                                                border: '1px solid rgba(34,197,94,0.2)',
+                                                letterSpacing: '0.02em',
+                                            }}>{tag}</span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span style={{ fontSize: 13, fontStyle: 'italic', color: 'var(--admin-text-muted)' }}>No services selected.</span>
+                                )}
+                            </Section>
+                        ) : (
+                            <Section title="Message" icon={FileText}>
+                                <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 14, color: 'var(--admin-text-primary)' }}>
+                                    {s.message || <span style={{ fontStyle: 'italic', color: 'var(--admin-text-muted)' }}>(no message)</span>}
+                                </p>
+                            </Section>
+                        )}
 
                         {/* Reply via email */}
-                        <Section title="Reply to Submitter (via email)" icon={Send}>
-                            {s.admin_reply_sent_at ? (
-                                <div style={{ padding: 12, background: '#10b98108', borderRadius: 10, border: '1px solid #10b98120', marginBottom: 12 }}>
-                                    <div style={{ fontSize: 11, fontWeight: 900, color: '#10b981', textTransform: 'uppercase', marginBottom: 6 }}>
-                                        Reply sent {formatDate(s.admin_reply_sent_at)}
+                        <Section title="Reply to Submitter" icon={Send}>
+                            {s.admin_reply_sent_at && (
+                                <div style={{
+                                    padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+                                    background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.18)',
+                                    display: 'flex', flexDirection: 'column', gap: 4,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#10b981' }}>
+                                        <Send size={11} /> Sent {formatDate(s.admin_reply_sent_at)}
                                     </div>
-                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', whiteSpace: 'pre-wrap' }}>
+                                    <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
                                         {s.admin_reply_text}
                                     </div>
                                 </div>
-                            ) : null}
+                            )}
                             <textarea
                                 value={replyText}
                                 onChange={(e) => setReplyText(e.target.value)}
-                                placeholder={`Write a reply that will be emailed to ${s.email}...`}
-                                rows={4}
-                                style={{ ...inputStyle, width: '100%', resize: 'vertical', minHeight: 90, fontFamily: 'inherit' }}
+                                placeholder={`Write a reply to ${s.email}…`}
+                                rows={3}
+                                style={{ ...inputStyle, width: '100%', resize: 'vertical', minHeight: 80, fontFamily: 'inherit', lineHeight: 1.6 }}
                             />
-                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
                                 <button
                                     onClick={() => onSendReply(s)}
                                     disabled={!replyText.trim() || isLoading('reply')}
-                                    style={primaryBtnStyle(!replyText.trim() || isLoading('reply'), '#10b981')}
+                                    style={{
+                                        ...primaryBtnStyle(!replyText.trim() || isLoading('reply'), '#10b981'),
+                                        display: 'inline-flex', alignItems: 'center', gap: 7,
+                                        padding: '8px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700,
+                                    }}
                                 >
-                                    <Send size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                                    {isLoading('reply') ? 'Sending...' : 'Send Reply Email'}
+                                    <Send size={13} />
+                                    {isLoading('reply') ? 'Sending…' : 'Send Reply Email'}
                                 </button>
                             </div>
                         </Section>
 
-                        {/* Activity history */}
+                        {/* Internal Notes */}
+                        <Section title="Internal Notes" icon={FileText}>
+                            {s.admin_notes ? (
+                                <div style={{
+                                    padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+                                    background: 'var(--admin-bg, #0d1b2a)', border: '1px solid var(--admin-border-soft)',
+                                    fontSize: 13, color: 'var(--admin-text-secondary)', lineHeight: 1.65,
+                                    whiteSpace: 'pre-wrap',
+                                }}>{s.admin_notes}</div>
+                            ) : (
+                                <p style={{ margin: '0 0 12px', fontSize: 13, fontStyle: 'italic', color: 'var(--admin-text-muted)' }}>No notes yet.</p>
+                            )}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <input
+                                    value={noteText}
+                                    onChange={(e) => setNoteText(e.target.value)}
+                                    placeholder="Add an internal note…"
+                                    style={{ ...inputStyle, flex: 1 }}
+                                />
+                                <button
+                                    onClick={() => onAddNote(s)}
+                                    disabled={!noteText.trim() || isLoading('note')}
+                                    style={{ ...primaryBtnStyle(!noteText.trim() || isLoading('note')), padding: '8px 16px', borderRadius: 9, fontWeight: 700 }}
+                                >Add</button>
+                            </div>
+                        </Section>
+
+                        {/* Activity timeline */}
                         {(s.activities || []).length > 0 && (
                             <Section title="Activity" icon={History}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
-                                    {s.activities.map(a => (
-                                        <div key={a.id} style={{
-                                            display: 'flex', gap: 10, padding: '8px 0',
-                                            borderBottom: '1px solid var(--admin-border-soft)',
-                                        }}>
-                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', marginTop: 8, flexShrink: 0 }} />
-                                            <div style={{ flex: 1, fontSize: 12, color: 'var(--admin-text-secondary)' }}>
-                                                <div style={{ fontWeight: 700, color: 'var(--admin-text-primary)' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 240, overflowY: 'auto' }}>
+                                    {s.activities.map((a, idx) => (
+                                        <div key={a.id} style={{ display: 'flex', gap: 12, paddingBottom: 12 }}>
+                                            {/* Timeline line + dot */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                                                <div style={{
+                                                    width: 8, height: 8, borderRadius: '50%', marginTop: 4,
+                                                    background: a.action.includes('status') ? '#f59e0b'
+                                                        : a.action.includes('reply') ? '#10b981'
+                                                        : a.action.includes('note') ? '#8b5cf6'
+                                                        : '#3b82f6',
+                                                    flexShrink: 0,
+                                                }} />
+                                                {idx < s.activities.length - 1 && (
+                                                    <div style={{ width: 1, flex: 1, background: 'var(--admin-border-soft)', marginTop: 4 }} />
+                                                )}
+                                            </div>
+                                            <div style={{ flex: 1, paddingBottom: 4 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--admin-text-primary)', textTransform: 'capitalize' }}>
                                                     {a.action.replace(/_/g, ' ')}
-                                                    {a.from_value && a.to_value
-                                                        ? <span style={{ fontWeight: 500, color: 'var(--admin-text-muted)' }}>: {a.from_value} → {a.to_value}</span>
-                                                        : a.to_value
-                                                            ? <span style={{ fontWeight: 500, color: 'var(--admin-text-muted)' }}>: {a.to_value}</span>
-                                                            : null}
+                                                    {a.from_value && a.to_value && (
+                                                        <span style={{ fontWeight: 500, color: 'var(--admin-text-muted)' }}> · {a.from_value} → {a.to_value}</span>
+                                                    )}
+                                                    {!a.from_value && a.to_value && (
+                                                        <span style={{ fontWeight: 500, color: 'var(--admin-text-muted)' }}> · {a.to_value}</span>
+                                                    )}
                                                 </div>
-                                                {a.detail && <div style={{ marginTop: 2 }}>{a.detail}</div>}
-                                                <div style={{ marginTop: 2, fontSize: 11, color: 'var(--admin-text-muted)' }}>
+                                                {a.detail && <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', marginTop: 2 }}>{a.detail}</div>}
+                                                <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 3 }}>
                                                     {a.actor_username || 'system'} · {formatDate(a.created_at)}
                                                 </div>
                                             </div>
@@ -775,96 +863,72 @@ const SubmissionRow = ({
                         )}
                     </div>
 
-                    {/* Right column — actions */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* ── Right column — actions ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                        {/* Status */}
                         <ControlCard label="Status">
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                                 {STATUS_OPTIONS.filter(o => o.value).map(opt => (
                                     <button
                                         key={opt.value}
                                         onClick={() => onStatus(s, opt.value)}
                                         disabled={s.status === opt.value || isLoading(`status-${opt.value}`)}
-                                        style={pillBtnStyle(s.status === opt.value, STATUS_COLORS[opt.value])}
+                                        style={{
+                                            padding: '7px 4px', borderRadius: 8, border: '1px solid',
+                                            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                            transition: 'all 0.15s',
+                                            borderColor: s.status === opt.value ? STATUS_COLORS[opt.value] : 'var(--admin-border-soft)',
+                                            background: s.status === opt.value ? `${STATUS_COLORS[opt.value]}22` : 'transparent',
+                                            color: s.status === opt.value ? STATUS_COLORS[opt.value] : 'var(--admin-text-muted)',
+                                        }}
                                     >{opt.label}</button>
                                 ))}
                             </div>
                         </ControlCard>
 
+                        {/* Priority */}
                         <ControlCard label="Priority">
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                                 {PRIORITY_OPTIONS.filter(o => o.value).map(opt => (
                                     <button
                                         key={opt.value}
                                         onClick={() => onPriority(s, opt.value)}
                                         disabled={s.priority === opt.value || isLoading(`priority-${opt.value}`)}
-                                        style={pillBtnStyle(s.priority === opt.value, PRIORITY_COLORS[opt.value])}
+                                        style={{
+                                            padding: '7px 4px', borderRadius: 8, border: '1px solid',
+                                            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                            transition: 'all 0.15s',
+                                            borderColor: s.priority === opt.value ? PRIORITY_COLORS[opt.value] : 'var(--admin-border-soft)',
+                                            background: s.priority === opt.value ? `${PRIORITY_COLORS[opt.value]}22` : 'transparent',
+                                            color: s.priority === opt.value ? PRIORITY_COLORS[opt.value] : 'var(--admin-text-muted)',
+                                        }}
                                     >{opt.label}</button>
                                 ))}
                             </div>
                         </ControlCard>
 
+                        {/* Assignee */}
                         <ControlCard label="Assignee">
                             <select
                                 value={s.assigned_to ? s.assigned_to.id : ''}
                                 onChange={(e) => onAssign(s, e.target.value || null)}
-                                style={{ ...inputStyle, width: '100%' }}
+                                style={{ ...inputStyle, width: '100%', fontWeight: 600 }}
                             >
                                 <option value="">Unassigned</option>
                                 {assignableUsers.map(u => (
-                                    <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                                    <option key={u.id} value={u.id}>{u.full_name}</option>
                                 ))}
                             </select>
                             {assignableUsers.length === 0 && (
                                 <div style={{ marginTop: 8, fontSize: 11, color: 'var(--admin-text-muted)' }}>
-                                    No active recipients yet — add one in <strong>Manage Recipients</strong>.
+                                    No recipients yet — add in <strong>Manage Recipients</strong>.
                                 </div>
                             )}
                         </ControlCard>
 
-                        <ControlCard label="Tags">
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                                {(s.tags || []).length === 0 && (
-                                    <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontStyle: 'italic' }}>No tags</span>
-                                )}
-                                {(s.tags || []).map(t => (
-                                    <span
-                                        key={t}
-                                        onClick={() => onRemoveTag(s, t)}
-                                        title="Click to remove"
-                                        style={{
-                                            padding: '4px 10px',
-                                            background: '#a855f715',
-                                            color: '#a855f7',
-                                            borderRadius: 999,
-                                            fontSize: 11,
-                                            fontWeight: 800,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                        }}
-                                    >
-                                        #{t} ×
-                                    </span>
-                                ))}
-                            </div>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                                <input
-                                    value={tagInput}
-                                    onChange={(e) => setTagInput(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') onAddTag(s); }}
-                                    placeholder="add tag..."
-                                    style={{ ...inputStyle, flex: 1 }}
-                                />
-                                <button
-                                    onClick={() => onAddTag(s)}
-                                    disabled={!tagInput.trim()}
-                                    style={primaryBtnStyle(!tagInput.trim(), '#a855f7')}
-                                ><Tag size={14} /></button>
-                            </div>
-                        </ControlCard>
-
-                        <ControlCard label="Follow-up date">
+                        {/* Follow-up + Outreach */}
+                        <ControlCard label="Follow-up Date">
                             <div style={{ display: 'flex', gap: 6 }}>
                                 <input
                                     type="date"
@@ -873,10 +937,7 @@ const SubmissionRow = ({
                                     style={{ ...inputStyle, flex: 1 }}
                                 />
                                 {s.follow_up_date && (
-                                    <button
-                                        onClick={() => onSetFollowUp(s, null)}
-                                        style={primaryBtnStyle(false, '#94a3b8')}
-                                    >Clear</button>
+                                    <button onClick={() => onSetFollowUp(s, null)} style={primaryBtnStyle(false, '#94a3b8')}>Clear</button>
                                 )}
                             </div>
                         </ControlCard>
@@ -885,13 +946,55 @@ const SubmissionRow = ({
                             <button
                                 onClick={() => onMarkContacted(s)}
                                 disabled={isLoading('contacted')}
-                                style={{ ...primaryBtnStyle(isLoading('contacted'), '#3b82f6'), width: '100%' }}
-                            ><Phone size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Mark contacted now</button>
+                                style={{
+                                    ...primaryBtnStyle(isLoading('contacted'), '#3b82f6'),
+                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    gap: 7, padding: '9px 14px', borderRadius: 9, fontWeight: 700, fontSize: 13,
+                                }}
+                            >
+                                <Phone size={13} /> Mark contacted now
+                            </button>
                             {s.last_contacted_at && (
                                 <div style={{ marginTop: 8, fontSize: 11, color: 'var(--admin-text-muted)', textAlign: 'center' }}>
-                                    Last contacted: {formatDate(s.last_contacted_at)}
+                                    Last: {formatDate(s.last_contacted_at)}
                                 </div>
                             )}
+                        </ControlCard>
+
+                        {/* Tags */}
+                        <ControlCard label="Tags">
+                            {(s.tags || []).length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                    {s.tags.map(t => (
+                                        <span
+                                            key={t}
+                                            onClick={() => onRemoveTag(s, t)}
+                                            title="Click to remove"
+                                            style={{
+                                                padding: '3px 10px', background: 'rgba(168,85,247,0.1)',
+                                                color: '#a855f7', borderRadius: 999, fontSize: 11,
+                                                fontWeight: 700, cursor: 'pointer',
+                                                border: '1px solid rgba(168,85,247,0.2)',
+                                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                            }}
+                                        >#{t} <span style={{ opacity: 0.7, fontSize: 13, lineHeight: 1 }}>×</span></span>
+                                    ))}
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <input
+                                    value={tagInput}
+                                    onChange={(e) => setTagInput(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') onAddTag(s); }}
+                                    placeholder="Add a tag…"
+                                    style={{ ...inputStyle, flex: 1 }}
+                                />
+                                <button
+                                    onClick={() => onAddTag(s)}
+                                    disabled={!tagInput.trim()}
+                                    style={{ ...primaryBtnStyle(!tagInput.trim(), '#a855f7'), padding: '8px 12px', borderRadius: 9 }}
+                                ><Tag size={13} /></button>
+                            </div>
                         </ControlCard>
 
                         {s.jira_ticket_key && (
@@ -901,10 +1004,10 @@ const SubmissionRow = ({
                                     target="_blank" rel="noreferrer"
                                     style={{
                                         display: 'inline-flex', alignItems: 'center', gap: 6,
-                                        color: '#3b82f6', textDecoration: 'none', fontWeight: 800, fontSize: 13,
+                                        color: '#3b82f6', textDecoration: 'none', fontWeight: 700, fontSize: 13,
                                     }}
                                 >
-                                    {s.jira_ticket_key} <ExternalLink size={14} />
+                                    {s.jira_ticket_key} <ExternalLink size={13} />
                                 </a>
                             </ControlCard>
                         )}
