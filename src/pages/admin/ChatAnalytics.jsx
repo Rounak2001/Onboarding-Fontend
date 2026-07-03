@@ -11,8 +11,8 @@ import {
 } from 'recharts';
 import {
     LayoutDashboard, MessageSquare, Bot, Globe, Users, TrendingUp,
-    RefreshCw, Search, Filter, ChevronLeft, ChevronRight, AlertCircle,
-    Zap, UserSquare, Activity,
+    RefreshCw, Search, ChevronLeft, ChevronRight, AlertCircle,
+    Activity, X, User, Layers,
 } from 'lucide-react';
 
 const RANGE_OPTIONS = [
@@ -21,27 +21,35 @@ const RANGE_OPTIONS = [
     { value: 90, label: 'Last 90 days' },
 ];
 
+// Every known tool_used value from the backend
 const TOOL_LABELS = {
-    model: 'AI Model',
-    google_search: 'Web Search',
-    file_search: 'Tax RAG',
-    google_search_fallback: 'Web Search (fallback)',
-    file_search_fallback: 'Tax RAG (fallback)',
-    none: 'Direct',
-    '': 'AI Model',
+    none:                     'Direct (no tool)',
+    '':                       'Direct (no tool)',
+    model:                    'Direct (no tool)',
+    google_search:            'Web Search',
+    google_search_fallback:   'Web Search',
+    file_search:              'Tax RAG',
+    file_search_fallback:     'Tax RAG',
+    document_rag:             'Document RAG',
+    document_google_search:   'Document + Web Search',
+    document_file_search:     'Document + Tax RAG',
 };
 
 const TOOL_COLORS = {
-    model: '#2dd4bf',
-    google_search: '#60a5fa',
-    file_search: '#a78bfa',
-    google_search_fallback: '#38bdf8',
-    file_search_fallback: '#818cf8',
-    none: '#94a3b8',
-    '': '#2dd4bf',
+    none:                     '#94a3b8',
+    '':                       '#94a3b8',
+    model:                    '#94a3b8',
+    google_search:            '#60a5fa',
+    google_search_fallback:   '#60a5fa',
+    file_search:              '#a78bfa',
+    file_search_fallback:     '#a78bfa',
+    document_rag:             '#f59e0b',
+    document_google_search:   '#34d399',
+    document_file_search:     '#fb923c',
 };
 
-const PIE_COLORS = ['#2dd4bf', '#60a5fa', '#a78bfa', '#f59e0b', '#f87171', '#34d399'];
+const toolLabel = (t) => TOOL_LABELS[t] || t || 'Direct (no tool)';
+const toolColor = (t) => TOOL_COLORS[t] || '#94a3b8';
 
 function StatCard({ label, value, sub, icon: Icon, color = '#2dd4bf', isLight, themeVars }) {
     return (
@@ -71,7 +79,7 @@ function StatCard({ label, value, sub, icon: Icon, color = '#2dd4bf', isLight, t
     );
 }
 
-function QueryList({ queries, label, emptyText, isLight }) {
+function QueryList({ queries, label, emptyText, isLight, onSelect, selectKey = 'session_id' }) {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(0);
     const PAGE = 25;
@@ -118,29 +126,44 @@ function QueryList({ queries, label, emptyText, isLight }) {
             ) : (
                 <div>
                     {slice.map((row, i) => (
-                        <div key={i} style={{
-                            padding: '11px 18px',
-                            borderBottom: i < slice.length - 1 ? '1px solid var(--admin-border-soft)' : 'none',
-                            display: 'flex', alignItems: 'flex-start', gap: 12,
-                            background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)',
-                        }}>
+                        <div key={i}
+                            onClick={() => onSelect && row[selectKey] && onSelect(row[selectKey])}
+                            style={{
+                                padding: '11px 18px',
+                                borderBottom: i < slice.length - 1 ? '1px solid var(--admin-border-soft)' : 'none',
+                                display: 'flex', alignItems: 'flex-start', gap: 12,
+                                background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)',
+                                cursor: onSelect && row[selectKey] ? 'pointer' : 'default',
+                                transition: 'background 0.1s',
+                            }}
+                            onMouseEnter={e => { if (onSelect && row[selectKey]) e.currentTarget.style.background = 'rgba(45,212,191,0.06)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)'; }}
+                        >
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 13, color: 'var(--admin-text-primary)', lineHeight: 1.45, wordBreak: 'break-word' }}>{row.text}</div>
                                 <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                     <span style={{
                                         fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 99,
-                                        background: `${TOOL_COLORS[row.tool] || '#2dd4bf'}18`,
-                                        color: TOOL_COLORS[row.tool] || '#2dd4bf',
-                                        border: `1px solid ${TOOL_COLORS[row.tool] || '#2dd4bf'}30`,
+                                        background: `${toolColor(row.tool)}18`,
+                                        color: toolColor(row.tool),
+                                        border: `1px solid ${toolColor(row.tool)}30`,
                                     }}>
-                                        {TOOL_LABELS[row.tool] || row.tool || 'AI Model'}
+                                        {toolLabel(row.tool)}
                                     </span>
                                     {row.escalated && (
                                         <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)' }}>
                                             Escalated
                                         </span>
                                     )}
+                                    {row.user_email && (
+                                        <span style={{ fontSize: 10, color: 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                            <User size={9} /> {row.user_email}
+                                        </span>
+                                    )}
                                     <span style={{ fontSize: 10, color: 'var(--admin-text-muted)' }}>{formatTime(row.created_at)}</span>
+                                    {onSelect && row[selectKey] && (
+                                        <span style={{ fontSize: 10, color: '#2dd4bf', fontWeight: 600, marginLeft: 'auto' }}>View chat →</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -224,6 +247,273 @@ function TopWordsCloud({ queries, isLight }) {
     );
 }
 
+function PublicConversationModal({ actorKey, days, token, onClose }) {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        setError('');
+        const params = new URLSearchParams({ ip: actorKey, days });
+        fetch(apiUrl(`/chat/analytics/public-ip/?${params}`), {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(d => { if (!cancelled) setData(d); })
+            .catch(e => { if (!cancelled) setError('Could not load conversation. ' + e); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [actorKey, days, token]);
+
+    const formatTime = (iso) => {
+        if (!iso) return '';
+        return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    };
+
+    return (
+        <div onClick={onClose} style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+            <div onClick={e => e.stopPropagation()} style={{
+                width: '100%', maxWidth: 680, maxHeight: '85vh',
+                background: 'var(--admin-surface)',
+                borderRadius: '18px 18px 0 0',
+                display: 'flex', flexDirection: 'column',
+                boxShadow: '0 -8px 40px rgba(0,0,0,0.35)',
+            }}>
+                {/* Header */}
+                <div style={{
+                    padding: '16px 20px', borderBottom: '1px solid var(--admin-border-soft)',
+                    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+                    flexShrink: 0,
+                }}>
+                    <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--admin-text-strong)' }}>
+                            Public Visitor Thread
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 3, display: 'flex', gap: 12 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Globe size={10} /> {actorKey}
+                            </span>
+                            {data && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <MessageSquare size={10} /> {data.count} exchange{data.count !== 1 ? 's' : ''}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{
+                        width: 28, height: 28, borderRadius: 7, border: '1px solid var(--admin-border-mid)',
+                        background: 'var(--admin-surface-soft)', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+                        color: 'var(--admin-text-muted)',
+                    }}>
+                        <X size={13} />
+                    </button>
+                </div>
+
+                {/* Messages */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {loading && (
+                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--admin-text-muted)', fontSize: 13 }}>
+                            Loading conversation…
+                        </div>
+                    )}
+                    {error && (
+                        <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(248,113,113,0.1)', color: '#f87171', fontSize: 13 }}>
+                            {error}
+                        </div>
+                    )}
+                    {!loading && data && data.messages.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--admin-text-muted)', fontSize: 13 }}>
+                            No recorded messages for this visitor in the selected period.
+                        </div>
+                    )}
+                    {!loading && data && data.messages.map((msg, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {/* User bubble */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <div style={{
+                                    maxWidth: '80%', padding: '10px 14px',
+                                    borderRadius: '14px 14px 4px 14px',
+                                    background: 'rgba(96,165,250,0.15)',
+                                    border: '1px solid rgba(96,165,250,0.3)',
+                                }}>
+                                    <div style={{ fontSize: 13, color: 'var(--admin-text-primary)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                                        {msg.query}
+                                    </div>
+                                    <div style={{ fontSize: 9, color: 'var(--admin-text-muted)', marginTop: 4, textAlign: 'right' }}>
+                                        {formatTime(msg.created_at)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AI bubble */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                <div style={{
+                                    maxWidth: '80%', padding: '10px 14px',
+                                    borderRadius: '14px 14px 14px 4px',
+                                    background: 'var(--admin-surface-soft)',
+                                    border: '1px solid var(--admin-border-soft)',
+                                }}>
+                                    {msg.response ? (
+                                        <div style={{ fontSize: 13, color: 'var(--admin-text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {msg.response}
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontStyle: 'italic' }}>
+                                            Response not stored (pre-dates this feature)
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 5, alignItems: 'center', justifyContent: 'flex-end' }}>
+                                        <span style={{
+                                            fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 99,
+                                            background: `${toolColor(msg.tool)}18`,
+                                            color: toolColor(msg.tool),
+                                            border: `1px solid ${toolColor(msg.tool)}30`,
+                                        }}>
+                                            {toolLabel(msg.tool)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ConversationModal({ sessionId, token, onClose }) {
+    const [session, setSession] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        setError('');
+        fetch(apiUrl(`/chat/analytics/sessions/${sessionId}/`), {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(data => { if (!cancelled) { setSession(data.session); setMessages(data.messages); } })
+            .catch(e => { if (!cancelled) setError('Could not load conversation. ' + e); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [sessionId, token]);
+
+    const formatTime = (iso) => {
+        if (!iso) return '';
+        return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    };
+
+    return (
+        <div onClick={onClose} style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            padding: '0 0 0 0',
+        }}>
+            <div onClick={e => e.stopPropagation()} style={{
+                width: '100%', maxWidth: 680, maxHeight: '85vh',
+                background: 'var(--admin-surface)',
+                borderRadius: '18px 18px 0 0',
+                display: 'flex', flexDirection: 'column',
+                boxShadow: '0 -8px 40px rgba(0,0,0,0.35)',
+            }}>
+                {/* Modal header */}
+                <div style={{
+                    padding: '16px 20px', borderBottom: '1px solid var(--admin-border-soft)',
+                    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+                    flexShrink: 0,
+                }}>
+                    <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--admin-text-strong)' }}>
+                            {session ? (session.title || 'Conversation') : 'Loading…'}
+                        </div>
+                        {session && (
+                            <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 3, display: 'flex', gap: 12 }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <User size={10} /> {session.user_email}
+                                </span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <MessageSquare size={10} /> {session.message_count} messages
+                                </span>
+                                {session.has_escalated && (
+                                    <span style={{ color: '#fb923c', fontWeight: 600 }}>Escalated</span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <button onClick={onClose} style={{
+                        width: 28, height: 28, borderRadius: 7, border: '1px solid var(--admin-border-mid)',
+                        background: 'var(--admin-surface-soft)', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+                        color: 'var(--admin-text-muted)',
+                    }}>
+                        <X size={13} />
+                    </button>
+                </div>
+
+                {/* Messages */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {loading && (
+                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--admin-text-muted)', fontSize: 13 }}>
+                            Loading conversation…
+                        </div>
+                    )}
+                    {error && (
+                        <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(248,113,113,0.1)', color: '#f87171', fontSize: 13 }}>
+                            {error}
+                        </div>
+                    )}
+                    {!loading && messages.map((msg, i) => {
+                        const isUser = msg.role === 'user';
+                        return (
+                            <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
+                                <div style={{
+                                    maxWidth: '80%',
+                                    padding: '10px 14px',
+                                    borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                                    background: isUser ? 'rgba(45,212,191,0.15)' : 'var(--admin-surface-soft)',
+                                    border: `1px solid ${isUser ? 'rgba(45,212,191,0.3)' : 'var(--admin-border-soft)'}`,
+                                }}>
+                                    <div style={{ fontSize: 13, color: 'var(--admin-text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                        {msg.content}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                        {msg.tool_used && !isUser && (
+                                            <span style={{
+                                                fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 99,
+                                                background: `${toolColor(msg.tool_used)}18`,
+                                                color: toolColor(msg.tool_used),
+                                                border: `1px solid ${toolColor(msg.tool_used)}30`,
+                                            }}>
+                                                {toolLabel(msg.tool_used)}
+                                            </span>
+                                        )}
+                                        {msg.escalation_message && (
+                                            <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)' }}>
+                                                Escalated
+                                            </span>
+                                        )}
+                                        <span style={{ fontSize: 9, color: 'var(--admin-text-muted)' }}>{formatTime(msg.created_at)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const ChatAnalytics = () => {
     const navigate = useNavigate();
     const { isLight, themeVars, toggleTheme } = useAdminTheme();
@@ -234,6 +524,8 @@ const ChatAnalytics = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('public');
+    const [selectedSession, setSelectedSession] = useState(null);
+    const [selectedPublicVisitor, setSelectedPublicVisitor] = useState(null);
 
     const fetchData = useCallback(async () => {
         if (!token) { navigate(adminUrl()); return; }
@@ -258,11 +550,15 @@ const ChatAnalytics = () => {
 
     const toolPieData = useMemo(() => {
         if (!data) return [];
-        return Object.entries(data.tool_breakdown || {}).map(([tool, count]) => ({
-            name: TOOL_LABELS[tool] || tool,
-            value: count,
-            color: TOOL_COLORS[tool] || '#94a3b8',
-        }));
+        // Merge fallback variants (google_search + google_search_fallback → same label/color)
+        const merged = {};
+        Object.entries(data.tool_breakdown || {}).forEach(([tool, count]) => {
+            const label = toolLabel(tool);
+            const color = toolColor(tool);
+            if (merged[label]) merged[label].value += count;
+            else merged[label] = { name: label, value: count, color };
+        });
+        return Object.values(merged);
     }, [data]);
 
     return (
@@ -339,7 +635,7 @@ const ChatAnalytics = () => {
                             <StatCard label="Today (all)" value={data.summary.today} icon={Activity} color="#2dd4bf" isLight={isLight} themeVars={themeVars} />
                             <StatCard label={`Public queries (${days}d)`} value={data.summary.public_total} sub="Landing page visitors" icon={Globe} color="#60a5fa" isLight={isLight} themeVars={themeVars} />
                             <StatCard label={`Logged-in queries (${days}d)`} value={data.summary.auth_total} sub="Signed-up clients" icon={Users} color="#a78bfa" isLight={isLight} themeVars={themeVars} />
-                            <StatCard label="Total queries" value={data.summary.total} icon={MessageSquare} color="#f59e0b" isLight={isLight} themeVars={themeVars} />
+                            <StatCard label="Total queries" value={data.summary.total} sub="Individual messages sent" icon={MessageSquare} color="#f59e0b" isLight={isLight} themeVars={themeVars} />
                             <StatCard
                                 label="Escalation rate"
                                 value={`${data.summary.escalation_rate_pct}%`}
@@ -441,12 +737,15 @@ const ChatAnalytics = () => {
                                 label={`Public Queries — Landing Page (${data.public_queries.length})`}
                                 emptyText="No public query text recorded yet. Data will appear from now on."
                                 isLight={isLight}
+                                onSelect={setSelectedPublicVisitor}
+                                selectKey="actor_key"
                             />
                             <QueryList
                                 queries={data.auth_queries}
                                 label={`Logged-in Client Queries (${data.auth_queries.length})`}
                                 emptyText="No authenticated queries in this period."
                                 isLight={isLight}
+                                onSelect={setSelectedSession}
                             />
                         </div>
                     </>
@@ -456,6 +755,23 @@ const ChatAnalytics = () => {
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
             `}</style>
+
+            {selectedSession && (
+                <ConversationModal
+                    sessionId={selectedSession}
+                    token={token}
+                    onClose={() => setSelectedSession(null)}
+                />
+            )}
+
+            {selectedPublicVisitor && (
+                <PublicConversationModal
+                    actorKey={selectedPublicVisitor}
+                    days={days}
+                    token={token}
+                    onClose={() => setSelectedPublicVisitor(null)}
+                />
+            )}
         </div>
     );
 };
