@@ -131,17 +131,17 @@ function QueryList({ queries, label, emptyText, isLight, onSelect, selectKey = '
                             style={{
                                 padding: '11px 18px',
                                 borderBottom: i < slice.length - 1 ? '1px solid var(--admin-border-soft)' : 'none',
-                                display: 'flex', alignItems: 'flex-start', gap: 12,
+                                display: 'flex', alignItems: 'center', gap: 12,
                                 background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)',
                                 cursor: onSelect && row[selectKey] ? 'pointer' : 'default',
                                 transition: 'background 0.1s',
                             }}
-                            onMouseEnter={e => { if (onSelect && row[selectKey]) e.currentTarget.style.background = 'rgba(45,212,191,0.06)'; }}
+                            onMouseEnter={e => { if (onSelect && row[selectKey]) e.currentTarget.style.background = 'rgba(45,212,191,0.08)'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)'; }}
                         >
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 13, color: 'var(--admin-text-primary)', lineHeight: 1.45, wordBreak: 'break-word' }}>{row.text}</div>
-                                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                     <span style={{
                                         fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 99,
                                         background: `${toolColor(row.tool)}18`,
@@ -161,11 +161,21 @@ function QueryList({ queries, label, emptyText, isLight, onSelect, selectKey = '
                                         </span>
                                     )}
                                     <span style={{ fontSize: 10, color: 'var(--admin-text-muted)' }}>{formatTime(row.created_at)}</span>
-                                    {onSelect && row[selectKey] && (
-                                        <span style={{ fontSize: 10, color: '#2dd4bf', fontWeight: 600, marginLeft: 'auto' }}>View chat →</span>
-                                    )}
                                 </div>
                             </div>
+                            {onSelect && row[selectKey] && (
+                                <div style={{
+                                    flexShrink: 0,
+                                    display: 'flex', alignItems: 'center', gap: 4,
+                                    padding: '5px 10px', borderRadius: 7,
+                                    border: '1px solid rgba(45,212,191,0.3)',
+                                    background: 'rgba(45,212,191,0.08)',
+                                    color: '#2dd4bf', fontSize: 11, fontWeight: 700,
+                                    whiteSpace: 'nowrap',
+                                }}>
+                                    <MessageSquare size={11} /> View
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -243,6 +253,150 @@ function TopWordsCloud({ queries, isLight }) {
                     </span>
                 );
             })}
+        </div>
+    );
+}
+
+function PublicVisitorList({ queries, onSelect }) {
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(0);
+    const PAGE = 25;
+
+    // Group all entries by actor_key — each unique IP = one visitor row
+    const visitors = useMemo(() => {
+        const map = {};
+        queries.forEach(q => {
+            const key = q.actor_key;
+            if (!key) return;
+            if (!map[key]) {
+                map[key] = { actor_key: key, count: 0, latest_text: '', latest_at: '' };
+            }
+            map[key].count += 1;
+            // Keep the most recent question as the preview
+            if (!map[key].latest_at || q.created_at > map[key].latest_at) {
+                map[key].latest_text = q.text;
+                map[key].latest_at = q.created_at;
+                map[key].tool = q.tool;
+            }
+        });
+        return Object.values(map).sort((a, b) => b.latest_at.localeCompare(a.latest_at));
+    }, [queries]);
+
+    const filtered = useMemo(() => {
+        if (!search.trim()) return visitors;
+        const q = search.toLowerCase();
+        return visitors.filter(v => v.latest_text.toLowerCase().includes(q) || v.actor_key.includes(q));
+    }, [visitors, search]);
+
+    const totalPages = Math.ceil(filtered.length / PAGE);
+    const slice = filtered.slice(page * PAGE, page * PAGE + PAGE);
+
+    const formatTime = (iso) => {
+        if (!iso) return '';
+        return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    };
+
+    return (
+        <div style={{ background: 'var(--admin-surface)', border: '1px solid var(--admin-border-mid)', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--admin-border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--admin-text-strong)' }}>
+                    Public Visitors — Landing Page ({visitors.length} unique)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--admin-surface-soft)', border: '1px solid var(--admin-border-mid)', borderRadius: 8, padding: '6px 10px', minWidth: 180 }}>
+                    <Search size={13} style={{ color: 'var(--admin-text-muted)', flexShrink: 0 }} />
+                    <input
+                        value={search}
+                        onChange={e => { setSearch(e.target.value); setPage(0); }}
+                        placeholder="Filter visitors…"
+                        style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: 'var(--admin-text-primary)', width: '100%' }}
+                    />
+                </div>
+            </div>
+
+            {slice.length === 0 ? (
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 13 }}>
+                    {search ? 'No matching visitors.' : 'No public query text recorded yet. Data will appear from now on.'}
+                </div>
+            ) : (
+                <div>
+                    {slice.map((v, i) => (
+                        <div key={v.actor_key}
+                            onClick={() => onSelect(v.actor_key)}
+                            style={{
+                                padding: '12px 18px',
+                                borderBottom: i < slice.length - 1 ? '1px solid var(--admin-border-soft)' : 'none',
+                                display: 'flex', alignItems: 'center', gap: 12,
+                                background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)',
+                                cursor: 'pointer', transition: 'background 0.1s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(96,165,250,0.07)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)'; }}
+                        >
+                            {/* Avatar */}
+                            <div style={{
+                                width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                                background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#60a5fa', fontSize: 13, fontWeight: 700,
+                            }}>
+                                {i + 1 + page * PAGE}
+                            </div>
+
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                {/* Latest question preview */}
+                                <div style={{ fontSize: 13, color: 'var(--admin-text-primary)', lineHeight: 1.4, wordBreak: 'break-word' }}>
+                                    {v.latest_text}
+                                </div>
+                                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 99,
+                                        background: 'rgba(96,165,250,0.12)', color: '#60a5fa',
+                                        border: '1px solid rgba(96,165,250,0.25)',
+                                    }}>
+                                        {v.count} message{v.count !== 1 ? 's' : ''}
+                                    </span>
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 99,
+                                        background: `${toolColor(v.tool)}18`, color: toolColor(v.tool),
+                                        border: `1px solid ${toolColor(v.tool)}30`,
+                                    }}>
+                                        {toolLabel(v.tool)}
+                                    </span>
+                                    <span style={{ fontSize: 10, color: 'var(--admin-text-muted)' }}>{formatTime(v.latest_at)}</span>
+                                </div>
+                            </div>
+
+                            <div style={{
+                                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+                                padding: '5px 10px', borderRadius: 7,
+                                border: '1px solid rgba(96,165,250,0.3)',
+                                background: 'rgba(96,165,250,0.08)',
+                                color: '#60a5fa', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                            }}>
+                                <MessageSquare size={11} /> View
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {totalPages > 1 && (
+                <div style={{ padding: '10px 18px', borderTop: '1px solid var(--admin-border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>
+                        {filtered.length} visitors · page {page + 1} of {totalPages}
+                    </span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, cursor: 'pointer', opacity: page === 0 ? 0.4 : 1 }}>
+                            <ChevronLeft size={13} />
+                        </button>
+                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, cursor: 'pointer', opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
+                            <ChevronRight size={13} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -487,14 +641,14 @@ function ConversationModal({ sessionId, token, onClose }) {
                                         {msg.content}
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                        {msg.tool_used && !isUser && (
+                                        {msg.tool && !isUser && (
                                             <span style={{
                                                 fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 99,
-                                                background: `${toolColor(msg.tool_used)}18`,
-                                                color: toolColor(msg.tool_used),
-                                                border: `1px solid ${toolColor(msg.tool_used)}30`,
+                                                background: `${toolColor(msg.tool)}18`,
+                                                color: toolColor(msg.tool),
+                                                border: `1px solid ${toolColor(msg.tool)}30`,
                                             }}>
-                                                {toolLabel(msg.tool_used)}
+                                                {toolLabel(msg.tool)}
                                             </span>
                                         )}
                                         {msg.escalation_message && (
@@ -732,13 +886,9 @@ const ChatAnalytics = () => {
 
                         {/* Query lists */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                            <QueryList
+                            <PublicVisitorList
                                 queries={data.public_queries}
-                                label={`Public Queries — Landing Page (${data.public_queries.length})`}
-                                emptyText="No public query text recorded yet. Data will appear from now on."
-                                isLight={isLight}
                                 onSelect={setSelectedPublicVisitor}
-                                selectKey="actor_key"
                             />
                             <QueryList
                                 queries={data.auth_queries}
