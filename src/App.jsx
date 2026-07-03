@@ -26,6 +26,7 @@ import ConsultantDetail from './pages/admin/ConsultantDetail';
 import AdminClientDetail from './pages/admin/AdminClientDetail';
 import EmailDashboard from './pages/admin/EmailDashboard';
 import CallLogs from './pages/admin/CallLogs';
+import ChatAnalytics from './pages/admin/ChatAnalytics';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
 import { isAssessmentDeviceBlocked } from './utils/devicePolicy';
 import { isFaceVerificationSatisfied } from './utils/devBypass';
@@ -398,6 +399,7 @@ function AppRoutes() {
           <Route path={adminUrl('emails')} element={<EmailDashboard />} />
           <Route path={adminUrl('call-logs')} element={<AdminDashboard />} />
           <Route path={adminUrl('software-survey')} element={<AdminDashboard />} />
+          <Route path={adminUrl('chat-analytics')} element={<ChatAnalytics />} />
           <Route path="/Consultants/:id" element={<ConsultantDetail />} />
           <Route path="/Clients/:id" element={<AdminClientDetail />} />
         </Route>
