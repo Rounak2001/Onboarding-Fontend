@@ -16,7 +16,7 @@ import AdminCartList from './AdminCartList';
 import CallLogs from './CallLogs';
 import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
 import AdminDateRangePicker from './AdminDateRangePicker';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -826,10 +826,16 @@ const AdminDashboard = () => {
                         { id: 'carts', icon: ShoppingCart, label: 'Carts' },
                         { id: 'call-logs', icon: Phone, label: 'Call Logs' },
                         { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
+                        { id: 'chat-analytics', icon: Bot, label: 'AI Queries', external: true },
                     ].map(item => (
                         <button
                             key={item.id}
                             onClick={() => {
+                                if (item.external) {
+                                    navigate(adminUrl(item.id));
+                                    if (isMobile) setSidebarOpen(false);
+                                    return;
+                                }
                                 if (item.id === 'dashboard') {
                                     setServiceFilter('');
                                     setStateFilter('');
