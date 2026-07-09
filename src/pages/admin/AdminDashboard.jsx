@@ -16,7 +16,9 @@ import AdminCartList from './AdminCartList';
 import CallLogs from './CallLogs';
 import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
 import AdminDateRangePicker from './AdminDateRangePicker';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot } from 'lucide-react';
+import AdminEmployees from './employees/AdminEmployees';
+import { getAdminRole } from '../../utils/adminSession';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -141,6 +143,8 @@ const AdminDashboard = () => {
     const location = useLocation();
     const { isLight, themeVars, toggleTheme } = useAdminTheme();
     const token = localStorage.getItem('admin_token');
+    // Employee (staff KPI) section is super_admin only (backend enforces too).
+    const isSuperAdmin = (getAdminRole() || '').toLowerCase() === 'super_admin';
     const searchRef = useRef('');
     const hasInitializedSearchEffect = useRef(false);
     const statusMenuRef = useRef(null);
@@ -193,6 +197,7 @@ const AdminDashboard = () => {
         if (p.includes('service')) return 'services';
         if (p.includes('transaction')) return 'transactions';
         if (p.includes('cart')) return 'carts';
+        if (p.includes('employee')) return 'employees';
         return 'dashboard';
     };
     const [activeTab, setActiveTab] = useState(() => deriveTabFromPath(window.location.pathname));
@@ -826,6 +831,7 @@ const AdminDashboard = () => {
                         { id: 'carts', icon: ShoppingCart, label: 'Carts' },
                         { id: 'call-logs', icon: Phone, label: 'Call Logs' },
                         { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
+                        ...(isSuperAdmin ? [{ id: 'employees', icon: UserCog, label: 'Employees' }] : []),
                         { id: 'chat-analytics', icon: Bot, label: 'AI Queries', external: true },
                     ].map(item => (
                         <button
@@ -916,7 +922,8 @@ const AdminDashboard = () => {
                                                 : activeTab === 'transactions' ? 'Transactions'
                                                     : activeTab === 'carts' ? 'Carts'
                                                         : activeTab === 'call-logs' ? 'Call Logs'
-                                                            : 'Clients'}
+                                                            : activeTab === 'employees' ? 'Employees'
+                                                                : 'Clients'}
                         </span>
 
                         <div style={{
@@ -1635,6 +1642,9 @@ const AdminDashboard = () => {
                         )}
                         {activeTab === 'contact' && (
                             <AdminContactList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
+                        )}
+                        {activeTab === 'employees' && isSuperAdmin && (
+                            <AdminEmployees isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
                         )}
                         {activeTab === 'services' && (
                             <AdminServiceList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />

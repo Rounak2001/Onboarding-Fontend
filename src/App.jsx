@@ -399,6 +399,7 @@ function AppRoutes() {
           <Route path={adminUrl('emails')} element={<EmailDashboard />} />
           <Route path={adminUrl('call-logs')} element={<AdminDashboard />} />
           <Route path={adminUrl('software-survey')} element={<AdminDashboard />} />
+          <Route path={adminUrl('employees')} element={<AdminDashboard />} />
           <Route path={adminUrl('chat-analytics')} element={<ChatAnalytics />} />
           <Route path="/Consultants/:id" element={<ConsultantDetail />} />
           <Route path="/Clients/:id" element={<AdminClientDetail />} />
