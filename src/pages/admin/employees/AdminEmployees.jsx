@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, RefreshCw, ChevronRight, CheckCircle2, AlertCircle, UserPlus } from 'lucide-react';
-import { fetchTeamToday, createEmployee } from './staffApi';
+import { fetchTeamToday, createEmployee, READ_ONLY } from './staffApi';
 import EmployeeDetail from './EmployeeDetail';
 import EmployeeForm from './EmployeeForm';
 
@@ -24,6 +24,16 @@ const card = {
     background: 'var(--admin-surface)', border: '1px solid var(--admin-border-soft)',
     borderRadius: 12, padding: 16,
 };
+
+const attChip = (statusVal) => {
+    const c = { full_day: '#10b981', present: '#3b82f6', half_day: '#f59e0b', absent: '#ef4444', holiday_work: '#8b5cf6' }[statusVal] || '#94a3b8';
+    return { display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: `${c}22`, color: c, textTransform: 'capitalize' };
+};
+
+function AttendanceCell({ attendance }) {
+    if (!attendance?.day_status) return <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>—</span>;
+    return <span style={attChip(attendance.day_status)}>{attendance.day_status.replace(/_/g, ' ')}</span>;
+}
 
 // eslint-disable-next-line no-unused-vars
 export default function AdminEmployees({ isLight, viewportWidth, token, themeVars }) {
@@ -84,12 +94,14 @@ export default function AdminEmployees({ isLight, viewportWidth, token, themeVar
                     <RefreshCw size={14} /> Refresh
                 </button>
                 <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>{isToday ? 'Today' : date}</span>
-                <button onClick={() => { setFormErr(''); setShowCreate(true); }} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                    <UserPlus size={14} /> Add employee
-                </button>
+                {!READ_ONLY && (
+                    <button onClick={() => { setFormErr(''); setShowCreate(true); }} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                        <UserPlus size={14} /> Add employee
+                    </button>
+                )}
             </div>
 
-            {showCreate && (
+            {!READ_ONLY && showCreate && (
                 <EmployeeForm
                     onSubmit={submitCreate}
                     onClose={() => setShowCreate(false)}
@@ -159,7 +171,7 @@ export default function AdminEmployees({ isLight, viewportWidth, token, themeVar
                                     <td style={{ padding: '12px 16px' }}>
                                         <KpiProgress done={e.kpi_updated} total={e.kpi_total} />
                                     </td>
-                                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>—</td>
+                                    <td style={{ padding: '12px 16px' }}><AttendanceCell attendance={e.attendance} /></td>
                                     <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{fmtTime(e.summary_updated_at) || '—'}</td>
                                     <td style={{ padding: '12px 16px', textAlign: 'right' }}><ChevronRight size={16} color="var(--admin-text-muted)" /></td>
                                 </tr>

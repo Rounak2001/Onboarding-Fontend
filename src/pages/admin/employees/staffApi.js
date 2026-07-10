@@ -2,6 +2,11 @@
 // Mirrors the fetch + bearer-token convention used by the other admin lists.
 import { apiUrl } from '../../../utils/apiBase';
 
+// Panel-wide read-only switch. When true, all write controls (add/edit/
+// deactivate employee, KRA/KPI editing, leave approve/reject) are hidden so the
+// Employees section is view-only for everyone. Flip to false to restore editing.
+export const READ_ONLY = true;
+
 const resolveToken = (propToken) => {
     const candidates = [propToken];
     if (typeof window !== 'undefined') {

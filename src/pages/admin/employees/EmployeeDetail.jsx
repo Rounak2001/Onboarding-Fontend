@@ -7,7 +7,7 @@ import {
     fetchEmployeeDetail, fetchDailyUpdates, fetchEmployeeAttendance,
     fetchEmployeeLeave, actionLeave, fetchEmployeePayroll,
     createKra, updateKra, archiveKra, createKpi, updateKpi, archiveKpi,
-    updateEmployee, deactivateEmployee,
+    updateEmployee, deactivateEmployee, READ_ONLY,
 } from './staffApi';
 import { KraFormModal, KpiFormModal } from './KraKpiForms';
 import EmployeeForm from './EmployeeForm';
@@ -112,17 +112,19 @@ export default function EmployeeDetail({ employeeId, token, onBack, isMobile }) 
                             <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--admin-text-primary)' }}>{detail.name}</div>
                             <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginTop: 2 }}>{detail.employee_id} · {detail.email}</div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={() => { setEditErr(''); setEditing(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer' }}>
-                                <Pencil size={14} /> Edit
-                            </button>
-                            <button onClick={doDeactivate} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', cursor: 'pointer' }}>
-                                <UserX size={14} /> Deactivate
-                            </button>
-                        </div>
+                        {!READ_ONLY && (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => { setEditErr(''); setEditing(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer' }}>
+                                    <Pencil size={14} /> Edit
+                                </button>
+                                <button onClick={doDeactivate} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', cursor: 'pointer' }}>
+                                    <UserX size={14} /> Deactivate
+                                </button>
+                            </div>
+                        )}
                     </div>
 
-                    {editing && (
+                    {!READ_ONLY && editing && (
                         <EmployeeForm
                             initial={detail}
                             onSubmit={submitEdit}
@@ -230,11 +232,13 @@ function KpiTab({ detail, token, onChanged }) {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-                <button onClick={() => { setFormErr(''); setKraModal({ initial: null }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 800, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                    <Plus size={16} /> Add KRA
-                </button>
-            </div>
+            {!READ_ONLY && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+                    <button onClick={() => { setFormErr(''); setKraModal({ initial: null }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 800, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                        <Plus size={16} /> Add KRA
+                    </button>
+                </div>
+            )}
 
             {kras.length === 0 && (
                 <div style={{ ...card, textAlign: 'center', color: 'var(--admin-text-muted)', padding: 40 }}>
@@ -250,11 +254,13 @@ function KpiTab({ detail, token, onChanged }) {
                             {kra.category && <span style={{ ...chip('rgba(139,92,246,0.15)', '#8b5cf6'), marginTop: 6 }}>{kra.category}</span>}
                             {kra.outcome_description && <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 8, maxWidth: 560 }}>{kra.outcome_description}</div>}
                         </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                            <button title="Edit KRA" onClick={() => { setFormErr(''); setKraModal({ initial: kra }); }} style={iconBtn}><Pencil size={15} /></button>
-                            <button title="Add KPI" onClick={() => { setFormErr(''); setKpiModal({ kraId: kra.id, initial: null }); }} style={iconBtn}><Plus size={15} /></button>
-                            <button title="Archive KRA" onClick={() => onArchiveKra(kra)} style={iconBtn}><Archive size={15} /></button>
-                        </div>
+                        {!READ_ONLY && (
+                            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                <button title="Edit KRA" onClick={() => { setFormErr(''); setKraModal({ initial: kra }); }} style={iconBtn}><Pencil size={15} /></button>
+                                <button title="Add KPI" onClick={() => { setFormErr(''); setKpiModal({ kraId: kra.id, initial: null }); }} style={iconBtn}><Plus size={15} /></button>
+                                <button title="Archive KRA" onClick={() => onArchiveKra(kra)} style={iconBtn}><Archive size={15} /></button>
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -267,10 +273,12 @@ function KpiTab({ detail, token, onChanged }) {
                                         {kpi.metric_type}{kpi.target_value != null ? ` · target ${kpi.target_value}${kpi.unit ? ' ' + kpi.unit : ''}` : ''} · {kpi.direction === 'lower' ? 'lower better' : 'higher better'}
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    <button title="Edit KPI" onClick={() => { setFormErr(''); setKpiModal({ kraId: kra.id, initial: kpi }); }} style={iconBtn}><Pencil size={14} /></button>
-                                    <button title="Archive KPI" onClick={() => onArchiveKpi(kpi)} style={iconBtn}><Archive size={14} /></button>
-                                </div>
+                                {!READ_ONLY && (
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        <button title="Edit KPI" onClick={() => { setFormErr(''); setKpiModal({ kraId: kra.id, initial: kpi }); }} style={iconBtn}><Pencil size={14} /></button>
+                                        <button title="Archive KPI" onClick={() => onArchiveKpi(kpi)} style={iconBtn}><Archive size={14} /></button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -520,7 +528,7 @@ function LeaveTab({ employeeId, token }) {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={LEAVE_STATUS_STYLE[r.status] || chip('var(--admin-border-soft)', 'var(--admin-text-secondary)')}>{r.status}</span>
-                                {r.status === 'pending' && (
+                                {!READ_ONLY && r.status === 'pending' && (
                                     <>
                                         <button onClick={() => act(r.id, 'approve')} disabled={busyId === r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 800, background: '#10b981', color: '#fff', border: 'none', cursor: busyId === r.id ? 'not-allowed' : 'pointer' }}>
                                             <Check size={14} /> Approve
