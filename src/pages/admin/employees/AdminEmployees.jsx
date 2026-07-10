@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, RefreshCw, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
-import { fetchTeamToday } from './staffApi';
+import { Users, RefreshCw, ChevronRight, CheckCircle2, AlertCircle, UserPlus } from 'lucide-react';
+import { fetchTeamToday, createEmployee } from './staffApi';
 import EmployeeDetail from './EmployeeDetail';
+import EmployeeForm from './EmployeeForm';
 
 const todayStr = () => {
     const d = new Date();
@@ -32,6 +33,9 @@ export default function AdminEmployees({ isLight, viewportWidth, token, themeVar
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [selected, setSelected] = useState(null);
+    const [showCreate, setShowCreate] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [formErr, setFormErr] = useState('');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -46,6 +50,17 @@ export default function AdminEmployees({ isLight, viewportWidth, token, themeVar
     }, [token, date]);
 
     useEffect(() => { if (!selected) load(); }, [load, selected]);
+
+    const submitCreate = async (payload) => {
+        setSaving(true); setFormErr('');
+        try {
+            await createEmployee(token, payload);
+            setShowCreate(false);
+            load();
+        } catch (e) {
+            setFormErr(e?.message || 'Failed to create employee.');
+        } finally { setSaving(false); }
+    };
 
     if (selected) {
         return (
@@ -69,7 +84,19 @@ export default function AdminEmployees({ isLight, viewportWidth, token, themeVar
                     <RefreshCw size={14} /> Refresh
                 </button>
                 <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>{isToday ? 'Today' : date}</span>
+                <button onClick={() => { setFormErr(''); setShowCreate(true); }} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                    <UserPlus size={14} /> Add employee
+                </button>
             </div>
+
+            {showCreate && (
+                <EmployeeForm
+                    onSubmit={submitCreate}
+                    onClose={() => setShowCreate(false)}
+                    saving={saving}
+                    error={formErr}
+                />
+            )}
 
             {/* Summary cards */}
             {!error && (
@@ -102,7 +129,7 @@ export default function AdminEmployees({ isLight, viewportWidth, token, themeVar
                 <div style={{ ...card, textAlign: 'center', color: 'var(--admin-text-muted)', padding: 48 }}>
                     <Users size={30} style={{ opacity: 0.5, marginBottom: 10 }} />
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--admin-text-secondary)' }}>No employees yet</div>
-                    <div style={{ fontSize: 12, marginTop: 6 }}>Employees appear here once they are seeded from GLR.</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>Use “Add employee” above to create your first one.</div>
                 </div>
             )}
 

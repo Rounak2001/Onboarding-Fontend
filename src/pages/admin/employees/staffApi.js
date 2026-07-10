@@ -60,6 +60,37 @@ export const archiveKpi = (token, kpiId) => request(token, `/admin-panel/kpis/${
 export const fetchDailyUpdates = (token, date, employeeId) =>
     request(token, `/admin-panel/daily-updates/${qs({ date, employee: employeeId })}`);
 
+// --- employee management (admin-panel authed) ---
+export const createEmployee = (token, body) =>
+    request(token, `/admin-panel/employees/`, { method: 'POST', body });
+export const updateEmployee = (token, id, body) =>
+    request(token, `/admin-panel/employees/${id}/`, { method: 'PUT', body });
+export const deactivateEmployee = (token, id) =>
+    request(token, `/admin-panel/employees/${id}/`, { method: 'DELETE' });
+export const fetchEmployeeAttendance = (token, id, limit) =>
+    request(token, `/admin-panel/employees/${id}/attendance/${qs({ limit })}`);
+export const fetchEmployeeLeave = (token, id) =>
+    request(token, `/admin-panel/employees/${id}/leave/`);
+export const actionLeave = (token, leaveId, body) =>
+    request(token, `/admin-panel/leave/${leaveId}/action/`, { method: 'POST', body });
+export const fetchEmployeePayroll = (token, id, { year, month } = {}) =>
+    request(token, `/admin-panel/employees/${id}/payroll/${qs({ year, month })}`);
+
+export const ROLES = [
+    { value: 'employee', label: 'Employee' },
+    { value: 'admin', label: 'Admin' },
+    { value: 'superadmin', label: 'Super admin' },
+];
+
+export const SATURDAY_POLICIES = [
+    { value: 'alt_sat_holiday', label: 'Alternate Saturdays off (2nd & 4th)' },
+    { value: 'all_sat_working', label: 'All Saturdays working' },
+    { value: 'all_sat_holiday', label: 'All Saturdays off' },
+    { value: 'all_sat_half_day', label: 'All Saturdays half-day' },
+    { value: 'all_sat_wfh', label: 'All Saturdays WFH' },
+    { value: 'alt_sat_holiday_rest_wfh', label: 'Alt Saturdays off, rest WFH' },
+];
+
 export const METRIC_TYPES = [
     { value: 'number', label: 'Number' },
     { value: 'percent', label: 'Percent' },
