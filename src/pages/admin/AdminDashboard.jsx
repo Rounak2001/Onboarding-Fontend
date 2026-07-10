@@ -145,6 +145,8 @@ const AdminDashboard = () => {
     const token = localStorage.getItem('admin_token');
     // Employee (staff KPI) section is super_admin only (backend enforces too).
     const isSuperAdmin = (getAdminRole() || '').toLowerCase() === 'super_admin';
+    // Investor viewer: read-only, Employees section ONLY (backend blocks the rest).
+    const isViewer = (getAdminRole() || '').toLowerCase() === 'viewer';
     const searchRef = useRef('');
     const hasInitializedSearchEffect = useRef(false);
     const statusMenuRef = useRef(null);
@@ -200,12 +202,13 @@ const AdminDashboard = () => {
         if (p.includes('employee')) return 'employees';
         return 'dashboard';
     };
-    const [activeTab, setActiveTab] = useState(() => deriveTabFromPath(window.location.pathname));
+    const [activeTab, setActiveTab] = useState(() => (isViewer ? 'employees' : deriveTabFromPath(window.location.pathname)));
 
-    // Sync activeTab when the URL changes (e.g. via navigate() or browser back)
+    // Sync activeTab when the URL changes (e.g. via navigate() or browser back).
+    // A viewer is pinned to Employees — every other section is off-limits.
     useEffect(() => {
-        setActiveTab(deriveTabFromPath(location.pathname));
-    }, [location.pathname]);
+        setActiveTab(isViewer ? 'employees' : deriveTabFromPath(location.pathname));
+    }, [location.pathname, isViewer]);
     const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
     const [onboardingRange, setOnboardingRange] = useState('30d');
     const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
@@ -820,20 +823,23 @@ const AdminDashboard = () => {
                 </div>
 
                 <div style={{ flex: 1, padding: '24px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[
-                        { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics' },
-                        { id: 'consultant', icon: Users, label: 'Consultants' },
-                        { id: 'client', icon: UserSquare, label: 'Clients' },
-                        { id: 'support', icon: LifeBuoy, label: 'Support' },
-                        { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
-                        { id: 'services', icon: Briefcase, label: 'Services' },
-                        { id: 'transactions', icon: Receipt, label: 'Transactions' },
-                        { id: 'carts', icon: ShoppingCart, label: 'Carts' },
-                        { id: 'call-logs', icon: Phone, label: 'Call Logs' },
-                        { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
-                        ...(isSuperAdmin ? [{ id: 'employees', icon: UserCog, label: 'Employees' }] : []),
-                        { id: 'chat-analytics', icon: Bot, label: 'AI Queries', external: true },
-                    ].map(item => (
+                    {(isViewer
+                        ? [{ id: 'employees', icon: UserCog, label: 'Employees' }]
+                        : [
+                            { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics' },
+                            { id: 'consultant', icon: Users, label: 'Consultants' },
+                            { id: 'client', icon: UserSquare, label: 'Clients' },
+                            { id: 'support', icon: LifeBuoy, label: 'Support' },
+                            { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
+                            { id: 'services', icon: Briefcase, label: 'Services' },
+                            { id: 'transactions', icon: Receipt, label: 'Transactions' },
+                            { id: 'carts', icon: ShoppingCart, label: 'Carts' },
+                            { id: 'call-logs', icon: Phone, label: 'Call Logs' },
+                            { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
+                            ...(isSuperAdmin ? [{ id: 'employees', icon: UserCog, label: 'Employees' }] : []),
+                            { id: 'chat-analytics', icon: Bot, label: 'AI Queries', external: true },
+                        ]
+                    ).map(item => (
                         <button
                             key={item.id}
                             onClick={() => {
@@ -1643,7 +1649,7 @@ const AdminDashboard = () => {
                         {activeTab === 'contact' && (
                             <AdminContactList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
                         )}
-                        {activeTab === 'employees' && isSuperAdmin && (
+                        {activeTab === 'employees' && (isSuperAdmin || isViewer) && (
                             <AdminEmployees isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
                         )}
                         {activeTab === 'services' && (

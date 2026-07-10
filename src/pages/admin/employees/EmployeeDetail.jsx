@@ -108,9 +108,14 @@ export default function EmployeeDetail({ employeeId, token, onBack, isMobile }) 
             {detail && !loading && (
                 <>
                     <div style={{ ...card, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                        <div>
-                            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--admin-text-primary)' }}>{detail.name}</div>
-                            <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginTop: 2 }}>{detail.employee_id} · {detail.email}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            {detail.face_image_url
+                                ? <img src={detail.face_image_url} alt={detail.name} style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--admin-border-mid)', flexShrink: 0 }} />
+                                : <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--admin-row-alt)', border: '2px solid var(--admin-border-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-muted)', fontWeight: 900, fontSize: 20, flexShrink: 0 }}>{(detail.name || '?').charAt(0).toUpperCase()}</div>}
+                            <div>
+                                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--admin-text-primary)' }}>{detail.name}</div>
+                                <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginTop: 2 }}>{detail.employee_id} · {detail.email}</div>
+                            </div>
                         </div>
                         {!READ_ONLY && (
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -363,13 +368,27 @@ const DAY_STATUS_STYLE = {
     holiday_work: chip('rgba(139,92,246,0.15)', '#8b5cf6'),
     present: chip('rgba(59,130,246,0.15)', '#3b82f6'),
 };
-const hhmm = (iso) => (iso ? iso.slice(11, 16) : '—');
 const fmtDate = (iso) => {
     if (!iso) return '—';
     try {
         return new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     } catch { return iso; }
 };
+
+// A selfie thumbnail (when the photo is in S3) next to the punch time. Opens
+// the full image in a new tab on click.
+function PhotoTime({ photo, iso }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            {photo && (
+                <a href={photo} target="_blank" rel="noreferrer">
+                    <img src={photo} alt="selfie" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--admin-border-soft)', display: 'block' }} />
+                </a>
+            )}
+            <span>{iso ? iso.slice(11, 16) : '—'}</span>
+        </div>
+    );
+}
 
 function AttendanceTab({ employeeId, token }) {
     const [data, setData] = useState(null);
@@ -438,8 +457,8 @@ function AttendanceTab({ employeeId, token }) {
                             {records.map((r) => (
                                 <tr key={r.id} style={{ borderTop: '1px solid var(--admin-border-soft)' }}>
                                     <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 600 }}>{fmtDate(r.date)}</td>
-                                    <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{hhmm(r.checkin_time)}</td>
-                                    <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{hhmm(r.checkout_time)}</td>
+                                    <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}><PhotoTime photo={r.checkin_photo} iso={r.checkin_time} /></td>
+                                    <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}><PhotoTime photo={r.checkout_photo} iso={r.checkout_time} /></td>
                                     <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{r.total_hours != null ? Number(r.total_hours).toFixed(1) : '—'}</td>
                                     <td style={{ padding: '11px 16px' }}>
                                         {r.day_status
