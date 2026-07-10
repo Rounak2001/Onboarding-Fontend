@@ -7,18 +7,23 @@ export const chip = (bg, color) => ({
     fontWeight: 800, background: bg, color, border: `1px solid ${color}33`,
 });
 
+// Status colors (good/warning/critical) are reserved for true good/bad states
+// and never doubled as identity. full_day/half_day/absent and approved/pending/
+// rejected are true good/bad states, so they wear the status palette; present
+// and holiday_work are neutral/informational (not a verdict), so they wear
+// plain categorical identity colors instead.
 export const ATTENDANCE_STATUS_COLORS = {
-    full_day: { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
-    half_day: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-    absent: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
-    holiday_work: { bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6' },
-    present: { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
+    full_day: { bg: 'rgba(12,163,12,0.15)', color: '#0ca30c' },
+    half_day: { bg: 'rgba(250,178,25,0.18)', color: '#fab219' },
+    absent: { bg: 'rgba(208,59,59,0.15)', color: '#d03b3b' },
+    holiday_work: { bg: 'rgba(74,58,167,0.15)', color: '#4a3aa7' },
+    present: { bg: 'rgba(42,120,214,0.15)', color: '#2a78d6' },
 };
 
 export const LEAVE_STATUS_COLORS = {
-    pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-    approved: { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
-    rejected: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
+    pending: { bg: 'rgba(250,178,25,0.18)', color: '#fab219' },
+    approved: { bg: 'rgba(12,163,12,0.15)', color: '#0ca30c' },
+    rejected: { bg: 'rgba(208,59,59,0.15)', color: '#d03b3b' },
 };
 
 // <StatusChip value="full_day" map={ATTENDANCE_STATUS_COLORS} /> — looks up the

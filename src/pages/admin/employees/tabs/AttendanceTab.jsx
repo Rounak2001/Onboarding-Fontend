@@ -61,10 +61,10 @@ export default function AttendanceTab({ employeeId, token }) {
         <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 16 }}>
                 <StatCard label="Records" value={s.records ?? 0} />
-                <StatCard label="Full days" value={s.full_day ?? 0} color="#10b981" />
-                <StatCard label="Half days" value={s.half_day ?? 0} color="#f59e0b" />
-                <StatCard label="Absent" value={s.absent ?? 0} color="#ef4444" />
-                <StatCard label="Holiday work" value={s.holiday_work ?? 0} color="#8b5cf6" />
+                <StatCard label="Full days" value={s.full_day ?? 0} color="#0ca30c" />
+                <StatCard label="Half days" value={s.half_day ?? 0} color="#fab219" />
+                <StatCard label="Absent" value={s.absent ?? 0} color="#d03b3b" />
+                <StatCard label="Holiday work" value={s.holiday_work ?? 0} color="#4a3aa7" />
             </div>
 
             <div style={{ ...card, padding: 0, overflow: 'hidden' }}>

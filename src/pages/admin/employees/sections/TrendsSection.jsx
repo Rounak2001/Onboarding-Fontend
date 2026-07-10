@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { fetchTeamTrends } from '../staffApi';
 import { card } from '../shared/styles';
+import { severityColor, trackTint, deltaColor } from '../shared/severity';
+import TrendStatTile from '../shared/TrendStatTile';
 
 const PERIODS = [
     { value: 7, label: '7 days' },
@@ -9,23 +11,29 @@ const PERIODS = [
     { value: 90, label: '90 days' },
 ];
 
-function pctColor(pct) {
-    if (pct == null) return '#94a3b8';
-    if (pct >= 90) return '#10b981';
-    if (pct >= 70) return '#f59e0b';
-    return '#ef4444';
-}
-
-function TrendBar({ label, pct }) {
-    const color = pctColor(pct);
+// A compact meter: fill carries severity (good/warning/critical by %), the
+// unfilled track is a lighter tint of that same color (never flat gray) so a
+// 40% bar and a 95% bar read as different states at a glance, not just
+// different lengths. The pct number stays plain ink — the bar is what
+// carries the color, not the text.
+function Meter({ label, pct, delta }) {
+    const fill = severityColor(pct);
+    const track = trackTint(fill);
     return (
         <div style={{ flex: 1, minWidth: 130 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--admin-text-muted)', marginBottom: 4 }}>
                 <span>{label}</span>
-                <span style={{ fontWeight: 800, color }}>{pct == null ? '—' : `${pct}%`}</span>
+                <span style={{ fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                    {pct == null ? '—' : `${pct}%`}
+                    {delta != null && delta !== 0 && (
+                        <span style={{ fontWeight: 700, marginLeft: 4, color: deltaColor(delta) }}>
+                            ({delta > 0 ? '+' : ''}{delta})
+                        </span>
+                    )}
+                </span>
             </div>
-            <div style={{ height: 6, borderRadius: 4, background: 'var(--admin-border-soft)', overflow: 'hidden' }}>
-                <div style={{ width: `${pct ?? 0}%`, height: '100%', background: color }} />
+            <div style={{ height: 6, borderRadius: 4, background: track, overflow: 'hidden' }}>
+                <div style={{ width: `${pct ?? 0}%`, height: '100%', background: fill }} />
             </div>
         </div>
     );
@@ -89,9 +97,21 @@ export default function TrendsSection({ token }) {
                     )}
                     {!loading && !error && (
                         <>
-                            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                <TrendBar label="Team attendance" pct={team.attendance_pct} />
-                                <TrendBar label="Team update compliance" pct={team.update_compliance_pct} />
+                            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                <TrendStatTile
+                                    label="Team attendance"
+                                    pct={team.attendance_pct}
+                                    delta={team.attendance_delta}
+                                    sparkline={team.attendance_sparkline}
+                                    days={days}
+                                />
+                                <TrendStatTile
+                                    label="Team update compliance"
+                                    pct={team.update_compliance_pct}
+                                    delta={team.update_compliance_delta}
+                                    sparkline={team.update_compliance_sparkline}
+                                    days={days}
+                                />
                             </div>
                             {rows.length === 0 && <div style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>No expected working days in this period.</div>}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -103,8 +123,8 @@ export default function TrendsSection({ token }) {
                                                 {r.employee_id} · {r.missing_updates > 0 ? `${r.missing_updates} missing update${r.missing_updates === 1 ? '' : 's'}` : 'no gaps'}
                                             </div>
                                         </div>
-                                        <TrendBar label={`Attendance (${r.present_days}/${r.expected_days})`} pct={r.attendance_pct} />
-                                        <TrendBar label={`Updates (${r.update_days}/${r.expected_days})`} pct={r.update_compliance_pct} />
+                                        <Meter label={`Attendance (${r.present_days}/${r.expected_days})`} pct={r.attendance_pct} delta={r.attendance_delta} />
+                                        <Meter label={`Updates (${r.update_days}/${r.expected_days})`} pct={r.update_compliance_pct} delta={r.update_compliance_delta} />
                                     </div>
                                 ))}
                             </div>
