@@ -26,7 +26,9 @@ import {
     RefreshCw,
     CheckCircle2,
     XCircle,
-    MoreVertical
+    MoreVertical,
+    Download,
+    Mic
 } from 'lucide-react';
 
 const PAGE_SIZE = 50;
@@ -90,7 +92,11 @@ const CallLogs = ({ embedded = false }) => {
             if (tab === 'service' && outcome !== 'all') params.set('outcome', outcome);
             if (dateRange !== 'all') params.set('date_range', dateRange);
 
-            const endpoint = tab === 'service' ? '/calls/admin-logs/' : '/admin-panel/onboarding-call-logs/';
+            const endpoint = tab === 'service'
+                ? '/calls/admin-logs/'
+                : tab === 'ambassador'
+                    ? '/ambassador/pm/call-logs/'
+                    : '/admin-panel/onboarding-call-logs/';
             const res = await fetch(apiUrl(`${endpoint}?${params}`), { 
                 headers: authHeaders,
                 cache: 'no-store'
@@ -234,6 +240,7 @@ const CallLogs = ({ embedded = false }) => {
                 <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--admin-border-soft)', marginBottom: 16 }}>
                     <button onClick={() => { setLogs([]); setStats(null); setCallTab('service'); }} style={{ padding: '12px 8px', border: 'none', background: 'none', borderBottom: callTab === 'service' ? '2px solid #3b82f6' : '2px solid transparent', color: callTab === 'service' ? '#3b82f6' : 'var(--admin-text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Service (Consultant → Client)</button>
                     <button onClick={() => { setLogs([]); setStats(null); setCallTab('onboarding'); }} style={{ padding: '12px 8px', border: 'none', background: 'none', borderBottom: callTab === 'onboarding' ? '2px solid #3b82f6' : '2px solid transparent', color: callTab === 'onboarding' ? '#3b82f6' : 'var(--admin-text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Onboarding (Admin → Consultant)</button>
+                    <button onClick={() => { setLogs([]); setStats(null); setCallTab('ambassador'); }} style={{ padding: '12px 8px', border: 'none', background: 'none', borderBottom: callTab === 'ambassador' ? '2px solid #7c3aed' : '2px solid transparent', color: callTab === 'ambassador' ? '#7c3aed' : 'var(--admin-text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Ambassador Calls (PM → Ambassador)</button>
                 </div>
 
                 {/* Logs */}
@@ -273,7 +280,11 @@ const CallLogs = ({ embedded = false }) => {
                                                             <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Caller</span>
                                                             <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--admin-text-primary)' }}>{log.caller_name}</span>
                                                             <ChevronRight size={14} style={{ color: 'var(--admin-text-muted)' }} />
-                                                            <span onClick={() => window.open(`/Consultants/${log.application_id}`, '_blank')} style={{ fontWeight: 700, fontSize: 15, color: '#10b981', cursor: 'pointer' }}>{log.consultant_name}</span>
+                                                            {callTab === 'ambassador' ? (
+                                                                <span style={{ fontWeight: 700, fontSize: 15, color: '#7c3aed' }}>{log.consultant_name}</span>
+                                                            ) : (
+                                                                <span onClick={() => window.open(`/Consultants/${log.application_id}`, '_blank')} style={{ fontWeight: 700, fontSize: 15, color: '#10b981', cursor: 'pointer' }}>{log.consultant_name}</span>
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>
@@ -310,6 +321,15 @@ const CallLogs = ({ embedded = false }) => {
                                             </div>
                                         ) : null;
                                     })()}
+                                    {callTab === 'service' && log.recording_url && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--admin-surface-strong)', borderRadius: 12, border: '1px solid var(--admin-border-soft)' }}>
+                                            <Mic size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                                            <audio controls src={log.recording_url} style={{ flex: 1, height: 32, minWidth: 0 }} />
+                                            <a href={log.recording_url} download target="_blank" rel="noreferrer" title="Download recording" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 8, background: '#3b82f615', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #3b82f630' }}>
+                                                <Download size={15} />
+                                            </a>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -538,6 +558,17 @@ const CallLogs = ({ embedded = false }) => {
                         >
                             Onboarding History (Admin → Consultant)
                         </button>
+                        <button
+                            onClick={() => { setLogs([]); setStats(null); setCallTab('ambassador'); }}
+                            style={{
+                                padding: '16px 8px', border: 'none', background: 'none',
+                                borderBottom: callTab === 'ambassador' ? '2px solid #7c3aed' : '2px solid transparent',
+                                color: callTab === 'ambassador' ? '#7c3aed' : 'var(--admin-text-muted)',
+                                fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            Ambassador Calls (PM → Ambassador)
+                        </button>
                     </div>
                 </div>
 
@@ -621,12 +652,18 @@ const CallLogs = ({ embedded = false }) => {
                                                                     <span style={{ fontWeight: 800, fontSize: 17, color: 'var(--admin-text-primary)' }}>{log.caller_name}</span>
                                                                 </div>
                                                                 <ChevronRight size={16} style={{ color: 'var(--admin-text-muted)' }} />
-                                                                <span 
-                                                                    onClick={() => navigate(`/Consultants/${log.application_id}`)}
-                                                                    style={{ fontWeight: 700, fontSize: 17, color: '#10b981', cursor: 'pointer' }}
-                                                                >
-                                                                    {log.consultant_name}
-                                                                </span>
+                                                                {callTab === 'ambassador' ? (
+                                                                    <span style={{ fontWeight: 700, fontSize: 17, color: '#7c3aed' }}>
+                                                                        {log.consultant_name}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span
+                                                                        onClick={() => navigate(`/Consultants/${log.application_id}`)}
+                                                                        style={{ fontWeight: 700, fontSize: 17, color: '#10b981', cursor: 'pointer' }}
+                                                                    >
+                                                                        {log.consultant_name}
+                                                                    </span>
+                                                                )}
                                                             </>
                                                         )}
                                                     </div>
@@ -727,13 +764,26 @@ const CallLogs = ({ embedded = false }) => {
                                                     </div>
                                                     {log.issue_facing && (
                                                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--admin-border-soft)', fontSize: 13 }}>
-                                                            <b style={{ color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontSize: 11, marginRight: 8 }}>Issue:</b> 
+                                                            <b style={{ color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontSize: 11, marginRight: 8 }}>Issue:</b>
                                                             <span style={{ color: '#ef4444', fontWeight: 600 }}>{log.issue_facing}</span>
                                                         </div>
                                                     )}
                                                 </div>
                                             );
                                         })()}
+
+                                        {callTab === 'service' && log.recording_url && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 16px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid var(--admin-border-soft)' }}>
+                                                <Mic size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Call Recording</span>
+                                                    <audio controls src={log.recording_url} style={{ width: '100%', height: 34 }} />
+                                                </div>
+                                                <a href={log.recording_url} download target="_blank" rel="noreferrer" title="Download recording" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: '#3b82f615', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #3b82f630' }}>
+                                                    <Download size={17} />
+                                                </a>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

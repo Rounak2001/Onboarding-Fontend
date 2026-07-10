@@ -8,13 +8,30 @@ import {
   fetchPMQuizAttempts,
   fetchPMDailyReports,
   fetchPMModuleProgress,
+  fetchPMAmbassadorCallLogs,
+  pmSaveAmbassadorCallTracking,
 } from '../../services/ambassadorApi';
 import {
   Users, Search, Download, Send, CheckCircle2, XCircle, Clock, AlertCircle,
   ChevronDown, ChevronUp, Shield, FileSpreadsheet, MessageSquare, ToggleLeft,
   ToggleRight, Loader2, Check, Copy, UserCheck, UserX, Award,
-  Trophy, Eye, X, GraduationCap, FileCheck, Tag, MapPin,
+  Trophy, Eye, X, GraduationCap, FileCheck, Tag, MapPin, Phone, Bell,
 } from 'lucide-react';
+
+const CALL_STATUS_OPTIONS = [
+  { value: '', label: 'Not Set' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'no-answer', label: 'No Answer' },
+  { value: 'busy', label: 'Busy' },
+  { value: 'ringing', label: 'Ringing' },
+  { value: 'initiated', label: 'Initiated' },
+];
+
+const buildAmbassadorCallDraft = () => ({
+  caller_id: '', call_status: '', is_rejected: false,
+  comments: '', issue_facing: '', next_follow_up: '',
+});
 
 const WHATSAPP_TEMPLATES = [
   {
@@ -114,6 +131,12 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
   const [pmReportsLoading, setPmReportsLoading] = useState(false);
   const [pmProgressLoading, setPmProgressLoading] = useState(false);
   const [expandedModuleId, setExpandedModuleId] = useState(null);
+
+  const [pmCallerOptions, setPmCallerOptions] = useState([]);
+  const [pmCallLogs, setPmCallLogs] = useState([]);
+  const [pmCallLogsLoading, setPmCallLogsLoading] = useState(false);
+  const [callTrackingDraft, setCallTrackingDraft] = useState(buildAmbassadorCallDraft());
+  const [savingCallTracking, setSavingCallTracking] = useState(false);
   const [selectedRows, setSelectedRows] = useState(new Set());
 
   const [broadcastLists, setBroadcastLists] = useState(() => {
@@ -148,7 +171,30 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
     fetchPMQuizAttempts(numId).then(setPmQuizAttempts).catch(() => { });
     fetchPMDailyReports(numId).then(setPmDailyReports).catch(() => { }).finally(() => setPmReportsLoading(false));
     fetchPMModuleProgress(numId).then(setPmModuleProgress).catch(() => { }).finally(() => setPmProgressLoading(false));
+
+    setPmCallLogs([]); setPmCallerOptions([]); setCallTrackingDraft(buildAmbassadorCallDraft());
+    setPmCallLogsLoading(true);
+    fetchPMAmbassadorCallLogs(numId)
+      .then(d => { setPmCallerOptions(d.caller_options || []); setPmCallLogs(d.call_logs || []); })
+      .catch(() => { })
+      .finally(() => setPmCallLogsLoading(false));
   }, [kycDrawerId]);
+
+  const handleSaveAmbassadorCallTracking = async () => {
+    if (!kycDrawerId) return;
+    const numId = parseInt(kycDrawerId, 10);
+    setSavingCallTracking(true);
+    try {
+      const data = await pmSaveAmbassadorCallTracking(numId, callTrackingDraft);
+      if (data?.call_log) setPmCallLogs(prev => [data.call_log, ...prev]);
+      setCallTrackingDraft(buildAmbassadorCallDraft());
+      alert(data?.message || 'Call entry added successfully.');
+    } catch (err) {
+      alert(err.message || 'Failed to save call tracking');
+    } finally {
+      setSavingCallTracking(false);
+    }
+  };
 
   // ── Derived state ────────────────────────────────────────────────────────
 
@@ -1475,6 +1521,7 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                   { id: 'kyc', label: 'KYC & Activation' },
                   { id: 'quiz', label: 'Quiz Results' },
                   { id: 'reports', label: 'Field Reports' },
+                  { id: 'calls', label: 'Call Tracking' },
                 ].map(t => (
                   <button
                     key={t.id}
@@ -1844,6 +1891,345 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* ── Call Tracking tab ── */}
+              {kycDrawerTab === 'calls' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                  {/* ── Quick-dial + stats bar ── */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    padding: '12px 16px', borderRadius: 14,
+                    background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.18)',
+                  }}>
+                    <a
+                      href={`tel:${kycAmbassador.phone || ''}`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '8px 16px', borderRadius: 10, textDecoration: 'none',
+                        background: 'rgba(59,130,246,0.15)', color: '#60a5fa',
+                        border: '1px solid rgba(59,130,246,0.35)',
+                        fontSize: 13, fontWeight: 700,
+                      }}
+                    >
+                      <Phone size={14} />
+                      {kycAmbassador.phone || '—'}
+                    </a>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '5px 12px', borderRadius: 20,
+                        background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)',
+                      }}>
+                        <Phone size={11} style={{ color: '#c084fc' }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#c084fc' }}>
+                          {pmCallLogs.length} call{pmCallLogs.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── New call entry card ── */}
+                  <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(124,58,237,0.22)' }}>
+
+                    {/* Card header */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 16px',
+                      background: 'rgba(124,58,237,0.08)',
+                      borderBottom: '1px solid rgba(124,58,237,0.15)',
+                    }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(124,58,237,0.18)', color: '#a78bfa',
+                      }}>
+                        <Phone size={14} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-strong)', margin: 0 }}>Log New Call</p>
+                        <p style={{ fontSize: 11, color: 'var(--admin-text-muted)', margin: '1px 0 0' }}>Record call outcome and follow-up</p>
+                      </div>
+                    </div>
+
+                    {/* Form body */}
+                    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--admin-surface-soft)' }}>
+
+                      {/* Row 1: Caller + Status */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-muted)' }}>
+                            Caller
+                          </label>
+                          <select
+                            value={callTrackingDraft.caller_id}
+                            onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, caller_id: e.target.value }))}
+                            style={{
+                              fontSize: 13, borderRadius: 10, padding: '9px 12px',
+                              background: 'var(--admin-surface-strong)',
+                              border: '1px solid var(--admin-border-mid)',
+                              color: 'var(--admin-text-strong)',
+                              outline: 'none', width: '100%',
+                            }}
+                          >
+                            <option value="">Select Caller</option>
+                            {pmCallerOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-muted)' }}>
+                            Call Status
+                          </label>
+                          <select
+                            value={callTrackingDraft.call_status}
+                            onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, call_status: e.target.value }))}
+                            style={{
+                              fontSize: 13, borderRadius: 10, padding: '9px 12px',
+                              background: 'var(--admin-surface-strong)',
+                              border: `1px solid ${callTrackingDraft.call_status ? 'rgba(124,58,237,0.4)' : 'var(--admin-border-mid)'}`,
+                              color: callTrackingDraft.call_status ? '#a78bfa' : 'var(--admin-text-muted)',
+                              outline: 'none', width: '100%', fontWeight: callTrackingDraft.call_status ? 700 : 400,
+                            }}
+                          >
+                            {CALL_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Follow-up datetime */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-muted)' }}>
+                          Next Follow-up
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={callTrackingDraft.next_follow_up}
+                          onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, next_follow_up: e.target.value }))}
+                          style={{
+                            fontSize: 13, borderRadius: 10, padding: '9px 12px',
+                            background: 'var(--admin-surface-strong)',
+                            border: `1px solid ${callTrackingDraft.next_follow_up ? 'rgba(59,130,246,0.4)' : 'var(--admin-border-mid)'}`,
+                            color: 'var(--admin-text-strong)',
+                            outline: 'none', width: '100%', boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+
+                      {/* Row 3: Comments */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-muted)' }}>
+                          Comments
+                        </label>
+                        <textarea
+                          placeholder="What was discussed on this call…"
+                          value={callTrackingDraft.comments}
+                          onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, comments: e.target.value }))}
+                          rows={3}
+                          style={{
+                            fontSize: 13, borderRadius: 10, padding: '10px 12px',
+                            background: 'var(--admin-surface-strong)',
+                            border: '1px solid var(--admin-border-mid)',
+                            color: 'var(--admin-text-strong)',
+                            outline: 'none', width: '100%', boxSizing: 'border-box',
+                            resize: 'none', lineHeight: 1.6,
+                          }}
+                        />
+                      </div>
+
+                      {/* Row 4: Issue Facing */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-muted)' }}>
+                          Issue Facing <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, opacity: 0.6 }}>(optional)</span>
+                        </label>
+                        <textarea
+                          placeholder="Describe any issue the ambassador is facing…"
+                          value={callTrackingDraft.issue_facing}
+                          onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, issue_facing: e.target.value }))}
+                          rows={2}
+                          style={{
+                            fontSize: 13, borderRadius: 10, padding: '10px 12px',
+                            background: 'var(--admin-surface-strong)',
+                            border: `1px solid ${callTrackingDraft.issue_facing ? 'rgba(239,68,68,0.35)' : 'var(--admin-border-mid)'}`,
+                            color: 'var(--admin-text-strong)',
+                            outline: 'none', width: '100%', boxSizing: 'border-box',
+                            resize: 'none', lineHeight: 1.6,
+                          }}
+                        />
+                      </div>
+
+                      {/* Row 5: Rejected toggle + Save button */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 4 }}>
+                        {/* Custom toggle-style rejected checkbox */}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
+                          <div
+                            onClick={() => setCallTrackingDraft(prev => ({ ...prev, is_rejected: !prev.is_rejected }))}
+                            style={{
+                              width: 36, height: 20, borderRadius: 99, position: 'relative', cursor: 'pointer', flexShrink: 0,
+                              background: callTrackingDraft.is_rejected ? 'rgba(239,68,68,0.8)' : 'var(--admin-border-mid)',
+                              border: `1px solid ${callTrackingDraft.is_rejected ? 'rgba(239,68,68,0.5)' : 'var(--admin-border-mid)'}`,
+                              transition: 'background 0.2s',
+                            }}
+                          >
+                            <div style={{
+                              position: 'absolute', top: 2,
+                              left: callTrackingDraft.is_rejected ? 17 : 2,
+                              width: 14, height: 14, borderRadius: '50%',
+                              background: '#fff',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                              transition: 'left 0.2s',
+                            }} />
+                          </div>
+                          <input type="checkbox" checked={callTrackingDraft.is_rejected} onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, is_rejected: e.target.checked }))} className="sr-only" />
+                          <span style={{ fontSize: 12, fontWeight: 600, color: callTrackingDraft.is_rejected ? '#f87171' : 'var(--admin-text-muted)' }}>
+                            Mark as rejected
+                          </span>
+                        </label>
+
+                        <button
+                          onClick={handleSaveAmbassadorCallTracking}
+                          disabled={savingCallTracking || !callTrackingDraft.call_status}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 7,
+                            padding: '9px 20px', borderRadius: 10, border: 'none',
+                            fontSize: 13, fontWeight: 700, cursor: savingCallTracking || !callTrackingDraft.call_status ? 'not-allowed' : 'pointer',
+                            background: savingCallTracking || !callTrackingDraft.call_status ? 'var(--admin-tab-idle)' : 'linear-gradient(135deg,#7c3aed,#a855f7)',
+                            color: savingCallTracking || !callTrackingDraft.call_status ? 'var(--admin-text-muted)' : '#fff',
+                            boxShadow: savingCallTracking || !callTrackingDraft.call_status ? 'none' : '0 4px 14px rgba(124,58,237,0.35)',
+                            transition: 'all 0.2s', flexShrink: 0,
+                          }}
+                        >
+                          {savingCallTracking ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          Save Entry
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Call History ── */}
+                  <div>
+                    {/* Section label */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--admin-text-muted)' }}>
+                        Call History
+                      </span>
+                      <div style={{ flex: 1, height: 1, background: 'var(--admin-border-soft)' }} />
+                      {pmCallLogs.length > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(168,85,247,0.12)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)' }}>
+                          {pmCallLogs.length} total
+                        </span>
+                      )}
+                    </div>
+
+                    {pmCallLogsLoading ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '48px 0', color: 'var(--admin-text-muted)', fontSize: 13 }}>
+                        <Loader2 size={18} className="animate-spin" /> Loading call history…
+                      </div>
+                    ) : pmCallLogs.length === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '40px 0' }}>
+                        <div style={{ width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--admin-tab-idle)', color: 'var(--admin-text-muted)' }}>
+                          <Phone size={20} />
+                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--admin-text-muted)', margin: 0 }}>No calls logged yet</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {pmCallLogs.map((log, idx) => {
+                          const statusColors = {
+                            completed: { bg: 'rgba(16,185,129,0.12)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
+                            failed:    { bg: 'rgba(239,68,68,0.12)',  color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+                            'no-answer': { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' },
+                            busy:      { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' },
+                            ringing:   { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
+                            initiated: { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
+                          };
+                          const sc = log.is_rejected
+                            ? { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' }
+                            : (statusColors[log.call_status] || { bg: 'rgba(148,163,184,0.12)', color: 'var(--admin-text-muted)', border: 'var(--admin-border-soft)' });
+
+                          return (
+                            <div
+                              key={log.id}
+                              style={{
+                                borderRadius: 14, overflow: 'hidden',
+                                background: 'var(--admin-surface-strong)',
+                                border: '1px solid var(--admin-border-soft)',
+                              }}
+                            >
+                              {/* Log header row */}
+                              <div style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '10px 14px',
+                                borderBottom: (log.comments || log.issue_facing || log.next_follow_up) ? '1px solid var(--admin-border-soft)' : 'none',
+                              }}>
+                                {/* Round badge */}
+                                <div style={{
+                                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  background: 'rgba(168,85,247,0.12)', color: '#c084fc',
+                                  fontSize: 11, fontWeight: 800,
+                                }}>
+                                  {log.call_round || idx + 1}
+                                </div>
+
+                                {/* Caller + time */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {log.caller_name || 'Unassigned'}
+                                  </p>
+                                  <p style={{ fontSize: 11, color: 'var(--admin-text-muted)', margin: '2px 0 0' }}>
+                                    {log.called_at
+                                      ? new Date(log.called_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                      : '—'}
+                                  </p>
+                                </div>
+
+                                {/* Status + rejected badge */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                  {log.is_rejected && (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                      Rejected
+                                    </span>
+                                  )}
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
+                                    background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`,
+                                  }}>
+                                    {log.call_status_label || log.call_status || 'Unknown'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Log body — only if there's content */}
+                              {(log.comments || log.issue_facing || log.next_follow_up) && (
+                                <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  {log.comments && (
+                                    <p style={{ fontSize: 12, color: 'var(--admin-text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                                      {log.comments}
+                                    </p>
+                                  )}
+                                  {log.issue_facing && (
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '6px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+                                      <AlertCircle size={12} style={{ color: '#f87171', flexShrink: 0, marginTop: 1 }} />
+                                      <p style={{ fontSize: 12, color: '#f87171', margin: 0, lineHeight: 1.5 }}>{log.issue_facing}</p>
+                                    </div>
+                                  )}
+                                  {log.next_follow_up && (
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.18)', alignSelf: 'flex-start' }}>
+                                      <Bell size={11} style={{ color: '#60a5fa' }} />
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: '#60a5fa' }}>Follow-up: {log.next_follow_up}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               )}
 

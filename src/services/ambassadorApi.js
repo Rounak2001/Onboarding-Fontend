@@ -152,6 +152,28 @@ export const fetchPMModuleProgress = async (ambassadorId) => {
     return json.data;
 };
 
+export const fetchPMAmbassadorCallLogs = async (ambassadorId) => {
+    const res = await fetch(apiUrl(`/ambassador/pm/ambassadors/${ambassadorId}/call-logs/`), {
+        headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch call logs');
+    const json = await res.json();
+    return json.data;
+};
+
+export const pmSaveAmbassadorCallTracking = async (ambassadorId, payload) => {
+    const res = await fetch(apiUrl(`/ambassador/pm/ambassadors/${ambassadorId}/call-tracking/`), {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+        throw new Error(json.error || 'Failed to save call tracking');
+    }
+    return json.data;
+};
+
 export const fetchPMPayoutPreview = async (month) => {
     const url = month
         ? apiUrl(`/ambassador/pm/payouts/preview/?month=${month}`)
