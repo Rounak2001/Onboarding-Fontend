@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { METRIC_TYPES, DIRECTIONS } from './staffApi';
+import { METRIC_TYPES, DIRECTIONS } from '../staffApi';
 
 const overlayStyle = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000,
