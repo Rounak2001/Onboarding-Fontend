@@ -52,6 +52,7 @@ const qs = (params) => {
 };
 
 export const fetchTeamToday = (token, date) => request(token, `/admin-panel/team-today/${qs({ date })}`);
+export const fetchTeamTrends = (token, days) => request(token, `/admin-panel/team-trends/${qs({ days })}`);
 export const fetchEmployees = (token, date) => request(token, `/admin-panel/employees/${qs({ date })}`);
 export const fetchEmployeeDetail = (token, id, date) => request(token, `/admin-panel/employees/${id}/${qs({ date })}`);
 export const fetchEmployeeKras = (token, id, includeArchived) =>
