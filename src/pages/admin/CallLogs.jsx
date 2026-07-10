@@ -33,6 +33,58 @@ import {
 
 const PAGE_SIZE = 50;
 
+// Exotel recording URLs require HTTP Basic Auth with the account's API
+// credentials, which must never reach the browser. The backend proxies the
+// authenticated fetch (`/calls/logs/<id>/recording/`); this component pulls
+// the audio through that proxy as a blob so <audio>/download never touch
+// Exotel directly or need credentials of their own.
+const CallRecordingPlayer = ({ callId, compact = false }) => {
+    const token = localStorage.getItem('admin_token');
+    const [blobUrl, setBlobUrl] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        let objectUrl = null;
+        setLoading(true);
+        setError(false);
+        fetch(apiUrl(`/calls/logs/${callId}/recording/`), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error('Failed to load recording');
+                return res.blob();
+            })
+            .then((blob) => {
+                if (cancelled) return;
+                objectUrl = URL.createObjectURL(blob);
+                setBlobUrl(objectUrl);
+            })
+            .catch(() => { if (!cancelled) setError(true); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => {
+            cancelled = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [callId, token]);
+
+    if (error) {
+        return <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>Recording unavailable</span>;
+    }
+    if (loading || !blobUrl) {
+        return <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>Loading recording…</span>;
+    }
+    return (
+        <>
+            <audio controls src={blobUrl} style={{ flex: 1, height: compact ? 32 : 34, minWidth: 0, width: compact ? undefined : '100%' }} />
+            <a href={blobUrl} download={`call-${callId}-recording.mp3`} title="Download recording" style={{ width: compact ? 32 : 38, height: compact ? 32 : 38, flexShrink: 0, borderRadius: compact ? 8 : 10, background: '#3b82f615', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #3b82f630' }}>
+                <Download size={compact ? 15 : 17} />
+            </a>
+        </>
+    );
+};
+
 const CallLogs = ({ embedded = false }) => {
     const navigate = useNavigate();
 
