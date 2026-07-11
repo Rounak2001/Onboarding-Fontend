@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   fetchPMAmbassadors,
   pmActivateAmbassador,
@@ -28,8 +29,19 @@ const CALL_STATUS_OPTIONS = [
   { value: 'initiated', label: 'Initiated' },
 ];
 
+const STATUS_FILTER_OPTIONS = [
+  { value: 'active', label: 'Active', predicate: (a) => a.isActive },
+  { value: 'inactive', label: 'Inactive', predicate: (a) => !a.isActive },
+  { value: 'pending_kyc', label: 'Pending KYC', predicate: (a) => a.kycStatus === 'pending' },
+  { value: 'verified', label: 'Verified', predicate: (a) => a.kycStatus === 'verified' },
+  { value: 'training_incomplete', label: 'Training Incomplete', predicate: (a) => !a.trainingCompleted },
+  { value: 'interested', label: 'Interested', predicate: (a) => a.interestStatus === 'interested' },
+  { value: 'not_interested', label: 'Not Interested', predicate: (a) => a.interestStatus === 'not_interested' },
+  { value: 'no_status', label: 'No Status', predicate: (a) => !a.interestStatus },
+];
+
 const buildAmbassadorCallDraft = () => ({
-  caller_id: '', call_status: '', is_rejected: false,
+  caller_id: '', call_status: '', interest_status: '',
   comments: '', issue_facing: '', next_follow_up: '',
 });
 
@@ -108,7 +120,8 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
   const [error, setError] = useState(null);
 
   const [activeTab, setActiveTab] = useState('ambassadors');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilters, setStatusFilters] = useState([]);
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('referrals');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -162,6 +175,16 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
 
   useEffect(() => { loadAmbassadors(); }, []);
 
+  // Lock the underlying page while the profile drawer is open so scrolling
+  // inside the drawer's own panel never moves the list behind it — without
+  // this, the list would land at a different scroll position once closed.
+  useEffect(() => {
+    if (!kycDrawerId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [kycDrawerId]);
+
   useEffect(() => {
     if (!kycDrawerId) return;
     const numId = parseInt(kycDrawerId, 10);
@@ -187,6 +210,9 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
     try {
       const data = await pmSaveAmbassadorCallTracking(numId, callTrackingDraft);
       if (data?.call_log) setPmCallLogs(prev => [data.call_log, ...prev]);
+      if (data?.interest_status) {
+        setAmbassadors(prev => prev.map(a => a.id === kycDrawerId ? { ...a, interestStatus: data.interest_status } : a));
+      }
       setCallTrackingDraft(buildAmbassadorCallDraft());
       alert(data?.message || 'Call entry added successfully.');
     } catch (err) {
@@ -213,11 +239,10 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
 
   const filteredAmbassadors = useMemo(() => {
     let r = [...ambassadors];
-    if (statusFilter === 'active') r = r.filter(a => a.isActive);
-    else if (statusFilter === 'inactive') r = r.filter(a => !a.isActive);
-    else if (statusFilter === 'pending_kyc') r = r.filter(a => a.kycStatus === 'pending');
-    else if (statusFilter === 'verified') r = r.filter(a => a.kycStatus === 'verified');
-    else if (statusFilter === 'training_incomplete') r = r.filter(a => !a.trainingCompleted);
+    if (statusFilters.length > 0) {
+      const predicates = STATUS_FILTER_OPTIONS.filter(o => statusFilters.includes(o.value)).map(o => o.predicate);
+      r = r.filter(a => predicates.some(p => p(a)));
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       r = r.filter(a =>
@@ -234,7 +259,7 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
       return sortOrder === 'desc' ? -cmp : cmp;
     });
     return r;
-  }, [ambassadors, statusFilter, searchQuery, sortBy, sortOrder]);
+  }, [ambassadors, statusFilters, searchQuery, sortBy, sortOrder]);
 
   const adminStats = useMemo(() => {
     const total = ambassadors.length;
@@ -384,8 +409,8 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
   const kycStatusBadge = (status, compact = false) => {
     const map = {
       verified: ['green', <CheckCircle2 size={12} />],
-      pending:  ['amber', <Clock size={12} />],
-      rejected: ['red',   <XCircle size={12} />],
+      pending: ['amber', <Clock size={12} />],
+      rejected: ['red', <XCircle size={12} />],
     };
     const [color, icon] = map[status] || ['gray', null];
     return (
@@ -543,22 +568,22 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                       minWidth: 0,
                       ...(isActive
                         ? {
-                            background: isLight
-                              ? '#ffffff'
-                              : 'rgba(168,85,247,0.20)',
-                            color: isLight ? '#7c3aed' : '#c084fc',
-                            border: isLight
-                              ? '1px solid rgba(168,85,247,0.20)'
-                              : '1px solid rgba(168,85,247,0.35)',
-                            boxShadow: isLight
-                              ? '0 1px 4px rgba(0,0,0,0.10), 0 2px 10px rgba(124,58,237,0.08)'
-                              : '0 1px 4px rgba(0,0,0,0.35)',
-                          }
+                          background: isLight
+                            ? '#ffffff'
+                            : 'rgba(168,85,247,0.20)',
+                          color: isLight ? '#7c3aed' : '#c084fc',
+                          border: isLight
+                            ? '1px solid rgba(168,85,247,0.20)'
+                            : '1px solid rgba(168,85,247,0.35)',
+                          boxShadow: isLight
+                            ? '0 1px 4px rgba(0,0,0,0.10), 0 2px 10px rgba(124,58,237,0.08)'
+                            : '0 1px 4px rgba(0,0,0,0.35)',
+                        }
                         : {
-                            background: 'transparent',
-                            color: 'var(--admin-text-secondary)',
-                            border: '1px solid transparent',
-                          }),
+                          background: 'transparent',
+                          color: 'var(--admin-text-secondary)',
+                          border: '1px solid transparent',
+                        }),
                     }}
                   >
                     <tab.icon size={15} style={{ flexShrink: 0 }} />
@@ -599,33 +624,66 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                         style={{ padding: '10px 14px 10px 36px', borderRadius: 10, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', color: 'var(--admin-text-strong)', fontSize: 13, height: 40, boxSizing: 'border-box' }}
                       />
                     </div>
-                    {/* Filter pills */}
-                    <div className="flex gap-2 flex-wrap shrink-0">
-                      {[
-                        { value: 'all', label: 'All' },
-                        { value: 'active', label: 'Active' },
-                        { value: 'inactive', label: 'Inactive' },
-                        { value: 'pending_kyc', label: 'Pending KYC' },
-                        { value: 'verified', label: 'Verified' },
-                        { value: 'training_incomplete', label: 'Training ⚠️' },
-                      ].map(f => (
-                        <button
-                          key={f.value}
-                          onClick={() => setStatusFilter(f.value)}
-                          className="text-xs font-bold whitespace-nowrap transition-all shrink-0"
-                          style={{
-                            height: 40,
-                            padding: '0 14px',
-                            borderRadius: 10,
-                            boxSizing: 'border-box',
-                            ...(statusFilter === f.value
-                              ? { background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.35)' }
-                              : { background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)' }),
-                          }}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
+                    {/* Status filter — multi-select dropdown */}
+                    <div className="relative shrink-0">
+                      <button
+                        onClick={() => setStatusFilterOpen(o => !o)}
+                        className="flex items-center gap-2 text-xs font-bold whitespace-nowrap transition-all"
+                        style={{
+                          height: 40, padding: '0 14px', borderRadius: 10, boxSizing: 'border-box',
+                          ...(statusFilters.length > 0
+                            ? { background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.35)' }
+                            : { background: 'var(--admin-surface-strong)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)' }),
+                        }}
+                      >
+                        <span>{statusFilters.length === 0 ? 'All Statuses' : `${statusFilters.length} Filter${statusFilters.length > 1 ? 's' : ''} Selected`}</span>
+                        <ChevronDown size={14} style={{ transform: statusFilterOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                      </button>
+
+                      {statusFilterOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setStatusFilterOpen(false)} />
+                          <div
+                            className="absolute right-0 z-40"
+                            style={{
+                              top: 46, width: 240, borderRadius: 12, overflow: 'hidden',
+                              background: 'var(--admin-surface)', border: '1px solid var(--admin-border-mid)',
+                              boxShadow: '0 12px 32px rgba(0,0,0,0.25)',
+                            }}
+                          >
+                            <div style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
+                              {STATUS_FILTER_OPTIONS.map(opt => {
+                                const checked = statusFilters.includes(opt.value);
+                                return (
+                                  <label
+                                    key={opt.value}
+                                    className="flex items-center gap-2 cursor-pointer"
+                                    style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--admin-text-secondary)' }}
+                                    onMouseOver={(e) => e.currentTarget.style.background = 'var(--admin-tab-idle)'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => setStatusFilters(prev => checked ? prev.filter(v => v !== opt.value) : [...prev, opt.value])}
+                                    />
+                                    {opt.label}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {statusFilters.length > 0 && (
+                              <button
+                                onClick={() => setStatusFilters([])}
+                                className="w-full text-xs font-bold"
+                                style={{ padding: '10px', borderTop: '1px solid var(--admin-border-soft)', color: '#f87171', background: 'transparent' }}
+                              >
+                                Clear All
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -689,7 +747,7 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                           <Users size={24} />
                         </div>
                         <p className="font-semibold" style={{ color: 'var(--admin-text-secondary)' }}>No ambassadors match your filters</p>
-                        <button onClick={() => { setStatusFilter('all'); setSearchQuery(''); }} className="text-sm font-medium hover:underline" style={{ color: '#c084fc' }}>
+                        <button onClick={() => { setStatusFilters([]); setSearchQuery(''); }} className="text-sm font-medium hover:underline" style={{ color: '#c084fc' }}>
                           Clear filters
                         </button>
                       </div>
@@ -1218,8 +1276,8 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                         ...(broadcastSent
                           ? { background: 'linear-gradient(135deg,#059669,#10b981)', color: '#fff', boxShadow: '0 8px 24px rgba(5,150,105,0.35)' }
                           : selectedRecipients.size === 0
-                          ? { background: 'var(--admin-tab-idle)', color: 'var(--admin-text-muted)' }
-                          : { background: 'linear-gradient(135deg,#22c55e,#25d366)', color: '#fff', boxShadow: '0 8px 24px rgba(37,211,102,0.32)' })
+                            ? { background: 'var(--admin-tab-idle)', color: 'var(--admin-text-muted)' }
+                            : { background: 'linear-gradient(135deg,#22c55e,#25d366)', color: '#fff', boxShadow: '0 8px 24px rgba(37,211,102,0.32)' })
                       }}
                     >
                       {broadcastSent ? (
@@ -1416,60 +1474,137 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
       </div>
 
       {/* ── Confirmation Modal ── */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-md">
-          <div className="rounded-3xl p-6 max-w-sm w-full animate-fade-in" style={{ background: isLight ? '#ffffff' : '#111b2e', border: '1px solid var(--admin-border-soft)', boxShadow: '0 24px 60px rgba(0,0,0,0.45)' }}>
-            <div className="flex items-center gap-4 mb-4">
+      {showConfirm && createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16, boxSizing: 'border-box',
+            background: 'rgba(0,0,0,0.60)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+          onClick={() => setShowConfirm(null)}
+        >
+          {/* Card — stop click propagation so clicking the card doesn't close */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 380,
+              borderRadius: 24,
+              padding: '24px 24px 20px',
+              background: isLight ? '#ffffff' : '#111b2e',
+              border: `1px solid ${isLight ? 'rgba(203,213,225,0.8)' : 'rgba(51,65,85,0.7)'}`,
+              boxShadow: '0 32px 80px rgba(0,0,0,0.50)',
+              ...themeVars,
+            }}
+          >
+            {/* Icon + title row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
               <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-                style={showConfirm.action === 'activate' ? { background: 'rgba(16,185,129,0.15)', color: '#34d399' } : { background: 'rgba(239,68,68,0.15)', color: '#f87171' }}
+                style={{
+                  width: 48, height: 48, borderRadius: 16, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  ...(showConfirm.action === 'activate'
+                    ? { background: 'rgba(16,185,129,0.15)', color: '#34d399' }
+                    : { background: 'rgba(239,68,68,0.15)', color: '#f87171' }),
+                }}
               >
                 {showConfirm.action === 'activate' ? <UserCheck size={22} /> : <UserX size={22} />}
               </div>
               <div>
-                <h3 className="font-bold" style={{ color: 'var(--admin-text-strong)' }}>Confirm {showConfirm.action === 'activate' ? 'Activation' : 'Deactivation'}</h3>
-                <p className="text-sm" style={{ color: 'var(--admin-text-secondary)' }}>{showConfirm.name}</p>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: isLight ? '#0f172a' : '#f1f5f9' }}>
+                  Confirm {showConfirm.action === 'activate' ? 'Activation' : 'Deactivation'}
+                </h3>
+                <p style={{ margin: '3px 0 0', fontSize: 13, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 600 }}>
+                  {showConfirm.name}
+                </p>
               </div>
             </div>
-            <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--admin-text-secondary)' }}>
+
+            {/* Body text */}
+            <p style={{ margin: '0 0 22px', fontSize: 13, lineHeight: 1.65, color: isLight ? '#475569' : '#94a3b8' }}>
               {showConfirm.action === 'deactivate'
                 ? 'They will no longer be able to generate referrals or earn commissions.'
                 : 'They will regain access to the ambassador portal and can start referring.'}
             </p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowConfirm(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors" style={{ background: 'var(--admin-surface-soft)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border-soft)' }}>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowConfirm(null)}
+                style={{
+                  flex: 1, padding: '11px 0', borderRadius: 12, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', border: `1px solid ${isLight ? 'rgba(203,213,225,0.8)' : 'rgba(51,65,85,0.7)'}`,
+                  background: isLight ? 'rgba(241,245,249,0.9)' : 'rgba(30,41,59,0.8)',
+                  color: isLight ? '#334155' : '#94a3b8',
+                }}
+              >
                 Cancel
               </button>
               <button
                 onClick={confirmToggle}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors"
-                style={showConfirm.action === 'activate' ? { background: '#059669', color: '#fff' } : { background: '#dc2626', color: '#fff' }}
+                style={{
+                  flex: 1, padding: '11px 0', borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', border: 'none',
+                  ...(showConfirm.action === 'activate'
+                    ? { background: 'linear-gradient(135deg,#059669,#10b981)', color: '#fff', boxShadow: '0 6px 20px rgba(5,150,105,0.40)' }
+                    : { background: 'linear-gradient(135deg,#dc2626,#ef4444)', color: '#fff', boxShadow: '0 6px 20px rgba(220,38,38,0.40)' }),
+                }}
               >
                 {showConfirm.action === 'activate' ? 'Activate' : 'Deactivate'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* ── KYC Review Drawer ── */}
-      {kycDrawerId && kycAmbassador && (
-        <div className="fixed inset-0 z-50 flex">
+      {/* ── KYC Review Modal ── */}
+      {kycDrawerId && kycAmbassador && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: isMobile ? 12 : 24,
+            boxSizing: 'border-box',
+          }}
+        >
           {/* Backdrop */}
           <div
-            className="fixed inset-0"
-            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.65)',
+              backdropFilter: 'blur(6px)',
+              zIndex: 0,
+            }}
             onClick={() => setKycDrawerId(null)}
           />
-          {/* Panel */}
+          {/* Panel — height is fully bounded so scrolling stays inside */}
           <div
-            className="relative ml-auto w-full flex flex-col"
             style={{
-              maxWidth: 480,
-              height: '100%',
+              position: 'relative',
+              zIndex: 1,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              maxWidth: 560,
+              height: isMobile ? 'calc(100dvh - 24px)' : 'min(85vh, 860px)',
+              maxHeight: isMobile ? 'calc(100dvh - 24px)' : '85vh',
               background: isLight ? '#f8fafc' : '#0d1526',
-              borderLeft: `1px solid ${isLight ? 'rgba(203,213,225,0.8)' : 'rgba(51,65,85,0.7)'}`,
-              boxShadow: '-32px 0 80px rgba(0,0,0,0.5)',
+              borderRadius: 18,
+              border: `1px solid ${isLight ? 'rgba(203,213,225,0.8)' : 'rgba(51,65,85,0.7)'}`,
+              boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+              overflow: 'hidden',
+              ...themeVars,
             }}
           >
             {/* ── Drawer Header ── */}
@@ -1540,12 +1675,15 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
               </div>
             </div>
 
-            {/* Drawer body */}
-            <div className="flex-1 overflow-y-auto" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Drawer body — a plain (non-flex) scroll container, so its
+                content sizes naturally instead of the browser shrinking
+                flex children to fit; that shrinking is what was clipping
+                sections instead of letting this panel scroll. */}
+            <div className="flex-1 overflow-y-auto" style={{ padding: 20, minHeight: 0 }}>
 
               {/* ── KYC tab ── */}
               {kycDrawerTab === 'kyc' && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* ── Status strip ── */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     <Badge color={kycAmbassador.isActive ? 'green' : 'amber'}>
@@ -1563,6 +1701,12 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                         <Shield size={11} /> KYC: {kycAmbassador.kycStatus}
                       </Badge>
                     )}
+                    {kycAmbassador.interestStatus && (
+                      <Badge color={kycAmbassador.interestStatus === 'interested' ? 'green' : 'red'}>
+                        {kycAmbassador.interestStatus === 'interested' ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                        {kycAmbassador.interestStatus === 'interested' ? 'Interested' : 'Not Interested'}
+                      </Badge>
+                    )}
                   </div>
 
                   {/* ── Personal Details ── */}
@@ -1577,6 +1721,8 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                         ['Phone', kycAmbassador.phone],
                         ['City', kycAmbassador.city],
                         ['College', kycAmbassador.college],
+                        ['Course', kycAmbassador.course || '—'],
+                        ['Year of Study', kycAmbassador.yearOfStudy || '—'],
                       ].map(([k, v], idx, arr) => (
                         <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: idx < arr.length - 1 ? `1px solid ${isLight ? 'rgba(226,232,240,0.7)' : 'rgba(51,65,85,0.4)'}` : 'none' }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--admin-text-muted)' }}>{k}</span>
@@ -1751,7 +1897,7 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
 
               {/* ── Quiz tab ── */}
@@ -2059,34 +2205,39 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                         />
                       </div>
 
-                      {/* Row 5: Rejected toggle + Save button */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 4 }}>
-                        {/* Custom toggle-style rejected checkbox */}
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
-                          <div
-                            onClick={() => setCallTrackingDraft(prev => ({ ...prev, is_rejected: !prev.is_rejected }))}
-                            style={{
-                              width: 36, height: 20, borderRadius: 99, position: 'relative', cursor: 'pointer', flexShrink: 0,
-                              background: callTrackingDraft.is_rejected ? 'rgba(239,68,68,0.8)' : 'var(--admin-border-mid)',
-                              border: `1px solid ${callTrackingDraft.is_rejected ? 'rgba(239,68,68,0.5)' : 'var(--admin-border-mid)'}`,
-                              transition: 'background 0.2s',
-                            }}
-                          >
-                            <div style={{
-                              position: 'absolute', top: 2,
-                              left: callTrackingDraft.is_rejected ? 17 : 2,
-                              width: 14, height: 14, borderRadius: '50%',
-                              background: '#fff',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                              transition: 'left 0.2s',
-                            }} />
-                          </div>
-                          <input type="checkbox" checked={callTrackingDraft.is_rejected} onChange={(e) => setCallTrackingDraft(prev => ({ ...prev, is_rejected: e.target.checked }))} className="sr-only" />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: callTrackingDraft.is_rejected ? '#f87171' : 'var(--admin-text-muted)' }}>
-                            Mark as rejected
-                          </span>
+                      {/* Row 5: Lead interest */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-muted)' }}>
+                          Lead Interest
                         </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {[
+                            { value: 'interested', label: 'Interested', color: '#34d399', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)' },
+                            { value: 'not_interested', label: 'Not Interested', color: '#f87171', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)' },
+                          ].map(opt => {
+                            const active = callTrackingDraft.interest_status === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setCallTrackingDraft(prev => ({ ...prev, interest_status: active ? '' : opt.value }))}
+                                style={{
+                                  flex: 1, padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+                                  cursor: 'pointer', transition: 'all 0.15s',
+                                  background: active ? opt.bg : 'var(--admin-surface-strong)',
+                                  color: active ? opt.color : 'var(--admin-text-muted)',
+                                  border: `1px solid ${active ? opt.border : 'var(--admin-border-mid)'}`,
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
+                      {/* Row 6: Save button */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
                         <button
                           onClick={handleSaveAmbassadorCallTracking}
                           disabled={savingCallTracking || !callTrackingDraft.call_status}
@@ -2138,15 +2289,13 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
                         {pmCallLogs.map((log, idx) => {
                           const statusColors = {
                             completed: { bg: 'rgba(16,185,129,0.12)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
-                            failed:    { bg: 'rgba(239,68,68,0.12)',  color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+                            failed: { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' },
                             'no-answer': { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' },
-                            busy:      { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' },
-                            ringing:   { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
+                            busy: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' },
+                            ringing: { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
                             initiated: { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
                           };
-                          const sc = log.is_rejected
-                            ? { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' }
-                            : (statusColors[log.call_status] || { bg: 'rgba(148,163,184,0.12)', color: 'var(--admin-text-muted)', border: 'var(--admin-border-soft)' });
+                          const sc = statusColors[log.call_status] || { bg: 'rgba(148,163,184,0.12)', color: 'var(--admin-text-muted)', border: 'var(--admin-border-soft)' };
 
                           return (
                             <div
@@ -2187,9 +2336,14 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
 
                                 {/* Status + rejected badge */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                  {log.is_rejected && (
-                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)' }}>
-                                      Rejected
+                                  {log.interest_status && (
+                                    <span style={{
+                                      fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                                      background: log.interest_status === 'interested' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                                      color: log.interest_status === 'interested' ? '#34d399' : '#f87171',
+                                      border: `1px solid ${log.interest_status === 'interested' ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                                    }}>
+                                      {log.interest_status_label || (log.interest_status === 'interested' ? 'Interested' : 'Not Interested')}
                                     </span>
                                   )}
                                   <span style={{
@@ -2235,7 +2389,8 @@ export default function AdminAmbassadors({ isLight, viewportWidth, token, themeV
 
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

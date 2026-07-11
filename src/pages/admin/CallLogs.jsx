@@ -323,7 +323,11 @@ const CallLogs = ({ embedded = false }) => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                                     {callTab === 'service' ? (
                                                         <>
-                                                            <span onClick={() => window.open(`/Consultants/${log.consultant_id}`, '_blank')} style={{ fontWeight: 800, fontSize: 15, cursor: 'pointer', color: 'var(--admin-text-primary)' }}>{log.consultant_name}</span>
+                                                            <span
+                                                                onClick={() => log.consultant_id && window.open(`/Consultants/${log.consultant_id}`, '_blank')}
+                                                                title={log.consultant_id ? '' : 'No onboarding profile found for this consultant'}
+                                                                style={{ fontWeight: 800, fontSize: 15, cursor: log.consultant_id ? 'pointer' : 'default', color: log.consultant_id ? 'var(--admin-text-primary)' : 'var(--admin-text-muted)' }}
+                                                            >{log.consultant_name}</span>
                                                             <ChevronRight size={14} style={{ color: 'var(--admin-text-muted)' }} />
                                                             <span onClick={() => window.open(`/Clients/${log.client_id}`, '_blank')} style={{ fontWeight: 700, fontSize: 15, color: '#3b82f6', cursor: 'pointer' }}>{log.client_name}</span>
                                                         </>
@@ -376,10 +380,7 @@ const CallLogs = ({ embedded = false }) => {
                                     {callTab === 'service' && log.recording_url && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--admin-surface-strong)', borderRadius: 12, border: '1px solid var(--admin-border-soft)' }}>
                                             <Mic size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
-                                            <audio controls src={log.recording_url} style={{ flex: 1, height: 32, minWidth: 0 }} />
-                                            <a href={log.recording_url} download target="_blank" rel="noreferrer" title="Download recording" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 8, background: '#3b82f615', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #3b82f630' }}>
-                                                <Download size={15} />
-                                            </a>
+                                            <CallRecordingPlayer callId={log.id} compact />
                                         </div>
                                     )}
                                 </div>
@@ -683,9 +684,10 @@ const CallLogs = ({ embedded = false }) => {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                                         {callTab === 'service' ? (
                                                             <>
-                                                                <span 
-                                                                    onClick={() => navigate(`/Consultants/${log.consultant_id}`)}
-                                                                    style={{ fontWeight: 800, fontSize: 17, cursor: 'pointer', color: 'var(--admin-text-primary)' }}
+                                                                <span
+                                                                    onClick={() => log.consultant_id && navigate(`/Consultants/${log.consultant_id}`)}
+                                                                    title={log.consultant_id ? '' : 'No onboarding profile found for this consultant'}
+                                                                    style={{ fontWeight: 800, fontSize: 17, cursor: log.consultant_id ? 'pointer' : 'default', color: log.consultant_id ? 'var(--admin-text-primary)' : 'var(--admin-text-muted)' }}
                                                                 >
                                                                     {log.consultant_name}
                                                                 </span>
@@ -829,11 +831,10 @@ const CallLogs = ({ embedded = false }) => {
                                                 <Mic size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
                                                     <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Call Recording</span>
-                                                    <audio controls src={log.recording_url} style={{ width: '100%', height: 34 }} />
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <CallRecordingPlayer callId={log.id} />
+                                                    </div>
                                                 </div>
-                                                <a href={log.recording_url} download target="_blank" rel="noreferrer" title="Download recording" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: '#3b82f615', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #3b82f630' }}>
-                                                    <Download size={17} />
-                                                </a>
                                             </div>
                                         )}
                                     </div>
