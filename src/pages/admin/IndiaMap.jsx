@@ -9,7 +9,10 @@ import {
 import { scaleLinear } from "d3-scale";
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
-const INDIA_TOPO_URL = "https://raw.githubusercontent.com/udit-001/india-maps-data/refs/heads/main/topojson/india.json";
+// Self-hosted copy avoids a runtime fetch to raw.githubusercontent.com, which is
+// unreliable in production (CORS/rate-limit/network policy failures cause the
+// map to silently render empty).
+const INDIA_TOPO_URL = "/data/india-topo.json";
 
 // State centroids for labels (professional placement)
 const STATE_LABELS = [

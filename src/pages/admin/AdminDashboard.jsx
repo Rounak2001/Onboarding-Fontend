@@ -1151,7 +1151,7 @@ const AdminDashboard = () => {
                         {activeTab === 'dashboard' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                                 {/* Top Row - Key Metrics */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: isMobile ? 12 : 24 }}>
                                     {[
                                         { label: 'Active Consultants', value: activeConsultantCount, sub: 'Professionals with work', icon: Users, color: '#3b82f6', tab: 'consultant', filterAction: () => { setHasServicesFilter('true'); setCardFilter('total'); setStatusFilters([]); } },
                                         { label: 'Active Clients', value: activeClientCount, sub: 'Managed engagements', icon: UserSquare, color: '#8b5cf6', tab: 'client', filterAction: () => { setHasServicesFilter('true'); } },
@@ -1718,7 +1718,7 @@ const AdminDashboard = () => {
                         <div style={{ display: activeTab === 'consultant' ? 'block' : 'none' }}>
                             <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(210px, 1fr))',
+                                gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : `repeat(${summaryCards.length}, minmax(0, 1fr))`,
                                 gap: isMobile ? 10 : 14,
                                 marginBottom: isMobile ? 14 : 22,
                             }}>
