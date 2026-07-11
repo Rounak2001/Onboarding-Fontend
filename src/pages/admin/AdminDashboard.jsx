@@ -15,10 +15,12 @@ import AdminTransactionList from './AdminTransactionList';
 import AdminCartList from './AdminCartList';
 import CallLogs from './CallLogs';
 import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
+import AdminAmbassadors from './AdminAmbassadors';
+import AdminAmbassadorPayouts from './AdminAmbassadorPayouts';
 import AdminDateRangePicker from './AdminDateRangePicker';
 import AdminEmployees from './employees/AdminEmployees';
 import { getAdminRole } from '../../utils/adminSession';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -190,6 +192,8 @@ const AdminDashboard = () => {
     const deriveTabFromPath = (path) => {
         const p = path.toLowerCase();
         if (p.includes('software-survey')) return 'software-survey';
+        if (p.includes('ambassador-payouts')) return 'ambassador-payouts';
+        if (p.includes('ambassadors')) return 'ambassadors';
         if (p.includes('analytics') || p.includes('dashboard')) return 'dashboard';
         if (p.includes('call-log')) return 'call-logs';
         if (p.includes('consultant')) return 'consultant';
@@ -212,6 +216,7 @@ const AdminDashboard = () => {
     const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
     const [onboardingRange, setOnboardingRange] = useState('30d');
     const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+    const [collapsedCategories, setCollapsedCategories] = useState({});
     const [dispatchingDueNotifications, setDispatchingDueNotifications] = useState(false);
     const [ageChartVisibility, setAgeChartVisibility] = useState({ registered: true, credentials: true });
 
@@ -822,71 +827,119 @@ const AdminDashboard = () => {
                     {sidebarOpen ? <AdminBrandLogo isLight={isLight} height={26} /> : <div onClick={() => setSidebarOpen(true)} style={{ cursor: 'pointer' }}><AdminBrandLogo isLight={isLight} height={20} iconOnly /></div>}
                 </div>
 
-                <div style={{ flex: 1, padding: '24px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {(isViewer
-                        ? [{ id: 'employees', icon: UserCog, label: 'Employees' }]
-                        : [
-                            { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics' },
-                            { id: 'consultant', icon: Users, label: 'Consultants' },
-                            { id: 'client', icon: UserSquare, label: 'Clients' },
-                            { id: 'support', icon: LifeBuoy, label: 'Support' },
-                            { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
-                            { id: 'services', icon: Briefcase, label: 'Services' },
-                            { id: 'transactions', icon: Receipt, label: 'Transactions' },
-                            { id: 'carts', icon: ShoppingCart, label: 'Carts' },
-                            { id: 'call-logs', icon: Phone, label: 'Call Logs' },
-                            { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
-                            ...(isSuperAdmin ? [{ id: 'employees', icon: UserCog, label: 'Employees' }] : []),
-                            { id: 'chat-analytics', icon: Bot, label: 'AI Queries', external: true },
-                        ]
-                    ).map(item => (
-                        <button
-                            key={item.id}
-                            onClick={() => {
-                                if (item.external) {
-                                    navigate(adminUrl(item.id));
-                                    if (isMobile) setSidebarOpen(false);
-                                    return;
-                                }
-                                if (item.id === 'dashboard') {
-                                    setServiceFilter('');
-                                    setStateFilter('');
-                                    setCardFilter('total');
-                                    setStatusFilters([]);
-                                    setAssessmentSubstatusFilter('all');
-                                    setSearch('');
-                                    setJoinedDateFilter('all');
-                                }
-                                const urlMap = {
-                                    'dashboard': 'dashboard',
-                                    'consultant': 'consultants',
-                                    'client': 'clients',
-                                    'support': 'support',
-                                    'contact': 'contact',
-                                    'services': 'services',
-                                    'transactions': 'transactions',
-                                    'carts': 'carts',
-                                    'call-logs': 'call-logs',
-                                    'software-survey': 'software-survey',
-                                };
-                                navigate(adminUrl(urlMap[item.id] || item.id));
-                                setActiveTab(item.id);
-                                if (isMobile) setSidebarOpen(false);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            style={{
-                                display: 'flex', alignItems: 'center', padding: '12px', borderRadius: 12,
-                                background: activeTab === item.id ? (isLight ? '#eff6ff' : 'rgba(59,130,246,0.15)') : 'transparent',
-                                color: activeTab === item.id ? '#3b82f6' : 'var(--admin-text-secondary)',
-                                border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-                                justifyContent: sidebarOpen ? 'flex-start' : 'center', gap: sidebarOpen ? 16 : 0,
-                                whiteSpace: 'nowrap'
-                            }}
-                        >
-                            <item.icon size={22} />
-                            {sidebarOpen && <span style={{ fontWeight: 600, fontSize: 14 }}>{item.label}</span>}
-                        </button>
-                    ))}
+                <div style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+                    {[
+                        {
+                            title: 'Core Platform',
+                            items: [
+                                { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics' },
+                                { id: 'consultant', icon: Users, label: 'Consultants' },
+                                { id: 'client', icon: UserSquare, label: 'Clients' },
+                                { id: 'services', icon: Briefcase, label: 'Services' },
+                                ...((isSuperAdmin || isViewer) ? [{ id: 'employees', icon: UserCog, label: 'Employees' }] : []),
+                            ]
+                        },
+                        {
+                            title: 'Operations',
+                            items: [
+                                { id: 'transactions', icon: Receipt, label: 'Transactions' },
+                                { id: 'carts', icon: ShoppingCart, label: 'Carts' },
+                                { id: 'call-logs', icon: Phone, label: 'Call Logs' },
+                                { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
+                            ]
+                        },
+                        {
+                            title: 'Marketing',
+                            items: [
+                                { id: 'ambassadors', icon: Megaphone, label: 'Ambassadors' },
+                                { id: 'ambassador-payouts', icon: Wallet, label: 'Ambassador Payouts' },
+                            ]
+                        },
+                        {
+                            title: 'Support & Mail',
+                            items: [
+                                { id: 'support', icon: LifeBuoy, label: 'Support' },
+                                { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
+                            ]
+                        }
+                    ].map(cat => {
+                        const isCollapsed = collapsedCategories[cat.title];
+                        return (
+                            <div key={cat.title} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {sidebarOpen && (
+                                    <button
+                                        onClick={() => setCollapsedCategories(prev => ({ ...prev, [cat.title]: !prev[cat.title] }))}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'between',
+                                            padding: '4px 8px', width: '100%', border: 'none', background: 'transparent',
+                                            cursor: 'pointer', textAlign: 'left', outline: 'none'
+                                        }}
+                                    >
+                                        <span style={{
+                                            fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                                            letterSpacing: '0.08em', color: 'var(--admin-text-secondary)', opacity: 0.7,
+                                            flex: 1
+                                        }}>
+                                            {cat.title}
+                                        </span>
+                                        {isCollapsed ? <ChevronDown size={11} className="text-slate-400" /> : <ChevronUp size={11} className="text-slate-400" />}
+                                    </button>
+                                )}
+                                {!sidebarOpen && (
+                                    <div style={{ height: 1, background: 'var(--admin-border-soft)', margin: '8px 4px 4px 4px' }} />
+                                )}
+                                {!isCollapsed && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {cat.items.map(item => (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => {
+                                                    if (item.id === 'dashboard') {
+                                                        setServiceFilter('');
+                                                        setStateFilter('');
+                                                        setCardFilter('total');
+                                                        setStatusFilters([]);
+                                                        setAssessmentSubstatusFilter('all');
+                                                        setSearch('');
+                                                        setJoinedDateFilter('all');
+                                                    }
+                                                    const urlMap = {
+                                                        'dashboard': 'dashboard',
+                                                        'consultant': 'consultants',
+                                                        'client': 'clients',
+                                                        'support': 'support',
+                                                        'contact': 'contact',
+                                                        'services': 'services',
+                                                        'transactions': 'transactions',
+                                                        'carts': 'carts',
+                                                        'call-logs': 'call-logs',
+                                                        'software-survey': 'software-survey',
+                                                        'ambassadors': 'ambassadors',
+                                                        'ambassador-payouts': 'ambassador-payouts',
+                                                    };
+                                                    navigate(adminUrl(urlMap[item.id] || item.id));
+                                                    setActiveTab(item.id);
+                                                    if (isMobile) setSidebarOpen(false);
+                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 12,
+                                                    background: activeTab === item.id ? (isLight ? '#eff6ff' : 'rgba(59,130,246,0.15)') : 'transparent',
+                                                    color: activeTab === item.id ? '#3b82f6' : 'var(--admin-text-secondary)',
+                                                    border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                                                    justifyContent: sidebarOpen ? 'flex-start' : 'center', gap: sidebarOpen ? 12 : 0,
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <item.icon size={20} style={{ shrink: 0 }} />
+                                                {sidebarOpen && <span style={{ fontWeight: 600, fontSize: 13.5 }}>{item.label}</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {!isMobile && (
@@ -928,8 +981,9 @@ const AdminDashboard = () => {
                                                 : activeTab === 'transactions' ? 'Transactions'
                                                     : activeTab === 'carts' ? 'Carts'
                                                         : activeTab === 'call-logs' ? 'Call Logs'
-                                                            : activeTab === 'employees' ? 'Employees'
-                                                                : 'Clients'}
+                                                            : activeTab === 'ambassadors' ? 'Ambassadors'
+                                                                : activeTab === 'ambassador-payouts' ? 'Ambassador Payouts'
+                                                                    : 'Clients'}
                         </span>
 
                         <div style={{
@@ -1107,7 +1161,7 @@ const AdminDashboard = () => {
                         {activeTab === 'dashboard' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                                 {/* Top Row - Key Metrics */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: isMobile ? 12 : 24 }}>
                                     {[
                                         { label: 'Active Consultants', value: activeConsultantCount, sub: 'Professionals with work', icon: Users, color: '#3b82f6', tab: 'consultant', filterAction: () => { setHasServicesFilter('true'); setCardFilter('total'); setStatusFilters([]); } },
                                         { label: 'Active Clients', value: activeClientCount, sub: 'Managed engagements', icon: UserSquare, color: '#8b5cf6', tab: 'client', filterAction: () => { setHasServicesFilter('true'); } },
@@ -1667,11 +1721,17 @@ const AdminDashboard = () => {
                         {activeTab === 'software-survey' && (
                             <SoftwareSurveyDashboard isLight={isLight} token={token} />
                         )}
+                        {activeTab === 'ambassadors' && (
+                            <AdminAmbassadors isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
+                        )}
+                        {activeTab === 'ambassador-payouts' && (
+                            <AdminAmbassadorPayouts isLight={isLight} themeVars={themeVars} />
+                        )}
 
                         <div style={{ display: activeTab === 'consultant' ? 'block' : 'none' }}>
                             <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(210px, 1fr))',
+                                gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : `repeat(${summaryCards.length}, minmax(0, 1fr))`,
                                 gap: isMobile ? 10 : 14,
                                 marginBottom: isMobile ? 14 : 22,
                             }}>

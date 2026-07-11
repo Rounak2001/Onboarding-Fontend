@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { Phone } from 'lucide-react';
+import { Phone, ChevronDown, ChevronUp, ShoppingCart } from 'lucide-react';
 
 const AdminCartList = ({ isLight, viewportWidth, token, themeVars }) => {
     const navigate = useNavigate();
@@ -12,6 +12,7 @@ const AdminCartList = ({ isLight, viewportWidth, token, themeVars }) => {
     const [stats, setStats] = useState({ total_carts: 0, active_carts: 0, abandoned_value: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [expandedId, setExpandedId] = useState(null);
 
     const fetchCarts = useCallback(async () => {
         setLoading(true);
@@ -80,6 +81,7 @@ const AdminCartList = ({ isLight, viewportWidth, token, themeVars }) => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                <th style={{ width: 40 }}></th>
                                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Client Name</th>
                                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Phone Number</th>
                                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Items in Cart</th>
@@ -90,36 +92,92 @@ const AdminCartList = ({ isLight, viewportWidth, token, themeVars }) => {
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</td></tr>
+                                <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading...</td></tr>
                             ) : carts.length > 0 ? (
-                                carts.map((c, i) => (
-                                    <tr key={c.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
-                                        <td style={{ padding: '14px 16px', fontSize: 13 }}>
-                                            <button 
-                                                onClick={() => window.open(`/Clients/${c.client_id}`, '_blank')}
-                                                style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 800, cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 'inherit' }}
-                                            >
-                                                {c.client_name || '-'}
-                                            </button>
-                                        </td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 600 }}>{c.phone_number || '-'}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{c.items_count || 0} items</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 800 }}>₹{Number(c.cart_value || 0).toLocaleString()}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'}</td>
-                                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                                            {c.phone_number && (
-                                                <a
-                                                    href={`tel:${c.phone_number}`}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.1)', color: '#10b981', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}
+                                carts.map((c, i) => {
+                                    const isExpanded = expandedId === c.id;
+                                    return (
+                                    <Fragment key={c.id}>
+                                        <tr style={{ borderBottom: isExpanded ? 'none' : '1px solid rgba(148,163,184,0.06)', background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
+                                            <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                                                <button
+                                                    onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                                                    title={isExpanded ? 'Collapse' : 'View cart items'}
+                                                    style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid var(--admin-border-soft)', background: isExpanded ? 'var(--admin-row-alt)' : 'none', color: 'var(--admin-text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                                                 >
-                                                    <Phone size={14} /> Call Client
-                                                </a>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))
+                                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                </button>
+                                            </td>
+                                            <td style={{ padding: '14px 16px', fontSize: 13 }}>
+                                                <button
+                                                    onClick={() => window.open(`/Clients/${c.client_id}`, '_blank')}
+                                                    style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 800, cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 'inherit' }}
+                                                >
+                                                    {c.client_name || '-'}
+                                                </button>
+                                            </td>
+                                            <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 600 }}>{c.phone_number || '-'}</td>
+                                            <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>
+                                                <button
+                                                    onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', fontSize: 'inherit', textDecoration: 'underline dotted' }}
+                                                >
+                                                    {c.items_count || 0} items
+                                                </button>
+                                            </td>
+                                            <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 800 }}>₹{Number(c.cart_value || 0).toLocaleString()}</td>
+                                            <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{c.updated_at ? new Date(c.updated_at).toLocaleString() : '-'}</td>
+                                            <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                                {c.phone_number && (
+                                                    <a
+                                                        href={`tel:${c.phone_number}`}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.1)', color: '#10b981', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}
+                                                    >
+                                                        <Phone size={14} /> Call Client
+                                                    </a>
+                                                )}
+                                            </td>
+                                        </tr>
+                                        {isExpanded && (
+                                            <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.06)', background: i % 2 === 0 ? 'transparent' : 'var(--admin-row-alt)' }}>
+                                                <td></td>
+                                                <td colSpan={6} style={{ padding: '0 16px 16px' }}>
+                                                    {!c.items || c.items.length === 0 ? (
+                                                        <div style={{ padding: 16, fontSize: 12, color: 'var(--admin-text-muted)', fontStyle: 'italic' }}>No item details available.</div>
+                                                    ) : (
+                                                        <div style={{ background: 'var(--admin-surface)', borderRadius: 12, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                                                            {c.items.map((item, idx) => (
+                                                                <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: idx === c.items.length - 1 ? 'none' : '1px solid var(--admin-border-soft)' }}>
+                                                                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                                        <ShoppingCart size={15} style={{ color: '#3b82f6', marginTop: 2, flexShrink: 0 }} />
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{item.title}</span>
+                                                                            <span style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>
+                                                                                {item.category}{item.variant_name ? ` · ${item.variant_name}` : ''}{item.quantity > 1 ? ` · Qty ${item.quantity}` : ''}
+                                                                            </span>
+                                                                            {item.config && Object.keys(item.config).length > 0 && (
+                                                                                <span style={{ fontSize: 11, color: 'var(--admin-text-secondary)' }}>
+                                                                                    {Object.entries(item.config).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ')}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                                                                        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--admin-text-primary)' }}>₹{Number(item.price || 0).toLocaleString()}</span>
+                                                                        <span style={{ fontSize: 10, color: 'var(--admin-text-muted)' }}>{item.added_at ? new Date(item.added_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </Fragment>
+                                    );
+                                })
                             ) : (
-                                <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No abandoned carts found.</td></tr>
+                                <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No abandoned carts found.</td></tr>
                             )}
                         </tbody>
                     </table>

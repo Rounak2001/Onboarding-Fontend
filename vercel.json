@@ -5,7 +5,7 @@
       "destination": "https://api.taxplanadvisor.in/api/$1"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|data/).*)",
       "destination": "/index.html"
     }
   ]

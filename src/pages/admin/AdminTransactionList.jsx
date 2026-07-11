@@ -202,14 +202,20 @@ const AdminTransactionList = ({ isLight, viewportWidth, token, themeVars, initia
                                         </td>
                                         <td style={{ padding: '18px 24px', fontSize: 13 }}>
                                             {t.consultant_name && t.consultant_name !== '-' ? (
-                                                <button 
-                                                    onClick={() => window.open(`/Consultants/${t.consultant_id}`, '_blank')}
-                                                    style={{ background: 'none', border: 'none', color: '#10b981', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'none', fontSize: 'inherit' }}
-                                                    onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                                    onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
-                                                >
-                                                    {t.consultant_name}
-                                                </button>
+                                                t.consultant_id ? (
+                                                    <button
+                                                        onClick={() => window.open(`/Consultants/${t.consultant_id}`, '_blank')}
+                                                        style={{ background: 'none', border: 'none', color: '#10b981', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'none', fontSize: 'inherit' }}
+                                                        onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                                        onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                                    >
+                                                        {t.consultant_name}
+                                                    </button>
+                                                ) : (
+                                                    <span title="No onboarding profile found for this consultant" style={{ color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
+                                                        {t.consultant_name}
+                                                    </span>
+                                                )
                                             ) : (
                                                 <span style={{ color: 'var(--admin-text-muted)', fontSize: 12, fontStyle: 'italic' }}>Unassigned</span>
                                             )}

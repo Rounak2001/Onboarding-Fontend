@@ -26,10 +26,64 @@ import {
     RefreshCw,
     CheckCircle2,
     XCircle,
-    MoreVertical
+    MoreVertical,
+    Download,
+    Mic
 } from 'lucide-react';
 
 const PAGE_SIZE = 50;
+
+// Exotel recording URLs require HTTP Basic Auth with the account's API
+// credentials, which must never reach the browser. The backend proxies the
+// authenticated fetch (`/calls/logs/<id>/recording/`); this component pulls
+// the audio through that proxy as a blob so <audio>/download never touch
+// Exotel directly or need credentials of their own.
+const CallRecordingPlayer = ({ callId, compact = false }) => {
+    const token = localStorage.getItem('admin_token');
+    const [blobUrl, setBlobUrl] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        let objectUrl = null;
+        setLoading(true);
+        setError(false);
+        fetch(apiUrl(`/calls/logs/${callId}/recording/`), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error('Failed to load recording');
+                return res.blob();
+            })
+            .then((blob) => {
+                if (cancelled) return;
+                objectUrl = URL.createObjectURL(blob);
+                setBlobUrl(objectUrl);
+            })
+            .catch(() => { if (!cancelled) setError(true); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => {
+            cancelled = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [callId, token]);
+
+    if (error) {
+        return <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>Recording unavailable</span>;
+    }
+    if (loading || !blobUrl) {
+        return <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>Loading recording…</span>;
+    }
+    return (
+        <>
+            <audio controls src={blobUrl} style={{ flex: 1, height: compact ? 32 : 34, minWidth: 0, width: compact ? undefined : '100%' }} />
+            <a href={blobUrl} download={`call-${callId}-recording.mp3`} title="Download recording" style={{ width: compact ? 32 : 38, height: compact ? 32 : 38, flexShrink: 0, borderRadius: compact ? 8 : 10, background: '#3b82f615', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #3b82f630' }}>
+                <Download size={compact ? 15 : 17} />
+            </a>
+        </>
+    );
+};
 
 const CallLogs = ({ embedded = false }) => {
     const navigate = useNavigate();
@@ -90,7 +144,11 @@ const CallLogs = ({ embedded = false }) => {
             if (tab === 'service' && outcome !== 'all') params.set('outcome', outcome);
             if (dateRange !== 'all') params.set('date_range', dateRange);
 
-            const endpoint = tab === 'service' ? '/calls/admin-logs/' : '/admin-panel/onboarding-call-logs/';
+            const endpoint = tab === 'service'
+                ? '/calls/admin-logs/'
+                : tab === 'ambassador'
+                    ? '/ambassador/pm/call-logs/'
+                    : '/admin-panel/onboarding-call-logs/';
             const res = await fetch(apiUrl(`${endpoint}?${params}`), { 
                 headers: authHeaders,
                 cache: 'no-store'
@@ -234,6 +292,7 @@ const CallLogs = ({ embedded = false }) => {
                 <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--admin-border-soft)', marginBottom: 16 }}>
                     <button onClick={() => { setLogs([]); setStats(null); setCallTab('service'); }} style={{ padding: '12px 8px', border: 'none', background: 'none', borderBottom: callTab === 'service' ? '2px solid #3b82f6' : '2px solid transparent', color: callTab === 'service' ? '#3b82f6' : 'var(--admin-text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Service (Consultant → Client)</button>
                     <button onClick={() => { setLogs([]); setStats(null); setCallTab('onboarding'); }} style={{ padding: '12px 8px', border: 'none', background: 'none', borderBottom: callTab === 'onboarding' ? '2px solid #3b82f6' : '2px solid transparent', color: callTab === 'onboarding' ? '#3b82f6' : 'var(--admin-text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Onboarding (Admin → Consultant)</button>
+                    <button onClick={() => { setLogs([]); setStats(null); setCallTab('ambassador'); }} style={{ padding: '12px 8px', border: 'none', background: 'none', borderBottom: callTab === 'ambassador' ? '2px solid #7c3aed' : '2px solid transparent', color: callTab === 'ambassador' ? '#7c3aed' : 'var(--admin-text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Ambassador Calls (PM → Ambassador)</button>
                 </div>
 
                 {/* Logs */}
@@ -264,7 +323,11 @@ const CallLogs = ({ embedded = false }) => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                                     {callTab === 'service' ? (
                                                         <>
-                                                            <span onClick={() => window.open(`/Consultants/${log.consultant_id}`, '_blank')} style={{ fontWeight: 800, fontSize: 15, cursor: 'pointer', color: 'var(--admin-text-primary)' }}>{log.consultant_name}</span>
+                                                            <span
+                                                                onClick={() => log.consultant_id && window.open(`/Consultants/${log.consultant_id}`, '_blank')}
+                                                                title={log.consultant_id ? '' : 'No onboarding profile found for this consultant'}
+                                                                style={{ fontWeight: 800, fontSize: 15, cursor: log.consultant_id ? 'pointer' : 'default', color: log.consultant_id ? 'var(--admin-text-primary)' : 'var(--admin-text-muted)' }}
+                                                            >{log.consultant_name}</span>
                                                             <ChevronRight size={14} style={{ color: 'var(--admin-text-muted)' }} />
                                                             <span onClick={() => window.open(`/Clients/${log.client_id}`, '_blank')} style={{ fontWeight: 700, fontSize: 15, color: '#3b82f6', cursor: 'pointer' }}>{log.client_name}</span>
                                                         </>
@@ -273,7 +336,11 @@ const CallLogs = ({ embedded = false }) => {
                                                             <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Caller</span>
                                                             <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--admin-text-primary)' }}>{log.caller_name}</span>
                                                             <ChevronRight size={14} style={{ color: 'var(--admin-text-muted)' }} />
-                                                            <span onClick={() => window.open(`/Consultants/${log.application_id}`, '_blank')} style={{ fontWeight: 700, fontSize: 15, color: '#10b981', cursor: 'pointer' }}>{log.consultant_name}</span>
+                                                            {callTab === 'ambassador' ? (
+                                                                <span style={{ fontWeight: 700, fontSize: 15, color: '#7c3aed' }}>{log.consultant_name}</span>
+                                                            ) : (
+                                                                <span onClick={() => window.open(`/Consultants/${log.application_id}`, '_blank')} style={{ fontWeight: 700, fontSize: 15, color: '#10b981', cursor: 'pointer' }}>{log.consultant_name}</span>
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>
@@ -310,6 +377,12 @@ const CallLogs = ({ embedded = false }) => {
                                             </div>
                                         ) : null;
                                     })()}
+                                    {callTab === 'service' && log.recording_url && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--admin-surface-strong)', borderRadius: 12, border: '1px solid var(--admin-border-soft)' }}>
+                                            <Mic size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                                            <CallRecordingPlayer callId={log.id} compact />
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -538,6 +611,17 @@ const CallLogs = ({ embedded = false }) => {
                         >
                             Onboarding History (Admin → Consultant)
                         </button>
+                        <button
+                            onClick={() => { setLogs([]); setStats(null); setCallTab('ambassador'); }}
+                            style={{
+                                padding: '16px 8px', border: 'none', background: 'none',
+                                borderBottom: callTab === 'ambassador' ? '2px solid #7c3aed' : '2px solid transparent',
+                                color: callTab === 'ambassador' ? '#7c3aed' : 'var(--admin-text-muted)',
+                                fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            Ambassador Calls (PM → Ambassador)
+                        </button>
                     </div>
                 </div>
 
@@ -600,9 +684,10 @@ const CallLogs = ({ embedded = false }) => {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                                         {callTab === 'service' ? (
                                                             <>
-                                                                <span 
-                                                                    onClick={() => navigate(`/Consultants/${log.consultant_id}`)}
-                                                                    style={{ fontWeight: 800, fontSize: 17, cursor: 'pointer', color: 'var(--admin-text-primary)' }}
+                                                                <span
+                                                                    onClick={() => log.consultant_id && navigate(`/Consultants/${log.consultant_id}`)}
+                                                                    title={log.consultant_id ? '' : 'No onboarding profile found for this consultant'}
+                                                                    style={{ fontWeight: 800, fontSize: 17, cursor: log.consultant_id ? 'pointer' : 'default', color: log.consultant_id ? 'var(--admin-text-primary)' : 'var(--admin-text-muted)' }}
                                                                 >
                                                                     {log.consultant_name}
                                                                 </span>
@@ -621,12 +706,18 @@ const CallLogs = ({ embedded = false }) => {
                                                                     <span style={{ fontWeight: 800, fontSize: 17, color: 'var(--admin-text-primary)' }}>{log.caller_name}</span>
                                                                 </div>
                                                                 <ChevronRight size={16} style={{ color: 'var(--admin-text-muted)' }} />
-                                                                <span 
-                                                                    onClick={() => navigate(`/Consultants/${log.application_id}`)}
-                                                                    style={{ fontWeight: 700, fontSize: 17, color: '#10b981', cursor: 'pointer' }}
-                                                                >
-                                                                    {log.consultant_name}
-                                                                </span>
+                                                                {callTab === 'ambassador' ? (
+                                                                    <span style={{ fontWeight: 700, fontSize: 17, color: '#7c3aed' }}>
+                                                                        {log.consultant_name}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span
+                                                                        onClick={() => navigate(`/Consultants/${log.application_id}`)}
+                                                                        style={{ fontWeight: 700, fontSize: 17, color: '#10b981', cursor: 'pointer' }}
+                                                                    >
+                                                                        {log.consultant_name}
+                                                                    </span>
+                                                                )}
                                                             </>
                                                         )}
                                                     </div>
@@ -727,13 +818,25 @@ const CallLogs = ({ embedded = false }) => {
                                                     </div>
                                                     {log.issue_facing && (
                                                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--admin-border-soft)', fontSize: 13 }}>
-                                                            <b style={{ color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontSize: 11, marginRight: 8 }}>Issue:</b> 
+                                                            <b style={{ color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontSize: 11, marginRight: 8 }}>Issue:</b>
                                                             <span style={{ color: '#ef4444', fontWeight: 600 }}>{log.issue_facing}</span>
                                                         </div>
                                                     )}
                                                 </div>
                                             );
                                         })()}
+
+                                        {callTab === 'service' && log.recording_url && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 16px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid var(--admin-border-soft)' }}>
+                                                <Mic size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Call Recording</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <CallRecordingPlayer callId={log.id} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
