@@ -20,7 +20,7 @@ const TAB_GROUPS = [
     {
         label: 'Work',
         tabs: [
-            { id: 'kpis', label: 'KRAs & KPIs', icon: Target },
+            { id: 'kpis', label: 'KRAs', icon: Target },
             { id: 'updates', label: 'Daily updates', icon: CalendarDays },
         ],
     },
