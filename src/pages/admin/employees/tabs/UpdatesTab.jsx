@@ -1,62 +1,113 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
-import { fetchDailyUpdates } from '../staffApi';
-import { todayStr, fmtTime } from '../shared/format';
+import DOMPurify from 'dompurify';
+import { RefreshCw, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { fetchEmployeeDailyReports } from '../staffApi';
 import { card } from '../shared/styles';
 
-export default function UpdatesTab({ employeeId, token, isMobile }) {
-    const [date, setDate] = useState(todayStr());
-    const [row, setRow] = useState(null);
+const PAGE_SIZE = 10;
+
+// The summary is employee-authored HTML — always sanitize before rendering it
+// in the admin panel (allow only the editor's tags, strip every attribute).
+const SUMMARY_TAGS = ['b', 'strong', 'i', 'em', 'u', 'h2', 'ul', 'ol', 'li', 'p', 'br', 'div', 'span'];
+const cleanSummary = (html) => DOMPurify.sanitize(html || '', { ALLOWED_TAGS: SUMMARY_TAGS, ALLOWED_ATTR: [] });
+// Rich-text from the editor carries tags; older/plain summaries are bare text
+// whose line breaks must be preserved (rendering them as HTML would collapse them).
+const isRichText = (s) => /<(\/?(b|strong|i|em|u|h2|ul|ol|li|p|br|div|span))\b[^>]*>/i.test(s || '');
+
+const summaryPanel = {
+    fontSize: 14, color: 'var(--admin-text-primary)',
+    background: 'var(--admin-row-alt)', borderRadius: 8, padding: '11px 13px',
+    borderLeft: '3px solid #3b82f6',
+};
+
+const fmtReportDate = (iso) => {
+    if (!iso) return '—';
+    try {
+        return new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', {
+            weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+        });
+    } catch { return iso; }
+};
+
+export default function UpdatesTab({ employeeId, token }) {
+    const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [page, setPage] = useState(0);
 
     const load = useCallback(async () => {
         setLoading(true); setError('');
         try {
-            const data = await fetchDailyUpdates(token, date, employeeId);
-            setRow((data.feed || [])[0] || null);
+            const data = await fetchEmployeeDailyReports(token, employeeId);
+            setReports(data.reports || []);
+            setPage(0);
         } catch (e) {
-            setError(e.message || 'Failed to load updates.');
+            setError(e.message || 'Failed to load reports.');
         } finally { setLoading(false); }
-    }, [token, date, employeeId]);
+    }, [token, employeeId]);
 
     useEffect(() => { load(); }, [load]);
 
+    const totalPages = Math.max(1, Math.ceil(reports.length / PAGE_SIZE));
+    const pageReports = reports.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+    const pillBtn = {
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8,
+        fontSize: 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)',
+        border: '1px solid var(--admin-border-mid)', cursor: 'pointer',
+    };
+
     return (
         <div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-                <input type="date" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, fontSize: 13, background: 'var(--admin-row-alt)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border-mid)' }} />
-                <button onClick={load} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer' }}><RefreshCw size={14} /> Refresh</button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 13, color: 'var(--admin-text-muted)' }}>
+                    {reports.length} report{reports.length === 1 ? '' : 's'} submitted
+                </div>
+                <button onClick={load} style={pillBtn}><RefreshCw size={14} /> Refresh</button>
             </div>
 
             {loading && <div style={{ color: 'var(--admin-text-muted)', padding: 20 }}>Loading…</div>}
             {error && !loading && <div style={{ ...card, color: '#ef4444' }}>{error}</div>}
 
-            {!loading && !error && (
-                <div style={card}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Work summary</div>
-                    {row?.summary
-                        ? <div style={{ fontSize: 14, color: 'var(--admin-text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{row.summary}</div>
-                        : <div style={{ fontSize: 13, color: 'var(--admin-text-muted)' }}>No summary submitted for this day.</div>}
-                    {row?.summary_updated_at && <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 8 }}>Last edited {fmtTime(row.summary_updated_at)}</div>}
+            {!loading && !error && reports.length === 0 && (
+                <div style={{ ...card, fontSize: 13, color: 'var(--admin-text-muted)' }}>No reports submitted yet.</div>
+            )}
 
-                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '18px 0 8px' }}>KPI values</div>
-                    {(row?.kpi_values || []).length === 0 && <div style={{ fontSize: 13, color: 'var(--admin-text-muted)' }}>No KPI values recorded.</div>}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {(row?.kpi_values || []).map((v) => (
-                            <div key={v.kpi_id} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{v.kpi_name}</span>
-                                    <span style={{ fontSize: 13, fontWeight: 800, color: '#3b82f6' }}>
-                                        {v.actual_value != null ? v.actual_value : '—'}{v.unit ? ` ${v.unit}` : ''}{v.target_value != null ? <span style={{ color: 'var(--admin-text-muted)', fontWeight: 600 }}> / {v.target_value}</span> : null}
-                                    </span>
-                                </div>
-                                {v.note && <div style={{ fontSize: 12, color: 'var(--admin-text-secondary)', marginTop: 6 }}>{v.note}</div>}
-                                {v.blockers && <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 4 }}>Blocker: {v.blockers}</div>}
-                                {v.next_step && <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 4 }}>Next: {v.next_step}</div>}
-                            </div>
-                        ))}
+            {!loading && !error && pageReports.map((r) => (
+                <div key={r.work_date} style={{ ...card, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 12, fontWeight: 700, color: 'var(--admin-text-muted)' }}>
+                        <CalendarDays size={14} />
+                        <span>{fmtReportDate(r.work_date)}</span>
                     </div>
+                    {!r.summary && (
+                        <div style={summaryPanel}><span style={{ color: 'var(--admin-text-muted)', fontStyle: 'italic' }}>No summary written.</span></div>
+                    )}
+                    {r.summary && isRichText(r.summary) && (
+                        <div className="rte-display" style={summaryPanel} dangerouslySetInnerHTML={{ __html: cleanSummary(r.summary) }} />
+                    )}
+                    {r.summary && !isRichText(r.summary) && (
+                        <div className="rte-display" style={{ ...summaryPanel, whiteSpace: 'pre-wrap' }}>{r.summary}</div>
+                    )}
+                </div>
+            ))}
+
+            {!loading && !error && reports.length > PAGE_SIZE && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 6 }}>
+                    <button
+                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                        disabled={page === 0}
+                        style={{ ...pillBtn, opacity: page === 0 ? 0.4 : 1, cursor: page === 0 ? 'not-allowed' : 'pointer' }}
+                    >
+                        <ChevronLeft size={14} /> Prev
+                    </button>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--admin-text-secondary)' }}>Page {page + 1} of {totalPages}</span>
+                    <button
+                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                        disabled={page >= totalPages - 1}
+                        style={{ ...pillBtn, opacity: page >= totalPages - 1 ? 0.4 : 1, cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                        Next <ChevronRight size={14} />
+                    </button>
                 </div>
             )}
         </div>

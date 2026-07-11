@@ -5,7 +5,7 @@ import { apiUrl } from '../../../utils/apiBase';
 // Panel-wide read-only switch. When true, all write controls (add/edit/
 // deactivate employee, KRA/KPI editing, leave approve/reject) are hidden so the
 // Employees section is view-only for everyone. Flip to false to restore editing.
-export const READ_ONLY = true;
+export const READ_ONLY = false;
 
 const resolveToken = (propToken) => {
     const candidates = [propToken];
@@ -65,6 +65,8 @@ export const updateKpi = (token, kpiId, body) => request(token, `/admin-panel/kp
 export const archiveKpi = (token, kpiId) => request(token, `/admin-panel/kpis/${kpiId}/`, { method: 'DELETE' });
 export const fetchDailyUpdates = (token, date, employeeId) =>
     request(token, `/admin-panel/daily-updates/${qs({ date, employee: employeeId })}`);
+export const fetchEmployeeDailyReports = (token, id) =>
+    request(token, `/admin-panel/employees/${id}/daily-reports/`);
 
 // --- employee management (admin-panel authed) ---
 export const createEmployee = (token, body) =>

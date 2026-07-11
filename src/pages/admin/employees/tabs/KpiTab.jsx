@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { Plus, Pencil, Archive } from 'lucide-react';
 import {
-    createKra, updateKra, archiveKra, createKpi, updateKpi, archiveKpi, READ_ONLY,
+    createKra, updateKra, archiveKra, READ_ONLY,
 } from '../staffApi';
-import { KraFormModal, KpiFormModal } from '../forms/KraKpiForms';
+import { KraFormModal } from '../forms/KraKpiForms';
 import { chip } from '../shared/StatusChip';
 import { card, iconBtn } from '../shared/styles';
 
 export default function KpiTab({ detail, token, onChanged }) {
     const [kraModal, setKraModal] = useState(null); // { mode, initial }
-    const [kpiModal, setKpiModal] = useState(null); // { kraId, initial }
     const [saving, setSaving] = useState(false);
     const [formErr, setFormErr] = useState('');
     const kras = detail.kras || [];
@@ -33,23 +32,9 @@ export default function KpiTab({ detail, token, onChanged }) {
         } catch (e) { setFormErr(errorText(e)); } finally { setSaving(false); }
     };
 
-    const submitKpi = async (payload) => {
-        setSaving(true); setFormErr('');
-        try {
-            if (kpiModal.initial?.id) await updateKpi(token, kpiModal.initial.id, payload);
-            else await createKpi(token, kpiModal.kraId, payload);
-            setKpiModal(null);
-            onChanged();
-        } catch (e) { setFormErr(errorText(e)); } finally { setSaving(false); }
-    };
-
     const onArchiveKra = async (kra) => {
-        if (!window.confirm(`Archive KRA "${kra.title}" and its KPIs? This hides it from the employee.`)) return;
+        if (!window.confirm(`Archive KRA "${kra.title}"? This hides it from the employee.`)) return;
         try { await archiveKra(token, kra.id); onChanged(); } catch (e) { window.alert(errorText(e)); }
-    };
-    const onArchiveKpi = async (kpi) => {
-        if (!window.confirm(`Archive KPI "${kpi.name}"?`)) return;
-        try { await archiveKpi(token, kpi.id); onChanged(); } catch (e) { window.alert(errorText(e)); }
     };
 
     return (
@@ -64,7 +49,7 @@ export default function KpiTab({ detail, token, onChanged }) {
 
             {kras.length === 0 && (
                 <div style={{ ...card, textAlign: 'center', color: 'var(--admin-text-muted)', padding: 40 }}>
-                    No KRAs yet. Add a result area, then define measurable KPIs beneath it.
+                    No KRAs yet. Add a result area for this employee to work toward.
                 </div>
             )}
 
@@ -79,36 +64,14 @@ export default function KpiTab({ detail, token, onChanged }) {
                         {!READ_ONLY && (
                             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                                 <button title="Edit KRA" onClick={() => { setFormErr(''); setKraModal({ initial: kra }); }} style={iconBtn}><Pencil size={15} /></button>
-                                <button title="Add KPI" onClick={() => { setFormErr(''); setKpiModal({ kraId: kra.id, initial: null }); }} style={iconBtn}><Plus size={15} /></button>
                                 <button title="Archive KRA" onClick={() => onArchiveKra(kra)} style={iconBtn}><Archive size={15} /></button>
                             </div>
                         )}
-                    </div>
-
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {(kra.kpis || []).length === 0 && <div style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>No KPIs defined.</div>}
-                        {(kra.kpis || []).map((kpi) => (
-                            <div key={kpi.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 8, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)' }}>
-                                <div>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{kpi.name}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 2 }}>
-                                        {kpi.metric_type}{kpi.target_value != null ? ` · target ${kpi.target_value}${kpi.unit ? ' ' + kpi.unit : ''}` : ''} · {kpi.direction === 'lower' ? 'lower better' : 'higher better'}
-                                    </div>
-                                </div>
-                                {!READ_ONLY && (
-                                    <div style={{ display: 'flex', gap: 6 }}>
-                                        <button title="Edit KPI" onClick={() => { setFormErr(''); setKpiModal({ kraId: kra.id, initial: kpi }); }} style={iconBtn}><Pencil size={14} /></button>
-                                        <button title="Archive KPI" onClick={() => onArchiveKpi(kpi)} style={iconBtn}><Archive size={14} /></button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
                     </div>
                 </div>
             ))}
 
             {kraModal && <KraFormModal initial={kraModal.initial} onSubmit={submitKra} onClose={() => setKraModal(null)} saving={saving} error={formErr} />}
-            {kpiModal && <KpiFormModal initial={kpiModal.initial} onSubmit={submitKpi} onClose={() => setKpiModal(null)} saving={saving} error={formErr} />}
         </div>
     );
 }
