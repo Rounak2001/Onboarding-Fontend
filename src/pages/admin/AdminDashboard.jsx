@@ -374,9 +374,7 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         if (!token && !import.meta.env.DEV) return;
-        // Viewers are pinned to the Employees section and cannot read consultant
-        // PII — skip the auto-fetch so it doesn't 403 in their console.
-        if (!isViewer) fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter, ageFilter, hasServicesFilter);
+        fetchConsultants(1, search, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter, ageFilter, hasServicesFilter);
 
         // Fetch dashboard metrics when activeTab is dashboard.
         // Empty/non-OK responses (e.g. 401 with no body) are treated as
@@ -748,21 +746,21 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
-        if (!token || isViewer) return;
+        if (!token) return;
         fetch(apiUrl('/admin-panel/clients/?page_size=1'), { headers: { Authorization: `Bearer ${token}` } })
             .then(res => res.ok ? res.json() : { total: 0 })
             .then(data => setDashboardClientTotal(data.total || 0))
             .catch(() => setDashboardClientTotal(0));
-    }, [token, isViewer]);
+    }, [token]);
 
     const [callLogsStats, setCallLogsStats] = useState(null);
     useEffect(() => {
-        if (!token || isViewer) return;
+        if (!token) return;
         fetch(apiUrl('/calls/admin-logs/?limit=1'), { headers: { Authorization: `Bearer ${token}` } })
             .then(res => res.ok ? res.json() : { stats: null })
             .then(data => setCallLogsStats(data.stats || null))
             .catch(() => setCallLogsStats(null));
-    }, [token, isViewer]);
+    }, [token]);
 
     const dynamicConTotal = Math.max(1, totalCount);
     const dynClientTotal = Math.max(0, dashboardClientTotal);

@@ -163,12 +163,9 @@ const AdminReminderLayout = () => {
   const audioRef = useRef(new Audio(NOTIFICATION_SOUND_URL));
   const location = useLocation();
   const token = localStorage.getItem('admin_token');
-  // Investor viewers have no follow-up/PII access — skip the poll so their
-  // console isn't filled with 403s from an endpoint they can't use.
-  const isViewer = (localStorage.getItem('admin_role') || '').toLowerCase() === 'viewer';
 
   useEffect(() => {
-    if (!token || isViewer) return;
+    if (!token) return;
 
     const fetchFollowups = async () => {
       try {
@@ -186,7 +183,7 @@ const AdminReminderLayout = () => {
     fetchFollowups();
     const interval = setInterval(fetchFollowups, 600000); // Fetch from server every 10 minutes
     return () => clearInterval(interval);
-  }, [token, isViewer]);
+  }, [token]);
 
   // Local check for reminders every minute
   const [activeReminders, setActiveReminders] = useState([]);
