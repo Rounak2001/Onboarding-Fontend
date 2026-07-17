@@ -864,13 +864,7 @@ const AdminDashboard = () => {
                                 { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
                             ]
                         }
-                    ]
-                        // Viewers (investors) may only see the Employees section — hide
-                        // every other tab so they can't navigate into a 403 (which would
-                        // otherwise trip the 401/403 handler and log them out).
-                        .map(cat => ({ ...cat, items: isViewer ? cat.items.filter(i => i.id === 'employees') : cat.items }))
-                        .filter(cat => cat.items.length > 0)
-                        .map(cat => {
+                    ].map(cat => {
                         const isCollapsed = collapsedCategories[cat.title];
                         return (
                             <div key={cat.title} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1003,12 +997,8 @@ const AdminDashboard = () => {
                         }}>
                             <AdminThemeToggle isLight={isLight} onToggle={toggleTheme} />
                             {activeTab === 'consultant' && <span style={{ padding: isMobile ? '4px 10px' : '4px 12px', borderRadius: 20, fontSize: isMobile ? 10 : 11, fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>Showing {totalCount}</span>}
-                            {!isViewer && (
-                              <>
-                                <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)', cursor: 'pointer' }}>Emails</button>
-                                <button className="tp-btn" onClick={() => navigate(adminUrl('chat-analytics'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.25)', cursor: 'pointer' }}>AI Queries</button>
-                              </>
-                            )}
+                            <button className="tp-btn" onClick={() => navigate(adminUrl('emails'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)', cursor: 'pointer' }}>Emails</button>
+                            <button className="tp-btn" onClick={() => navigate(adminUrl('chat-analytics'))} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.25)', cursor: 'pointer' }}>AI Queries</button>
                             {activeTab === 'consultant' && <button className="tp-btn" onClick={handleDispatchDueNotifications} disabled={dispatchingDueNotifications} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: dispatchingDueNotifications ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.16)', color: dispatchingDueNotifications ? 'var(--admin-text-secondary)' : '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', cursor: dispatchingDueNotifications ? 'not-allowed' : 'pointer' }}>{dispatchingDueNotifications ? 'Dispatching...' : 'Due Emails'}</button>}
                             {activeTab === 'consultant' && <button className="tp-btn" onClick={handleExportExcel} disabled={exporting || loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: exporting ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', color: exporting ? 'var(--admin-text-muted)' : '#34d399', border: '1px solid rgba(16,185,129,0.25)', cursor: exporting || loading ? 'not-allowed' : 'pointer' }}>Export</button>}
                             <button className="tp-btn" onClick={() => (activeTab === 'consultant' ? fetchConsultants(page) : null)} disabled={loading} style={{ padding: isMobile ? '7px 10px' : '8px 14px', borderRadius: 8, fontSize: isMobile ? 11 : 12, fontWeight: 700, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: loading ? 'not-allowed' : 'pointer' }}>Refresh</button>
