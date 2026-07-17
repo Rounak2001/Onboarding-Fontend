@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { adminUrl } from '../../utils/adminPath';
@@ -40,6 +40,15 @@ const AdminClientDetail = () => {
     const [creatingTicket, setCreatingTicket] = useState(false);
     const [actionLoading, setActionLoading] = useState(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [reassigningRequestId, setReassigningRequestId] = useState(null);
+    const [reassignConsultantId, setReassignConsultantId] = useState('');
+    const [availableConsultants, setAvailableConsultants] = useState([]);
+    const [loadingAvailableConsultants, setLoadingAvailableConsultants] = useState(false);
+    const [reassignSubmitting, setReassignSubmitting] = useState(false);
+    const [activityFeed, setActivityFeed] = useState([]);
+    const [callLogs, setCallLogs] = useState([]);
+    const [recordingBlobUrls, setRecordingBlobUrls] = useState({});
+    const [loadingRecordingId, setLoadingRecordingId] = useState(null);
     const chatEndRef = useRef(null);
 
     useEffect(() => {
@@ -117,6 +126,92 @@ const AdminClientDetail = () => {
             if (res.ok) setConsultations(await res.json());
         } finally {
             setRefreshing(prev => ({ ...prev, consultations: false }));
+        }
+    };
+
+    const loadRecording = async (log) => {
+        if (recordingBlobUrls[log.id] || loadingRecordingId === log.id) return;
+        // Exotel recording URLs require HTTP Basic Auth to Exotel directly —
+        // an <audio src> can't send that, which is why it prompted a browser
+        // login before. The backend proxies it (exotel_calls.CallRecordingProxyView),
+        // authenticating to Exotel server-side, but that proxy itself needs our
+        // admin Bearer token — which a plain <audio src> also can't send. So we
+        // fetch it as a blob (same pattern as the invoice preview) and hand the
+        // player a local blob URL instead.
+        setLoadingRecordingId(log.id);
+        try {
+            const res = await fetch(apiUrl(`/calls/logs/${log.id}/recording/`), { headers });
+            if (!res.ok) throw new Error('Failed to load recording');
+            const blob = await res.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            setRecordingBlobUrls(prev => ({ ...prev, [log.id]: blobUrl }));
+        } catch (err) {
+            console.error('Recording load failed', err);
+            alert('Failed to load call recording');
+        } finally {
+            setLoadingRecordingId(null);
+        }
+    };
+
+    const fetchCallLogs = async () => {
+        setRefreshing(prev => ({ ...prev, call_logs: true }));
+        try {
+            const res = await fetch(apiUrl(`/calls/admin-logs/?client_id=${id}&limit=100`), { headers });
+            if (res.ok) {
+                const data = await res.json();
+                setCallLogs(data.results || []);
+            }
+        } finally {
+            setRefreshing(prev => ({ ...prev, call_logs: false }));
+        }
+    };
+
+    const fetchActivity = async () => {
+        setRefreshing(prev => ({ ...prev, activity: true }));
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/activity/`), { headers });
+            if (res.ok) {
+                const data = await res.json();
+                setActivityFeed(data.results || []);
+            }
+        } finally {
+            setRefreshing(prev => ({ ...prev, activity: false }));
+        }
+    };
+
+    const openReassignPicker = async (req) => {
+        setReassigningRequestId(req.id);
+        setReassignConsultantId('');
+        setAvailableConsultants([]);
+        setLoadingAvailableConsultants(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/service-requests/${req.id}/available-consultants/`), { headers });
+            if (res.ok) {
+                const data = await res.json();
+                setAvailableConsultants(data.results || []);
+            }
+        } finally {
+            setLoadingAvailableConsultants(false);
+        }
+    };
+
+    const submitReassign = async (req) => {
+        if (!reassignConsultantId) return;
+        setReassignSubmitting(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/service-requests/${req.id}/reassign-consultant/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ consultant_id: reassignConsultantId }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Reassignment failed');
+            setReassigningRequestId(null);
+            await Promise.all([fetchServiceRequests(), fetchCart(), fetchActivity()]);
+        } catch (err) {
+            alert(err.message || 'Failed to reassign consultant');
+        } finally {
+            setReassignSubmitting(false);
         }
     };
 
@@ -222,7 +317,9 @@ const AdminClientDetail = () => {
                 fetchServiceRequests(),
                 fetchTickets(),
                 fetchOrders(),
-                fetchVault()
+                fetchVault(),
+                fetchActivity(),
+                fetchCallLogs()
             ]);
         } catch (err) {
             console.error('Failed to fetch client detail', err);
@@ -267,7 +364,11 @@ const AdminClientDetail = () => {
     const handleDownloadInvoice = async (order) => {
         setDownloadingInvoiceId(order.id);
         try {
-            const res = await fetch(apiUrl(`/payments/${order.id}/invoice/pdf/`), {
+            // Admin-panel invoice endpoint (not the client-facing /payments/ one):
+            // that one only accepts a client's own session/applicant auth, so an
+            // admin token was silently rejected regardless of order status —
+            // this generates (if needed) and serves the invoice as the admin.
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/orders/${order.id}/invoice/pdf/`), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to download invoice');
@@ -286,6 +387,29 @@ const AdminClientDetail = () => {
             alert('Failed to download invoice');
         } finally {
             setDownloadingInvoiceId(null);
+        }
+    };
+
+    const [previewingInvoiceId, setPreviewingInvoiceId] = useState(null);
+    const handlePreviewInvoice = async (order) => {
+        // Fetched as a blob (rather than a plain window.open(url)) so the
+        // admin's Bearer token actually goes along — window.open can't send
+        // Authorization headers, and we can't assume a session cookie exists.
+        setPreviewingInvoiceId(order.id);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/orders/${order.id}/invoice/pdf/?inline=1`), {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to load invoice');
+            const blob = await res.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+        } catch (err) {
+            console.error('Invoice preview failed', err);
+            alert('Failed to preview invoice');
+        } finally {
+            setPreviewingInvoiceId(null);
         }
     };
 
@@ -493,30 +617,176 @@ const AdminClientDetail = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {serviceRequests.map((req, i) => (
-                                            <tr key={i} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                                <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>{req.service?.title || 'Unknown'}</td>
+                                        {serviceRequests.map((req) => (
+                                            <Fragment key={req.id}>
+                                            <tr style={{ borderBottom: reassigningRequestId === req.id ? 'none' : '1px solid var(--admin-border-soft)' }}>
+                                                <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>
+                                                    {req.service?.title || 'Unknown'}
+                                                    {req.addons?.length > 0 && (
+                                                        <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                            {req.addons.map((addon) => (
+                                                                <span key={addon.id} style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-muted)' }}>
+                                                                    + {addon.service_title}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td style={{ padding: '16px 24px' }}>
                                                     <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: req.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', color: req.status === 'completed' ? '#10b981' : '#3b82f6' }}>{req.status}</span>
                                                 </td>
                                                 <td style={{ padding: '16px 24px', fontSize: 13 }}>
                                                     {req.assigned_consultant ? (
-                                                        <button 
+                                                        <button
                                                             onClick={() => window.open(`/Consultants/${req.assigned_consultant.user.app_id}`, '_blank')}
                                                             style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
                                                         >
                                                             {req.assigned_consultant.user.first_name} {req.assigned_consultant.user.last_name}
                                                         </button>
                                                     ) : 'Unassigned'}
+                                                    {req.previous_consultant_name && (
+                                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 2 }}>
+                                                            Previously: {req.previous_consultant_name}
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        onClick={() => openReassignPicker(req)}
+                                                        style={{ marginTop: 4, display: 'block', background: 'none', border: 'none', color: 'var(--admin-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                                                    >
+                                                        Reassign…
+                                                    </button>
                                                 </td>
                                                 <td style={{ padding: '16px 24px', textAlign: 'right', fontSize: 12, color: 'var(--admin-text-muted)' }}>{formatDateTime(req.created_at)}</td>
                                             </tr>
+                                            {reassigningRequestId === req.id && (
+                                                <tr style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                                    <td colSpan={4} style={{ padding: '0 24px 16px', background: 'var(--admin-row-alt)' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 12, flexWrap: 'wrap' }}>
+                                                            <select
+                                                                value={reassignConsultantId}
+                                                                onChange={(e) => setReassignConsultantId(e.target.value)}
+                                                                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12, minWidth: 220 }}
+                                                            >
+                                                                <option value="">
+                                                                    {loadingAvailableConsultants ? 'Loading consultants…' : 'Select new consultant…'}
+                                                                </option>
+                                                                {availableConsultants.map((c) => (
+                                                                    <option key={c.id} value={c.id} disabled={c.is_current}>
+                                                                        {c.name}{c.is_current ? ' (current)' : ''} — {c.current_client_count} clients
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            <button
+                                                                onClick={() => submitReassign(req)}
+                                                                disabled={!reassignConsultantId || reassignSubmitting}
+                                                                style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: !reassignConsultantId || reassignSubmitting ? 'var(--admin-border-soft)' : '#10b981', color: !reassignConsultantId || reassignSubmitting ? 'var(--admin-text-muted)' : 'white', fontSize: 12, fontWeight: 700, cursor: !reassignConsultantId || reassignSubmitting ? 'not-allowed' : 'pointer' }}
+                                                            >
+                                                                {reassignSubmitting ? 'Reassigning…' : 'Confirm Reassign'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setReassigningRequestId(null)}
+                                                                style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </Fragment>
                                         ))}
                                         {serviceRequests.length === 0 && (
                                             <tr><td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No service requests found</td></tr>
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Call Logs — reuses the same exotel_calls.CallLog admin endpoint
+                        the main Call Logs admin tab uses, scoped to this client via
+                        ?client_id=, including the recording. */}
+                    <div style={{ background: 'var(--admin-surface)', borderRadius: 20, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                        <SectionHeader id="call_logs" label="Call Logs" icon={Phone} color="#f97316" onRefresh={fetchCallLogs} />
+                        {openSections.includes('call_logs') && (
+                            <div style={{ padding: 0 }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead style={{ background: 'var(--admin-row-alt)' }}>
+                                        <tr>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Consultant</th>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Status</th>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Duration</th>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Recording</th>
+                                            <th style={{ textAlign: 'right', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>When</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {callLogs.map((log) => (
+                                            <tr key={log.id} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                                <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>
+                                                    {log.consultant_name}
+                                                    {log.outcome && <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', fontWeight: 500 }}>{log.outcome}</div>}
+                                                </td>
+                                                <td style={{ padding: '16px 24px' }}>
+                                                    <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: log.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(148,163,184,0.15)', color: log.status === 'completed' ? '#10b981' : 'var(--admin-text-muted)' }}>{log.status}</span>
+                                                </td>
+                                                <td style={{ padding: '16px 24px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{log.duration_display || '—'}</td>
+                                                <td style={{ padding: '16px 24px' }}>
+                                                    {log.recording_url ? (
+                                                        recordingBlobUrls[log.id] ? (
+                                                            <audio controls autoPlay preload="auto" src={recordingBlobUrls[log.id]} style={{ height: 32, maxWidth: 220 }} />
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => loadRecording(log)}
+                                                                disabled={loadingRecordingId === log.id}
+                                                                style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 11, fontWeight: 700, cursor: loadingRecordingId === log.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                                                            >
+                                                                {loadingRecordingId === log.id ? 'Loading…' : <>▶ Play</>}
+                                                            </button>
+                                                        )
+                                                    ) : (
+                                                        <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>No recording</span>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '16px 24px', textAlign: 'right', fontSize: 12, color: 'var(--admin-text-muted)' }}>{formatDateTime(log.created_at)}</td>
+                                            </tr>
+                                        ))}
+                                        {callLogs.length === 0 && (
+                                            <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No calls logged</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Activity History — every recorded step: status changes, consultant
+                        assignment/reassignment, document upload/verify/reject, reports
+                        and notices sent by the consultant. See
+                        activity_timeline/signals.py (backend) for what populates this. */}
+                    <div style={{ background: 'var(--admin-surface)', borderRadius: 20, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                        <SectionHeader id="activity" label="Activity History" icon={Activity} color="#0891b2" onRefresh={fetchActivity} />
+                        {openSections.includes('activity') && (
+                            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 480, overflowY: 'auto' }}>
+                                {activityFeed.map((ev, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < activityFeed.length - 1 ? '1px solid var(--admin-border-soft)' : 'none' }}>
+                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#0891b2', marginTop: 6, flexShrink: 0 }} />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{ev.title}</span>
+                                                <span style={{ fontSize: 11, color: 'var(--admin-text-muted)', whiteSpace: 'nowrap' }}>{formatDateTime(ev.created_at)}</span>
+                                            </div>
+                                            {ev.description && (
+                                                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--admin-text-secondary)' }}>{ev.description}</p>
+                                            )}
+                                            <span style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>by {ev.actor_name}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                                {activityFeed.length === 0 && (
+                                    <p style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No activity recorded yet</p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -860,56 +1130,87 @@ const AdminClientDetail = () => {
                             <div style={{ padding: '24px' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     {orders.map((order, i) => (
-                                        <div key={i} style={{ 
+                                        <div key={i} style={{
                                             padding: '20px', borderRadius: 16, border: '1px solid var(--admin-border-soft)',
-                                            background: 'var(--admin-row-alt)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                            background: 'var(--admin-row-alt)', display: 'flex', flexDirection: 'column', gap: 14
                                         }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                                                 <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
                                                     <FileText size={20} />
                                                 </div>
                                                 <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                                         <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--admin-text-primary)' }}>
                                                             Order #{order.id} {order.invoice_number && <span style={{ color: '#64748b', fontSize: 13, fontWeight: 600 }}>({order.invoice_number})</span>}
                                                         </h4>
                                                         <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: order.status === 'paid' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: order.status === 'paid' ? '#10b981' : '#f59e0b' }}>{order.status.toUpperCase()}</span>
+                                                        {order.coupon_code && (
+                                                            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>
+                                                                🎟 {order.coupon_code}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginTop: 4 }}>
                                                         {formatDateTime(order.created_at)} {order.paid_at && `• Paid ${formatDateTime(order.paid_at)}`} • ₹{Number(order.total_amount).toLocaleString()}
+                                                        {order.discount_amount > 0 && (
+                                                            <span style={{ color: '#8b5cf6' }}> • ₹{Number(order.discount_amount).toLocaleString()} off{order.original_amount ? ` (was ₹${Number(order.original_amount).toLocaleString()})` : ''}</span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
-                                            
+
                                             <div style={{ display: 'flex', gap: 8 }}>
                                                 {order.status === 'paid' && (
                                                     <>
-                                                        <button 
-                                                            onClick={() => window.open(apiUrl(`/payments/${order.id}/invoice/pdf/`).replace('/api/', '/'), '_blank')}
-                                                            style={{ 
-                                                                padding: '6px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', 
-                                                                background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', 
-                                                                fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 
+                                                        <button
+                                                            onClick={() => handlePreviewInvoice(order)}
+                                                            disabled={previewingInvoiceId === order.id}
+                                                            style={{
+                                                                padding: '6px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)',
+                                                                background: 'var(--admin-surface)', color: 'var(--admin-text-primary)',
+                                                                fontSize: 11, fontWeight: 700, cursor: previewingInvoiceId === order.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6
                                                             }}
                                                         >
-                                                            <Eye size={16} /> Preview
+                                                            <Eye size={16} /> {previewingInvoiceId === order.id ? 'Loading...' : 'Preview'}
                                                         </button>
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleDownloadInvoice(order)}
                                                             disabled={downloadingInvoiceId === order.id}
-                                                            style={{ 
-                                                                padding: '6px 12px', borderRadius: 8, border: 'none', 
-                                                                background: downloadingInvoiceId === order.id ? 'var(--admin-border-soft)' : '#1e293b', 
-                                                                color: downloadingInvoiceId === order.id ? 'var(--admin-text-muted)' : 'white', 
+                                                            style={{
+                                                                padding: '6px 12px', borderRadius: 8, border: 'none',
+                                                                background: downloadingInvoiceId === order.id ? 'var(--admin-border-soft)' : '#1e293b',
+                                                                color: downloadingInvoiceId === order.id ? 'var(--admin-text-muted)' : 'white',
                                                                 fontSize: 11, fontWeight: 700, cursor: downloadingInvoiceId === order.id ? 'not-allowed' : 'pointer',
                                                                 display: 'flex', alignItems: 'center', gap: 6
                                                             }}
                                                         >
-                                                            {downloadingInvoiceId === order.id ? 'Downloading...' : <><Download size={16} /> Invoice</>}
+                                                            {downloadingInvoiceId === order.id ? 'Downloading...' : <><Download size={16} /> {order.invoice_number ? 'Invoice' : 'Generate Invoice'}</>}
                                                         </button>
                                                     </>
                                                 )}
                                             </div>
+                                        </div>
+                                        {order.items?.length > 0 && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--admin-border-soft)' }}>
+                                                {order.items.map((item) => (
+                                                    <div key={item.id} style={{ fontSize: 12.5, color: 'var(--admin-text-secondary)' }}>
+                                                        <span style={{ fontWeight: 600, color: 'var(--admin-text-primary)' }}>{item.service_title}{item.variant_name ? ` — ${item.variant_name}` : ''}</span>
+                                                        {' '}× {item.quantity} · ₹{Number(item.price).toLocaleString()}
+                                                        {item.consultant && <span> · Consultant: {item.consultant.name}</span>}
+                                                        {item.addons?.length > 0 && (
+                                                            <div style={{ marginTop: 3, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                                {item.addons.map((addon, ai) => (
+                                                                    <span key={ai} style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, background: 'var(--admin-surface)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-muted)' }}>
+                                                                        + {addon.title}{addon.quantity > 1 ? ` x${addon.quantity}` : ''}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                         </div>
                                     ))}
                                     {orders.length === 0 && <p style={{ padding: 40, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No orders found</p>}
@@ -975,6 +1276,7 @@ const AdminClientDetail = () => {
                                         <tr>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Service</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Category</th>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Consultant</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Price</th>
                                             <th style={{ textAlign: 'right', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Added</th>
                                         </tr>
@@ -982,14 +1284,26 @@ const AdminClientDetail = () => {
                                     <tbody>
                                         {cartItems.map((item, i) => (
                                             <tr key={i} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                                <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>{item.title}</td>
+                                                <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>
+                                                    {item.title}
+                                                    {item.addons?.length > 0 && (
+                                                        <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                            {item.addons.map((addon) => (
+                                                                <span key={addon.id} style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-muted)' }}>
+                                                                    + {addon.title}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td style={{ padding: '16px 24px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{item.category}</td>
+                                                <td style={{ padding: '16px 24px', fontSize: 13, color: 'var(--admin-text-secondary)' }}>{item.consultant?.name || '—'}</td>
                                                 <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700, color: '#10b981' }}>₹{Number(item.price).toLocaleString()}</td>
                                                 <td style={{ padding: '16px 24px', textAlign: 'right', fontSize: 12, color: 'var(--admin-text-muted)' }}>{formatDateTime(item.added_at)}</td>
                                             </tr>
                                         ))}
                                         {cartItems.length === 0 && (
-                                            <tr><td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No items in cart</td></tr>
+                                            <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No items in cart</td></tr>
                                         )}
                                     </tbody>
                                 </table>

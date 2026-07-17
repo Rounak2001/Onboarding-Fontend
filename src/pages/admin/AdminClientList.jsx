@@ -38,6 +38,8 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
     const [isOnboardedFilter, setIsOnboardedFilter] = useState('all');
     const [joinedDateFilter, setJoinedDateFilter] = useState('all');
     const [hasOrdersFilter, setHasOrdersFilter] = useState('all');
+    const [couponFilter, setCouponFilter] = useState('');
+    const [couponOptions, setCouponOptions] = useState([]);
     const [cardFilter, setCardFilter] = useState('total');
     const [hasServicesFilter, setHasServicesFilter] = useState(initialHasServices);
     
@@ -113,6 +115,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
         cHasOrders = hasOrdersFilter,
         cCardFilter = cardFilter,
         cHasServices = hasServicesFilter,
+        cCoupon = couponFilter,
     ) => {
         setLoading(true);
         setError('');
@@ -125,6 +128,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
             if (cHasOrders !== 'all') params.set('has_orders', cHasOrders);
             if (cHasServices !== 'all') params.set('has_services', cHasServices);
             if (cCardFilter && cCardFilter !== 'total') params.set('card_filter', cCardFilter);
+            if (cCoupon.trim()) params.set('coupon', cCoupon.trim());
 
             const res = await fetch(apiUrl(`/admin-panel/clients/?${params}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -147,7 +151,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
         } finally {
             setLoading(false);
         }
-    }, [navigate, search, isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, token]);
+    }, [navigate, search, isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, couponFilter, token]);
 
     // Search effect
     useEffect(() => {
@@ -163,6 +167,16 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
+    // Coupon options for the dropdown — fetched once, not per keystroke
+    // (it's a select now, not free text).
+    useEffect(() => {
+        if (!token && !import.meta.env.DEV) return;
+        fetch(apiUrl('/admin-panel/coupon-code-options/'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+            .then((res) => (res.ok ? res.json() : { results: [] }))
+            .then((data) => setCouponOptions(data.results || []))
+            .catch(() => setCouponOptions([]));
+    }, [token]);
+
     useEffect(() => {
         if (initialHasServices !== 'all') {
             setHasServicesFilter(initialHasServices);
@@ -174,7 +188,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
         if (!token && !import.meta.env.DEV) return;
         fetchClients(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, token]);
+    }, [isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, couponFilter, token]);
 
     const handleExportExcel = async () => {
         setExporting(true);
@@ -186,7 +200,8 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
             if (joinedDateFilter !== 'all') params.set('joined_range', joinedDateFilter);
             if (hasOrdersFilter !== 'all') params.set('has_orders', hasOrdersFilter);
             if (cardFilter && cardFilter !== 'total') params.set('card_filter', cardFilter);
-            
+            if (couponFilter.trim()) params.set('coupon', couponFilter.trim());
+
             const res = await fetch(apiUrl(`/admin-panel/clients/export/?${params}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
@@ -316,10 +331,19 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
                         <option value="true">Active (With Services)</option>
                     </select>
 
-                    {(search || isActiveFilter !== 'all' || isOnboardedFilter !== 'all' || joinedDateFilter !== 'all' || hasOrdersFilter !== 'all' || hasServicesFilter !== 'all' || cardFilter !== 'total') && (
+                    <select value={couponFilter} onChange={(e) => setCouponFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                        <option value="">All Coupons</option>
+                        {couponOptions.map((opt) => (
+                            <option key={`${opt.type}-${opt.code}`} value={opt.code}>
+                                {opt.code}{opt.type === 'ambassador' ? ' (Ambassador)' : ''}
+                            </option>
+                        ))}
+                    </select>
+
+                    {(search || isActiveFilter !== 'all' || isOnboardedFilter !== 'all' || joinedDateFilter !== 'all' || hasOrdersFilter !== 'all' || hasServicesFilter !== 'all' || cardFilter !== 'total' || couponFilter) && (
                         <button 
                             className="tp-btn" 
-                            onClick={() => { setSearch(''); setIsActiveFilter('all'); setIsOnboardedFilter('all'); setJoinedDateFilter('all'); setHasOrdersFilter('all'); setHasServicesFilter('all'); setCardFilter('total'); }} 
+                            onClick={() => { setSearch(''); setIsActiveFilter('all'); setIsOnboardedFilter('all'); setJoinedDateFilter('all'); setHasOrdersFilter('all'); setHasServicesFilter('all'); setCardFilter('total'); setCouponFilter(''); }}
                             style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-border-soft)', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border-mid)', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>
                             Clear
                         </button>

@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
 import { readResponsePayload } from '../../utils/http';
+import { INDIAN_STATES } from '../../utils/indianStates';
 import AdminThemeToggle from './AdminThemeToggle';
 import AdminBrandLogo from './AdminBrandLogo';
 import { useAdminTheme } from './adminTheme';
@@ -1938,6 +1939,20 @@ const AdminDashboard = () => {
                                     <select value={hasServicesFilter} onChange={(e) => setHasServicesFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
                                         <option value="all">All Professionals</option>
                                         <option value="true">Active (With Services)</option>
+                                    </select>
+                                    <select
+                                        value={stateFilter}
+                                        onChange={(e) => {
+                                            setStateFilter(e.target.value);
+                                            setActiveTab('consultant');
+                                            setPage(1);
+                                        }}
+                                        style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+                                    >
+                                        <option value="">All States</option>
+                                        {INDIAN_STATES.map((st) => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
                                     </select>
                                     <select
                                         value={registrationServiceSelectValue}
