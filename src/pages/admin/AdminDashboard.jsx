@@ -206,13 +206,14 @@ const AdminDashboard = () => {
         if (p.includes('employee')) return 'employees';
         return 'dashboard';
     };
-    const [activeTab, setActiveTab] = useState(() => (isViewer ? 'employees' : deriveTabFromPath(window.location.pathname)));
+    const [activeTab, setActiveTab] = useState(() => deriveTabFromPath(window.location.pathname));
 
     // Sync activeTab when the URL changes (e.g. via navigate() or browser back).
-    // A viewer is pinned to Employees — every other section is off-limits.
+    // The viewer (investor) has read-only access to every section, so it
+    // navigates like any other admin — no tab is pinned.
     useEffect(() => {
-        setActiveTab(isViewer ? 'employees' : deriveTabFromPath(location.pathname));
-    }, [location.pathname, isViewer]);
+        setActiveTab(deriveTabFromPath(location.pathname));
+    }, [location.pathname]);
     const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
     const [onboardingRange, setOnboardingRange] = useState('30d');
     const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
