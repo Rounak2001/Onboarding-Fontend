@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Users, UserCheck, Zap, Wallet, UserX, XCircle, CheckCircle2, IndianRupee } from 'lucide-react';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { readResponsePayload } from '../../utils/http'; 
+import { readResponsePayload } from '../../utils/http';
 import AdminDateRangePicker from './AdminDateRangePicker';
 const PAGE_SIZE = 50;
 
@@ -26,13 +27,25 @@ const ONBOARDED_OPTIONS = [
     { value: 'false', label: 'Not Onboarded' },
 ];
 
+const CLIENT_STATUS_LABELS = {
+    active: 'Active',
+    drop: 'Drop',
+    service_complete: 'Service Complete',
+};
+
+const CLIENT_STATUS_STYLES = {
+    active: { background: 'rgba(16,185,129,0.15)', color: '#34d399' },
+    drop: { background: 'rgba(239,68,68,0.15)', color: '#f87171' },
+    service_complete: { background: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
+};
+
 const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasServices = 'all' }) => {
     const navigate = useNavigate();
     const isMobile = viewportWidth <= 768;
     const isNarrowMobile = viewportWidth <= 430;
 
     const [clients, setClients] = useState([]);
-    const [stats, setStats] = useState({ total: 0, onboarded: 0, active: 0, with_orders: 0, inactive: 0 });
+    const [stats, setStats] = useState({ total: 0, onboarded: 0, active: 0, with_orders: 0, inactive: 0, drop: 0, service_complete: 0, total_revenue: 0 });
     const [search, setSearch] = useState('');
     const [isActiveFilter, setIsActiveFilter] = useState('all');
     const [isOnboardedFilter, setIsOnboardedFilter] = useState('all');
@@ -58,51 +71,89 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
             filterKey: 'total',
             label: 'Total Clients',
             value: stats.total || 0,
+            icon: Users,
             accent: isLight ? '#64748B' : '#94A3B8',
             border: isLight ? 'rgba(100,116,139,0.30)' : 'rgba(148,163,184,0.35)',
-            background: isLight 
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)' 
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)'
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(24,35,56,0.95) 100%)',
         },
         {
             filterKey: 'onboarded',
             label: 'Onboarded',
             value: stats.onboarded || 0,
+            icon: UserCheck,
             accent: isLight ? '#059669' : '#34D399',
             border: isLight ? 'rgba(5,150,105,0.30)' : 'rgba(16,185,129,0.30)',
-            background: isLight 
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(236,253,245,0.98) 100%)' 
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(236,253,245,0.98) 100%)'
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(12,44,42,0.92) 100%)',
         },
         {
             filterKey: 'active',
             label: 'Active',
             value: stats.active || 0,
+            icon: Zap,
             accent: isLight ? '#2563EB' : '#60A5FA',
             border: isLight ? 'rgba(37,99,235,0.30)' : 'rgba(96,165,250,0.30)',
-            background: isLight 
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(239,246,255,0.98) 100%)' 
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(239,246,255,0.98) 100%)'
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(18,35,73,0.92) 100%)',
         },
         {
             filterKey: 'with_orders',
             label: 'Paying Clients',
             value: stats.with_orders || 0,
+            icon: Wallet,
             accent: isLight ? '#D97706' : '#FBBF24',
             border: isLight ? 'rgba(217,119,6,0.32)' : 'rgba(251,191,36,0.32)',
-            background: isLight 
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(255,247,237,0.98) 100%)' 
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(255,247,237,0.98) 100%)'
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(54,39,16,0.92) 100%)',
         },
         {
             filterKey: 'inactive',
             label: 'Inactive',
             value: stats.inactive || 0,
+            icon: UserX,
             accent: isLight ? '#DC2626' : '#FB7185',
             border: isLight ? 'rgba(220,38,38,0.30)' : 'rgba(251,113,133,0.30)',
-            background: isLight 
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(255,241,242,0.98) 100%)' 
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(255,241,242,0.98) 100%)'
                 : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(41,22,36,0.92) 100%)',
+        },
+        {
+            filterKey: 'drop',
+            label: 'Drop',
+            value: stats.drop || 0,
+            icon: XCircle,
+            accent: isLight ? '#B91C1C' : '#F87171',
+            border: isLight ? 'rgba(185,28,28,0.30)' : 'rgba(248,113,113,0.30)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(254,242,242,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(46,20,20,0.92) 100%)',
+        },
+        {
+            filterKey: 'service_complete',
+            label: 'Service Complete',
+            value: stats.service_complete || 0,
+            icon: CheckCircle2,
+            accent: isLight ? '#0E7490' : '#22D3EE',
+            border: isLight ? 'rgba(14,116,144,0.30)' : 'rgba(34,211,238,0.30)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(236,254,255,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(12,40,46,0.92) 100%)',
+        },
+        {
+            filterKey: null,
+            label: 'Total Revenue',
+            value: `₹${Number(stats.total_revenue || 0).toLocaleString()}`,
+            icon: IndianRupee,
+            accent: isLight ? '#7C3AED' : '#A78BFA',
+            border: isLight ? 'rgba(124,58,237,0.30)' : 'rgba(167,139,250,0.30)',
+            background: isLight
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(245,243,255,0.98) 100%)'
+                : 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(38,28,58,0.92) 100%)',
         },
     ];
 
@@ -142,7 +193,7 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
             
             const data = await res.json();
             setClients(data.clients || []);
-            setStats(data.stats || { total: 0, onboarded: 0, active: 0, with_orders: 0, inactive: 0 });
+            setStats(data.stats || { total: 0, onboarded: 0, active: 0, with_orders: 0, inactive: 0, drop: 0, service_complete: 0, total_revenue: 0 });
             setTotalPages(data.total_pages || 1);
             setTotalCount(data.total || 0);
             setPage(pg);
@@ -189,6 +240,38 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
         fetchClients(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isActiveFilter, isOnboardedFilter, joinedDateFilter, hasOrdersFilter, cardFilter, hasServicesFilter, couponFilter, token]);
+
+    const handleToggleActive = async (client, newActive) => {
+        const previous = client.is_active;
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, is_active: newActive } : c));
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${client.id}/active/`), {
+                method: 'PATCH',
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: newActive }),
+            });
+            if (!res.ok) throw new Error('Failed');
+        } catch {
+            setClients(prev => prev.map(c => c.id === client.id ? { ...c, is_active: previous } : c));
+            alert('Failed to update active status');
+        }
+    };
+
+    const handleStatusChange = async (client, newStatus) => {
+        const previous = client.status;
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: newStatus } : c));
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${client.id}/status/`), {
+                method: 'PATCH',
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (!res.ok) throw new Error('Failed');
+        } catch {
+            setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: previous } : c));
+            alert('Failed to update status');
+        }
+    };
 
     const handleExportExcel = async () => {
         setExporting(true);
@@ -254,48 +337,59 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
             </div>
 
             {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(210px, 1fr))', gap: isMobile ? 10 : 14, marginBottom: isMobile ? 14 : 22 }}>
-                {summaryCards.map((card) => (
-                    <button
-                        type="button"
-                        key={card.label}
-                        onClick={() => {
-                            setCardFilter(card.filterKey);
-                            setIsActiveFilter('all');
-                            setIsOnboardedFilter('all');
-                            setHasOrdersFilter('all');
-                        }}
-                        style={{
-                            minHeight: isMobile ? 90 : 108,
-                            borderRadius: 18,
-                            border: `1px solid ${cardFilter === card.filterKey ? card.accent : card.border}`,
-                            background: card.background,
-                            boxShadow: isLight
-                                ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
-                                : 'inset 0 1px 0 rgba(255,255,255,0.03)',
-                            padding: isMobile ? '12px 12px 10px' : '18px 18px 16px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'space-between',
-                            width: '100%',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            outline: 'none',
-                            transform: cardFilter === card.filterKey ? 'translateY(-1px)' : 'none',
-                            transition: 'border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease',
-                        }}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: isLight ? '#64748b' : '#6f89b4' }}>
-                                {card.label}
-                            </span>
-                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: card.accent, boxShadow: `0 0 0 8px ${card.accent}1c`, flexShrink: 0 }} />
-                        </div>
-                        <div style={{ fontSize: isMobile ? 24 : 32, lineHeight: 1, fontWeight: 800, color: isLight ? '#0f172a' : '#ffffff', letterSpacing: '-0.03em' }}>
-                            {card.value}
-                        </div>
-                    </button>
-                ))}
+            <div style={{ display: 'grid', gridTemplateColumns: isNarrowMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: isMobile ? 10 : 14, marginBottom: isMobile ? 14 : 22 }}>
+                {summaryCards.map((card) => {
+                    const Icon = card.icon;
+                    const isFilterable = card.filterKey !== null;
+                    const isSelected = isFilterable && cardFilter === card.filterKey;
+                    return (
+                        <button
+                            type="button"
+                            key={card.label}
+                            onClick={() => {
+                                if (!isFilterable) return;
+                                setCardFilter(card.filterKey);
+                                setIsActiveFilter('all');
+                                setIsOnboardedFilter('all');
+                                setHasOrdersFilter('all');
+                            }}
+                            style={{
+                                minHeight: isMobile ? 96 : 116,
+                                borderRadius: 18,
+                                border: `1px solid ${isSelected ? card.accent : card.border}`,
+                                background: card.background,
+                                boxShadow: isSelected
+                                    ? `0 18px 36px ${card.accent}22, inset 0 1px 0 rgba(255,255,255,0.9)`
+                                    : isLight
+                                        ? '0 18px 36px rgba(148,163,184,0.12), inset 0 1px 0 rgba(255,255,255,0.9)'
+                                        : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                                padding: isMobile ? '14px 14px 12px' : '18px 20px 18px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                gap: 14,
+                                width: '100%',
+                                textAlign: 'left',
+                                cursor: isFilterable ? 'pointer' : 'default',
+                                outline: 'none',
+                                transform: isSelected ? 'translateY(-2px)' : 'none',
+                                transition: 'border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease',
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: isLight ? '#64748b' : '#6f89b4' }}>
+                                    {card.label}
+                                </span>
+                                <span style={{ width: 30, height: 30, borderRadius: 10, background: `${card.accent}1c`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    {Icon && <Icon size={16} color={card.accent} />}
+                                </span>
+                            </div>
+                            <div style={{ fontSize: isMobile ? 22 : 30, lineHeight: 1, fontWeight: 800, color: isLight ? '#0f172a' : '#ffffff', letterSpacing: '-0.02em' }}>
+                                {card.value}
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Filters */}
@@ -389,16 +483,29 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
                                             <div style={{ fontSize: 13, color: 'var(--admin-text-secondary)' }}>{c.pan_number || '-'}</div>
                                             <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 4 }}>{c.gstin || '-'}</div>
                                         </td>
-                                        <td style={{ padding: '14px 16px' }}>
+                                        <td style={{ padding: '14px 16px' }} onClick={(e) => e.stopPropagation()}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
-                                                {c.is_active ? 
-                                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, background: 'rgba(16,185,129,0.15)', color: '#34d399' }}>Active</span> : 
-                                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>Inactive</span>
-                                                }
-                                                {c.is_onboarded ? 
-                                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>Onboarded</span> : 
+                                                <select
+                                                    value={c.is_active ? 'true' : 'false'}
+                                                    onChange={(e) => handleToggleActive(c, e.target.value === 'true')}
+                                                    style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', background: c.is_active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: c.is_active ? '#34d399' : '#f87171' }}
+                                                >
+                                                    <option value="true">Active</option>
+                                                    <option value="false">Inactive</option>
+                                                </select>
+                                                {c.is_onboarded ?
+                                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>Onboarded</span> :
                                                     <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', color: 'var(--admin-text-secondary)' }}>Not Onboarded</span>
                                                 }
+                                                <select
+                                                    value={c.status || 'active'}
+                                                    onChange={(e) => handleStatusChange(c, e.target.value)}
+                                                    style={{ padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', ...(CLIENT_STATUS_STYLES[c.status] || CLIENT_STATUS_STYLES.active) }}
+                                                >
+                                                    {Object.entries(CLIENT_STATUS_LABELS).map(([value, label]) => (
+                                                        <option key={value} value={value}>{label}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--admin-text-secondary)', fontWeight: 700 }}>

@@ -1,10 +1,22 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3 } from 'lucide-react';
 import { useAdminTheme } from './adminTheme';
+
+const CLIENT_STATUS_OPTIONS = [
+    { value: 'active', label: 'Active' },
+    { value: 'drop', label: 'Drop' },
+    { value: 'service_complete', label: 'Service Complete' },
+];
+
+const CLIENT_STATUS_STYLES = {
+    active: { background: 'rgba(16,185,129,0.1)', color: '#10b981' },
+    drop: { background: 'rgba(239,68,68,0.1)', color: '#f87171' },
+    service_complete: { background: 'rgba(59,130,246,0.1)', color: '#3b82f6' },
+};
 
 const AdminClientDetail = () => {
     const { id } = useParams();
@@ -49,7 +61,26 @@ const AdminClientDetail = () => {
     const [callLogs, setCallLogs] = useState([]);
     const [recordingBlobUrls, setRecordingBlobUrls] = useState({});
     const [loadingRecordingId, setLoadingRecordingId] = useState(null);
+    const [communicationLogs, setCommunicationLogs] = useState([]);
+    const [commForm, setCommForm] = useState({ service: '', caller_name: '', description: '' });
+    const [addingComm, setAddingComm] = useState(false);
+    const [submittingComm, setSubmittingComm] = useState(false);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
     const chatEndRef = useRef(null);
+
+    // The Communication Thread's Service dropdown is sourced from this
+    // client's own active services (not a fixed catalog) — an admin logging
+    // a call should be picking the service that call was actually about.
+    const communicationServiceOptions = useMemo(() => {
+        const titles = new Set();
+        serviceRequests.forEach((req) => {
+            if (req.service?.title) titles.add(req.service.title);
+            req.addons?.forEach((addon) => {
+                if (addon.service_title) titles.add(addon.service_title);
+            });
+        });
+        return [...titles, 'Other'];
+    }, [serviceRequests]);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -163,6 +194,67 @@ const AdminClientDetail = () => {
             }
         } finally {
             setRefreshing(prev => ({ ...prev, call_logs: false }));
+        }
+    };
+
+    const fetchCommunicationLogs = async () => {
+        setRefreshing(prev => ({ ...prev, communication: true }));
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/communication-logs/`), { headers });
+            if (res.ok) setCommunicationLogs(await res.json());
+        } finally {
+            setRefreshing(prev => ({ ...prev, communication: false }));
+        }
+    };
+
+    const handleAddCommunication = async () => {
+        if (!commForm.service || !commForm.caller_name.trim() || !commForm.description.trim()) {
+            alert('Please select a service and fill in caller name and description.');
+            return;
+        }
+        setSubmittingComm(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/communication-logs/create/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify(commForm),
+            });
+            if (res.ok) {
+                setCommForm({ service: '', caller_name: '', description: '' });
+                setAddingComm(false);
+                fetchCommunicationLogs();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to log communication');
+            }
+        } catch (err) {
+            console.error('Failed to log communication', err);
+            alert('Failed to log communication');
+        } finally {
+            setSubmittingComm(false);
+        }
+    };
+
+    const handleUpdateStatus = async (newStatus) => {
+        setUpdatingStatus(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/status/`), {
+                method: 'PATCH',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setClient(prev => ({ ...prev, client_profile: { ...prev.client_profile, status: data.status } }));
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to update status');
+            }
+        } catch (err) {
+            console.error('Failed to update status', err);
+            alert('Failed to update status');
+        } finally {
+            setUpdatingStatus(false);
         }
     };
 
@@ -319,7 +411,8 @@ const AdminClientDetail = () => {
                 fetchOrders(),
                 fetchVault(),
                 fetchActivity(),
-                fetchCallLogs()
+                fetchCallLogs(),
+                fetchCommunicationLogs()
             ]);
         } catch (err) {
             console.error('Failed to fetch client detail', err);
@@ -542,14 +635,26 @@ const AdminClientDetail = () => {
                             <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center' }}>
                                 <span style={{ fontSize: 13, color: 'var(--admin-text-muted)' }}>@{userData.username}</span>
                                 <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>CLIENT</span>
-                                {userData.is_active ? 
-                                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Active</span> : 
+                                {userData.is_active ?
+                                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Active</span> :
                                     <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>Inactive</span>
                                 }
+                                <select
+                                    value={profileData.status || 'active'}
+                                    onChange={(e) => handleUpdateStatus(e.target.value)}
+                                    disabled={updatingStatus}
+                                    style={{
+                                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: 'none',
+                                        cursor: updatingStatus ? 'not-allowed' : 'pointer', opacity: updatingStatus ? 0.6 : 1,
+                                        ...(CLIENT_STATUS_STYLES[profileData.status] || CLIENT_STATUS_STYLES.active),
+                                    }}
+                                >
+                                    {CLIENT_STATUS_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                </select>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div style={{ display: 'flex', gap: 12 }}>
                         {/* Delete Client button removed as requested */}
                     </div>
@@ -598,6 +703,32 @@ const AdminClientDetail = () => {
                                         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{field.value}</div>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Analytics Section */}
+                    <div style={{ background: 'var(--admin-surface)', borderRadius: 20, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                        <SectionHeader id="analytics" label="Reports & Analytics" icon={BarChart3} color="#8b5cf6" />
+                        {openSections.includes('analytics') && (
+                            <div style={{ padding: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16 }}>
+                                    {[
+                                        { label: 'Total Spent', value: `₹${Number(orders.reduce((acc, o) => acc + (o.status === 'paid' ? Number(o.total_amount) : 0), 0)).toLocaleString()}`, color: '#10b981' },
+                                        { label: 'Paid Orders', value: orders.filter(o => o.status === 'paid').length, color: '#3b82f6' },
+                                        { label: 'Service Requests', value: serviceRequests.length, color: '#f59e0b' },
+                                        { label: 'Completed Services', value: serviceRequests.filter(r => r.status === 'completed').length, color: '#10b981' },
+                                        { label: 'Support Tickets', value: tickets.length, color: '#f43f5e' },
+                                        { label: 'Calls Logged', value: callLogs.length, color: '#f97316' },
+                                        { label: 'Communications Logged', value: communicationLogs.length, color: '#8b5cf6' },
+                                        { label: 'Consultations', value: consultations.length, color: '#0ea5e9' },
+                                    ].map((stat, i) => (
+                                        <div key={i} style={{ padding: 18, borderRadius: 14, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{stat.label}</div>
+                                            <div style={{ fontSize: 22, fontWeight: 900, color: stat.color }}>{stat.value}</div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -757,6 +888,96 @@ const AdminClientDetail = () => {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Communication Thread Section */}
+                    <div style={{ background: 'var(--admin-surface)', borderRadius: 20, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                        <div style={{ padding: '18px 24px', borderBottom: openSections.includes('communication') ? '1px solid var(--admin-border-soft)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }} onClick={() => toggleSection('communication')}>
+                                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <MessageSquare size={18} />
+                                </div>
+                                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--admin-text-primary)' }}>Communication Thread</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <button
+                                    onClick={() => setAddingComm(v => !v)}
+                                    style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: addingComm ? 'var(--admin-row-alt)' : '#8b5cf6', color: addingComm ? 'var(--admin-text-primary)' : 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                                >
+                                    {addingComm ? <X size={14} /> : <Plus size={14} />} {addingComm ? 'Cancel' : 'Add Entry'}
+                                </button>
+                                <ChevronRight
+                                    onClick={() => toggleSection('communication')}
+                                    size={18}
+                                    style={{ cursor: 'pointer', transform: openSections.includes('communication') ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'all 0.3s', color: 'var(--admin-text-muted)' }}
+                                />
+                            </div>
+                        </div>
+                        {openSections.includes('communication') && (
+                            <div style={{ padding: 24 }}>
+                                {addingComm && (
+                                    <div style={{ padding: 20, borderRadius: 16, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-row-alt)', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 6 }}>Service</label>
+                                                <select
+                                                    value={commForm.service}
+                                                    onChange={e => setCommForm(prev => ({ ...prev, service: e.target.value }))}
+                                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13, boxSizing: 'border-box' }}
+                                                >
+                                                    <option value="">Select service…</option>
+                                                    {communicationServiceOptions.map(title => <option key={title} value={title}>{title}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 6 }}>Caller Name</label>
+                                                <input
+                                                    value={commForm.caller_name}
+                                                    onChange={e => setCommForm(prev => ({ ...prev, caller_name: e.target.value }))}
+                                                    placeholder="Enter caller's name"
+                                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13, boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 6 }}>Description of Talk</label>
+                                            <textarea
+                                                rows={3}
+                                                value={commForm.description}
+                                                onChange={e => setCommForm(prev => ({ ...prev, description: e.target.value }))}
+                                                placeholder="What was discussed on the call…"
+                                                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13, resize: 'none', boxSizing: 'border-box' }}
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleAddCommunication}
+                                            disabled={submittingComm}
+                                            style={{ alignSelf: 'flex-end', padding: '10px 18px', borderRadius: 10, border: 'none', background: '#8b5cf6', color: 'white', fontSize: 13, fontWeight: 700, cursor: submittingComm ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: submittingComm ? 0.6 : 1 }}
+                                        >
+                                            <Send size={16} /> {submittingComm ? 'Logging…' : 'Log Entry'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {communicationLogs.map((entry) => (
+                                        <div key={entry.id} style={{ padding: 16, borderRadius: 14, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-row-alt)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>{entry.service}</span>
+                                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{entry.caller_name}</span>
+                                                </div>
+                                                <span style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>{formatDateTime(entry.created_at)}{entry.logged_by_name ? ` • by ${entry.logged_by_name}` : ''}</span>
+                                            </div>
+                                            <p style={{ margin: 0, fontSize: 13, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>{entry.description}</p>
+                                        </div>
+                                    ))}
+                                    {communicationLogs.length === 0 && (
+                                        <div style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No communication logged yet</div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
