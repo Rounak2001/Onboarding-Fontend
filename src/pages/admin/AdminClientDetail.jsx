@@ -66,6 +66,19 @@ const AdminClientDetail = () => {
     const [addingComm, setAddingComm] = useState(false);
     const [submittingComm, setSubmittingComm] = useState(false);
     const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
+    const [credentials, setCredentials] = useState([]);
+    const [revealedCredentials, setRevealedCredentials] = useState({}); // { [id]: { login_id, password, notes, otp_destination } }
+    const [revealingId, setRevealingId] = useState(null);
+    const [showAddCredential, setShowAddCredential] = useState(false);
+    const [editingCredentialId, setEditingCredentialId] = useState(null);
+    const [credentialForm, setCredentialForm] = useState({ portal: 'IT', custom_portal_name: '', label: '', login_id: '', password: '', notes: '', otp_destination: '', status: 'active' });
+    const [savingCredential, setSavingCredential] = useState(false);
+    const PORTAL_OPTIONS = [
+        ['IT', 'Income Tax Portal'], ['GST', 'GST Portal'], ['TRACES', 'TRACES (TDS)'],
+        ['EPFO', 'EPFO'], ['ESIC', 'ESIC'], ['MCA', 'MCA / ROC'], ['PT', 'Professional Tax'],
+        ['DGFT', 'DGFT'], ['ICEGATE', 'ICEGATE (Customs)'], ['OTHER', 'Other Portal'],
+    ];
     const chatEndRef = useRef(null);
 
     // The Communication Thread's Service dropdown is sourced from this
@@ -258,6 +271,120 @@ const AdminClientDetail = () => {
         }
     };
 
+    const handleToggleTestAccount = async (isTest) => {
+        setUpdatingTestFlag(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/test-flag/`), {
+                method: 'PATCH',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_test_account: isTest }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setClient(prev => ({ ...prev, user: { ...prev.user, is_test_account: data.is_test_account } }));
+            } else {
+                alert('Failed to update test-account flag');
+            }
+        } catch (err) {
+            console.error('Failed to update test flag', err);
+            alert('Failed to update test-account flag');
+        } finally {
+            setUpdatingTestFlag(false);
+        }
+    };
+
+    const fetchCredentials = useCallback(async () => {
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/credentials/`), { headers });
+            if (res.ok) setCredentials(await res.json());
+        } catch (err) {
+            console.error('Failed to fetch credential vault', err);
+        }
+    }, [id, token]);
+
+    const handleRevealCredential = async (credId) => {
+        if (revealedCredentials[credId]) {
+            setRevealedCredentials(prev => { const next = { ...prev }; delete next[credId]; return next; });
+            return;
+        }
+        setRevealingId(credId);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/credentials/${credId}/reveal/`), { method: 'POST', headers });
+            if (res.ok) {
+                const data = await res.json();
+                setRevealedCredentials(prev => ({ ...prev, [credId]: data }));
+            } else {
+                alert('Failed to reveal credential');
+            }
+        } catch (err) {
+            console.error('Failed to reveal credential', err);
+            alert('Failed to reveal credential');
+        } finally {
+            setRevealingId(null);
+        }
+    };
+
+    const resetCredentialForm = () => {
+        setCredentialForm({ portal: 'IT', custom_portal_name: '', label: '', login_id: '', password: '', notes: '', otp_destination: '', status: 'active' });
+        setShowAddCredential(false);
+        setEditingCredentialId(null);
+    };
+
+    const startEditCredential = (cred) => {
+        const revealed = revealedCredentials[cred.id];
+        setCredentialForm({
+            portal: cred.portal, custom_portal_name: cred.custom_portal_name || '', label: cred.label || '',
+            login_id: revealed?.login_id || '', password: '', notes: revealed?.notes || '',
+            otp_destination: cred.otp_destination || '', status: cred.status,
+        });
+        setEditingCredentialId(cred.id);
+        setShowAddCredential(true);
+    };
+
+    const handleSaveCredential = async () => {
+        if (!credentialForm.login_id && !editingCredentialId) { alert('Login ID is required.'); return; }
+        setSavingCredential(true);
+        try {
+            const isEdit = !!editingCredentialId;
+            const url = isEdit
+                ? apiUrl(`/admin-panel/clients/${id}/credentials/${editingCredentialId}/`)
+                : apiUrl(`/admin-panel/clients/${id}/credentials/`);
+            const payload = { ...credentialForm };
+            if (isEdit && !payload.password) delete payload.password; // keep existing password if left blank
+            if (isEdit && !payload.login_id) delete payload.login_id;
+
+            const res = await fetch(url, {
+                method: isEdit ? 'PATCH' : 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+                await fetchCredentials();
+                resetCredentialForm();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || data.detail || 'Failed to save credential');
+            }
+        } catch (err) {
+            console.error('Failed to save credential', err);
+            alert('Failed to save credential');
+        } finally {
+            setSavingCredential(false);
+        }
+    };
+
+    const handleArchiveCredential = async (credId) => {
+        if (!window.confirm('Remove this credential from the vault?')) return;
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/credentials/${credId}/`), { method: 'DELETE', headers });
+            if (res.ok || res.status === 204) fetchCredentials();
+            else alert('Failed to remove credential');
+        } catch (err) {
+            console.error('Failed to archive credential', err);
+            alert('Failed to remove credential');
+        }
+    };
+
     const fetchActivity = async () => {
         setRefreshing(prev => ({ ...prev, activity: true }));
         try {
@@ -412,7 +539,8 @@ const AdminClientDetail = () => {
                 fetchVault(),
                 fetchActivity(),
                 fetchCallLogs(),
-                fetchCommunicationLogs()
+                fetchCommunicationLogs(),
+                fetchCredentials(),
             ]);
         } catch (err) {
             console.error('Failed to fetch client detail', err);
@@ -639,6 +767,20 @@ const AdminClientDetail = () => {
                                     <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Active</span> :
                                     <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>Inactive</span>
                                 }
+                                {userData.is_test_account && (
+                                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>TEST ACCOUNT</span>
+                                )}
+                                <button
+                                    onClick={() => handleToggleTestAccount(!userData.is_test_account)}
+                                    disabled={updatingTestFlag}
+                                    style={{
+                                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: updatingTestFlag ? 'not-allowed' : 'pointer',
+                                        opacity: updatingTestFlag ? 0.6 : 1, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-secondary)',
+                                    }}
+                                    title="Mark this account as internal/QA so it's excluded from dashboard stats and revenue"
+                                >
+                                    {userData.is_test_account ? 'Unmark Test' : 'Mark as Test'}
+                                </button>
                                 <select
                                     value={profileData.status || 'active'}
                                     onChange={(e) => handleUpdateStatus(e.target.value)}
@@ -703,6 +845,127 @@ const AdminClientDetail = () => {
                                         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{field.value}</div>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Credential Vault Section — government/service portal logins (Document Vault) */}
+                    <div style={{ background: 'var(--admin-surface)', borderRadius: 20, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                        <SectionHeader id="credentials" label="Credential Vault" icon={Shield} color="#f59e0b" onRefresh={fetchCredentials} />
+                        {openSections.includes('credentials') && (
+                            <div style={{ padding: 24 }}>
+                                <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
+                                    Government / compliance portal logins (Income Tax, GST, TRACES, etc.) for this
+                                    client's services — shared with their assigned consultant via the Document Vault.
+                                    Values are masked until revealed.
+                                </div>
+
+                                {credentials.length === 0 && !showAddCredential && (
+                                    <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', fontStyle: 'italic', marginBottom: 16 }}>No credentials stored yet.</div>
+                                )}
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                                    {credentials.map(cred => {
+                                        const revealed = revealedCredentials[cred.id];
+                                        return (
+                                            <div key={cred.id} style={{ padding: 16, borderRadius: 14, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                                                            {cred.portal === 'OTHER' ? (cred.custom_portal_name || 'Other Portal') : cred.portal_display}
+                                                            {cred.label && <span style={{ fontWeight: 500, color: 'var(--admin-text-muted)' }}> — {cred.label}</span>}
+                                                        </div>
+                                                        <span style={{
+                                                            display: 'inline-block', marginTop: 6, padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                                                            background: cred.status === 'active' ? 'rgba(16,185,129,0.1)' : cred.status === 'needs_update' ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.1)',
+                                                            color: cred.status === 'active' ? '#10b981' : cred.status === 'needs_update' ? '#f59e0b' : '#f87171',
+                                                        }}>{cred.status.replace('_', ' ')}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                        <button onClick={() => handleRevealCredential(cred.id)} disabled={revealingId === cred.id}
+                                                            style={{ background: 'none', border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, color: 'var(--admin-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                            <Eye size={12} /> {revealed ? 'Hide' : (revealingId === cred.id ? 'Loading…' : 'Reveal')}
+                                                        </button>
+                                                        <button onClick={() => startEditCredential(cred)}
+                                                            style={{ background: 'none', border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                                            Edit
+                                                        </button>
+                                                        <button onClick={() => handleArchiveCredential(cred.id)}
+                                                            style={{ background: 'none', border: '1px solid var(--admin-border-soft)', borderRadius: 8, padding: '5px 8px', color: '#f87171', cursor: 'pointer', display: 'flex' }}>
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {revealed ? (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontFamily: 'monospace', fontSize: 13 }}>
+                                                        <div><span style={{ color: 'var(--admin-text-muted)', fontFamily: 'inherit' }}>Login ID: </span>{revealed.login_id}</div>
+                                                        <div><span style={{ color: 'var(--admin-text-muted)', fontFamily: 'inherit' }}>Password: </span>{revealed.password}</div>
+                                                        {revealed.otp_destination && <div><span style={{ color: 'var(--admin-text-muted)', fontFamily: 'inherit' }}>OTP to: </span>{revealed.otp_destination}</div>}
+                                                        {revealed.notes && <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--admin-text-muted)', fontFamily: 'inherit' }}>Notes: </span>{revealed.notes}</div>}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', fontFamily: 'monospace' }}>•••••••• / ••••••••</div>
+                                                )}
+                                                <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 8 }}>Last updated: {formatDateTime(cred.updated_at)}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {showAddCredential ? (
+                                    <div style={{ padding: 16, borderRadius: 14, border: '1px solid var(--admin-border-soft)' }}>
+                                        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, color: 'var(--admin-text-primary)' }}>
+                                            {editingCredentialId ? 'Edit Credential' : 'Add Credential'}
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                                            <select value={credentialForm.portal} onChange={e => setCredentialForm(f => ({ ...f, portal: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }}>
+                                                {PORTAL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                                            </select>
+                                            {credentialForm.portal === 'OTHER' && (
+                                                <input placeholder="Portal name" value={credentialForm.custom_portal_name}
+                                                    onChange={e => setCredentialForm(f => ({ ...f, custom_portal_name: e.target.value }))}
+                                                    style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                            )}
+                                            <input placeholder="Label (optional, e.g. GSTIN)" value={credentialForm.label}
+                                                onChange={e => setCredentialForm(f => ({ ...f, label: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                            <select value={credentialForm.status} onChange={e => setCredentialForm(f => ({ ...f, status: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }}>
+                                                <option value="active">Active</option>
+                                                <option value="needs_update">Needs Update</option>
+                                                <option value="invalid">Invalid</option>
+                                            </select>
+                                            <input placeholder={editingCredentialId ? 'Login ID (leave blank to keep)' : 'Login ID'} value={credentialForm.login_id}
+                                                onChange={e => setCredentialForm(f => ({ ...f, login_id: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                            <input placeholder={editingCredentialId ? 'Password (leave blank to keep)' : 'Password'} value={credentialForm.password}
+                                                onChange={e => setCredentialForm(f => ({ ...f, password: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                            <input placeholder="OTP destination (optional)" value={credentialForm.otp_destination}
+                                                onChange={e => setCredentialForm(f => ({ ...f, otp_destination: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                            <input placeholder="Notes (optional)" value={credentialForm.notes}
+                                                onChange={e => setCredentialForm(f => ({ ...f, notes: e.target.value }))}
+                                                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 10 }}>
+                                            <button onClick={handleSaveCredential} disabled={savingCredential}
+                                                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: savingCredential ? 'not-allowed' : 'pointer', opacity: savingCredential ? 0.6 : 1, background: '#f59e0b', color: '#fff' }}>
+                                                {savingCredential ? 'Saving…' : 'Save'}
+                                            </button>
+                                            <button onClick={resetCredentialForm}
+                                                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => setShowAddCredential(true)}
+                                        style={{ padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', background: '#f59e0b', color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Plus size={14} /> Add Credential
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

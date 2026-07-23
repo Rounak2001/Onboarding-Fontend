@@ -25,6 +25,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ConsultantDetail from './pages/admin/ConsultantDetail';
 import AdminClientDetail from './pages/admin/AdminClientDetail';
 import EmailDashboard from './pages/admin/EmailDashboard';
+import EmailBroadcast from './pages/admin/EmailBroadcast';
 import CallLogs from './pages/admin/CallLogs';
 import ChatAnalytics from './pages/admin/ChatAnalytics';
 import { ADMIN_BASE, adminUrl, IS_DEFAULT_ADMIN_PATH } from './utils/adminPath';
@@ -397,6 +398,7 @@ function AppRoutes() {
           <Route path={adminUrl('transactions')} element={<AdminDashboard />} />
           <Route path={adminUrl('carts')} element={<AdminDashboard />} />
           <Route path={adminUrl('emails')} element={<EmailDashboard />} />
+          <Route path={adminUrl('email-broadcast')} element={<EmailBroadcast />} />
           <Route path={adminUrl('call-logs')} element={<AdminDashboard />} />
           <Route path={adminUrl('software-survey')} element={<AdminDashboard />} />
           <Route path={adminUrl('employees')} element={<AdminDashboard />} />

@@ -21,7 +21,7 @@ import AdminAmbassadorPayouts from './AdminAmbassadorPayouts';
 import AdminDateRangePicker from './AdminDateRangePicker';
 import AdminEmployees from './employees/AdminEmployees';
 import { getAdminRole } from '../../utils/adminSession';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -862,6 +862,7 @@ const AdminDashboard = () => {
                             items: [
                                 { id: 'support', icon: LifeBuoy, label: 'Support' },
                                 { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
+                                { id: 'email-broadcast', icon: Send, label: 'Email Broadcast' },
                             ]
                         }
                     ].map(cat => {
