@@ -191,14 +191,15 @@ const AdminClientList = ({ isLight, viewportWidth, token, themeVars, initialHasS
                 return;
             }
             
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to load clients');
             setClients(data.clients || []);
             setStats(data.stats || { total: 0, onboarded: 0, active: 0, with_orders: 0, inactive: 0, drop: 0, service_complete: 0, total_revenue: 0 });
             setTotalPages(data.total_pages || 1);
             setTotalCount(data.total || 0);
             setPage(pg);
-        } catch {
-            setError('Failed to load clients');
+        } catch (err) {
+            setError(err.message || 'Failed to load clients');
         } finally {
             setLoading(false);
         }
