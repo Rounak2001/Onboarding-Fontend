@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
 import { readResponsePayload } from '../../utils/http';
+import { INDIAN_STATES } from '../../utils/indianStates';
 import AdminThemeToggle from './AdminThemeToggle';
 import AdminBrandLogo from './AdminBrandLogo';
 import { useAdminTheme } from './adminTheme';
@@ -20,7 +21,7 @@ import AdminAmbassadorPayouts from './AdminAmbassadorPayouts';
 import AdminDateRangePicker from './AdminDateRangePicker';
 import AdminEmployees from './employees/AdminEmployees';
 import { getAdminRole } from '../../utils/adminSession';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -861,6 +862,7 @@ const AdminDashboard = () => {
                             items: [
                                 { id: 'support', icon: LifeBuoy, label: 'Support' },
                                 { id: 'contact', icon: Inbox, label: 'Contact Inbox' },
+                                { id: 'email-broadcast', icon: Send, label: 'Email Broadcast' },
                             ]
                         }
                     ].map(cat => {
@@ -1938,6 +1940,20 @@ const AdminDashboard = () => {
                                     <select value={hasServicesFilter} onChange={(e) => setHasServicesFilter(e.target.value)} style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
                                         <option value="all">All Professionals</option>
                                         <option value="true">Active (With Services)</option>
+                                    </select>
+                                    <select
+                                        value={stateFilter}
+                                        onChange={(e) => {
+                                            setStateFilter(e.target.value);
+                                            setActiveTab('consultant');
+                                            setPage(1);
+                                        }}
+                                        style={{ width: isMobile ? '100%' : 'auto', padding: '10px 12px', borderRadius: 12, background: 'var(--admin-surface-strong)', border: '1px solid var(--admin-border-mid)', boxShadow: isLight ? '0 10px 20px rgba(148,163,184,0.08)' : 'none', color: 'var(--admin-text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+                                    >
+                                        <option value="">All States</option>
+                                        {INDIAN_STATES.map((st) => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
                                     </select>
                                     <select
                                         value={registrationServiceSelectValue}

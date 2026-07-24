@@ -10,6 +10,7 @@ import AdminThemeToggle from './AdminThemeToggle';
 import AdminBrandLogo from './AdminBrandLogo';
 import ConsultantModeView from './ConsultantModeView';
 import { useAdminTheme } from './adminTheme';
+import { INDIAN_STATES } from '../../utils/indianStates';
 
 const CALL_STATUS_OPTIONS = [
     { value: '', label: 'Not Set' },
@@ -69,6 +70,9 @@ const ConsultantDetail = () => {
     const [survey, setSurvey] = useState(null);
     const [sendingSurvey, setSendingSurvey] = useState(false);
     const [surveyMsg, setSurveyMsg] = useState('');
+    const [editingState, setEditingState] = useState(false);
+    const [stateDraft, setStateDraft] = useState('');
+    const [savingState, setSavingState] = useState(false);
 
     useEffect(() => {
         if (!token) { navigate(adminUrl()); return; }
@@ -158,6 +162,32 @@ const ConsultantDetail = () => {
             setSelectedFeedbackId(initialFeedback?.id ?? null);
         } catch { setError('Failed to load data'); }
         finally { setLoading(false); }
+    };
+
+    const saveState = async () => {
+        setSavingState(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultants/${id}/state/`), {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ state: stateDraft }),
+            });
+            const payload = await readResponsePayload(res);
+            if (res.status === 401 || res.status === 403) { clearAdminSession(); navigate(adminUrl()); return; }
+            if (!res.ok) {
+                alert(payload.error || 'Failed to update state');
+                return;
+            }
+            setData((prev) => ({ ...prev, profile: { ...(prev?.profile || {}), state: payload.state } }));
+            setEditingState(false);
+        } catch {
+            alert('Failed to update state');
+        } finally {
+            setSavingState(false);
+        }
     };
 
     const handleCallTrackingChange = (field, value) => {
@@ -787,7 +817,52 @@ const ConsultantDetail = () => {
                                             {fieldRow('Address Line 1', p.address_line1)}
                                             {fieldRow('Address Line 2', p.address_line2)}
                                             {fieldRow('City', p.city)}
-                                            {fieldRow('State', p.state)}
+                                            <div style={{
+                                                display: 'flex',
+                                                flexDirection: isMobile ? 'column' : 'row',
+                                                gap: isMobile ? 4 : 0,
+                                                padding: '10px 0',
+                                                borderBottom: '1px solid rgba(148,163,184,0.06)',
+                                            }}>
+                                                <span style={{ width: isMobile ? 'auto' : 180, fontSize: 13, color: 'var(--admin-text-muted)', fontWeight: 500, flexShrink: 0 }}>State</span>
+                                                {editingState ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                        <select
+                                                            value={stateDraft}
+                                                            onChange={(e) => setStateDraft(e.target.value)}
+                                                            autoFocus
+                                                            style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--admin-border-mid)', background: 'var(--admin-surface-strong)', color: 'var(--admin-text-primary)', fontSize: 13 }}
+                                                        >
+                                                            <option value="">— Not set —</option>
+                                                            {INDIAN_STATES.map((s) => (
+                                                                <option key={s} value={s}>{s}</option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            onClick={saveState}
+                                                            disabled={savingState}
+                                                            style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#10b981', color: 'white', fontSize: 12, fontWeight: 700, cursor: savingState ? 'not-allowed' : 'pointer' }}
+                                                        >
+                                                            {savingState ? 'Saving…' : 'Save'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingState(false)}
+                                                            disabled={savingState}
+                                                            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--admin-border-mid)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: savingState ? 'not-allowed' : 'pointer' }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span
+                                                        onClick={() => { setStateDraft(p.state || ''); setEditingState(true); }}
+                                                        style={{ fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 500, cursor: 'pointer', textDecoration: 'underline dotted' }}
+                                                        title="Click to edit"
+                                                    >
+                                                        {p.state || <span style={{ color: 'var(--admin-text-muted)' }}>— Click to set —</span>}
+                                                    </span>
+                                                )}
+                                            </div>
                                             {fieldRow('Pincode', p.pincode)}
                                             {fieldRow('Practice Type', p.practice_type)}
                                             {fieldRow('Highest Qualification', p.qualification)}
