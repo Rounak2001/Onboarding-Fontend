@@ -6,6 +6,23 @@ import { apiUrl } from '../../utils/apiBase';
 import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3, Upload } from 'lucide-react';
 import { useAdminTheme } from './adminTheme';
 
+// Status badge colours for the client profile header. Mirrors the same map in
+// AdminClientList.jsx; kept local so this page never depends on that module's
+// (non-exported) constant.
+const CLIENT_STATUS_STYLES = {
+    active: { background: 'rgba(16,185,129,0.15)', color: '#34d399' },
+    drop: { background: 'rgba(239,68,68,0.15)', color: '#f87171' },
+    service_complete: { background: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
+};
+
+// Client status options for the profile header dropdown. Values must match
+// core_auth.ClientProfile.STATUS_CHOICES (active / drop / service_complete).
+const CLIENT_STATUS_OPTIONS = [
+    { value: 'active', label: 'Active' },
+    { value: 'drop', label: 'Drop' },
+    { value: 'service_complete', label: 'Service Complete' },
+];
+
 // Renders a WhatsApp media placeholder in the read-only audit view as a
 // downloadable file card. The presigned URL is fetched on click so we don't
 // mint short-lived URLs for every message on load.
