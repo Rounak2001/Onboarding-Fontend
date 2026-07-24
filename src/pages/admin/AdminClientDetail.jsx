@@ -6,6 +6,74 @@ import { apiUrl } from '../../utils/apiBase';
 import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus } from 'lucide-react';
 import { useAdminTheme } from './adminTheme';
 
+// Renders a WhatsApp media placeholder in the read-only audit view as a
+// downloadable file card. The presigned URL is fetched on click so we don't
+// mint short-lived URLs for every message on load.
+const MessageAttachment = ({ clientId, conversationId, messageId, attachment, headers, isClient }) => {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const label = attachment.filename || `${(attachment.kind || 'file')} received`;
+
+    const handleOpen = async () => {
+        if (loading) return;
+        setLoading(true);
+        setError('');
+        try {
+            const res = await fetch(
+                apiUrl(`/admin-panel/clients/${clientId}/conversations/${conversationId}/messages/${messageId}/media/`),
+                { headers },
+            );
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.url) {
+                setError(data.error || 'Media not available yet.');
+                return;
+            }
+            window.open(data.url, '_blank', 'noopener,noreferrer');
+        } catch (err) {
+            setError('Could not load the file.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const accent = isClient ? '#3b82f6' : '#ffffff';
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button
+                type="button"
+                onClick={handleOpen}
+                disabled={loading}
+                title={label}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: loading ? 'wait' : 'pointer',
+                    background: isClient ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.15)',
+                    border: `1px solid ${isClient ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.3)'}`,
+                    borderRadius: 12, padding: '10px 14px', width: '100%', textAlign: 'left',
+                    color: 'inherit', font: 'inherit',
+                }}
+            >
+                <span style={{
+                    display: 'flex', width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                    alignItems: 'center', justifyContent: 'center',
+                    background: isClient ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.2)',
+                }}>
+                    <FileText size={18} color={accent} />
+                </span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {label}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 11, opacity: 0.75, fontWeight: 600 }}>
+                        {loading ? 'Preparing…' : 'Click to view / download'}
+                    </span>
+                </span>
+                <Download size={16} color={accent} style={{ flexShrink: 0 }} />
+            </button>
+            {error && <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600 }}>{error}</span>}
+        </div>
+    );
+};
+
 const AdminClientDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -1159,12 +1227,23 @@ const AdminClientDetail = () => {
                                                 background: isClient ? (isLight ? '#ffffff' : '#1e293b') : '#3b82f6', 
                                                 color: isClient ? 'var(--admin-text-primary)' : '#ffffff', 
                                                 border: isClient ? '1px solid var(--admin-border-soft)' : 'none', 
-                                                boxShadow: '0 4px 15px rgba(0,0,0,0.05)', 
-                                                fontSize: 14, 
+                                                boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
+                                                fontSize: 14,
                                                 lineHeight: 1.6,
                                                 fontWeight: 500
                                             }}>
-                                                {msg.content}
+                                                {msg.attachment ? (
+                                                    <MessageAttachment
+                                                        clientId={id}
+                                                        conversationId={selectedConversation.id}
+                                                        messageId={msg.id}
+                                                        attachment={msg.attachment}
+                                                        headers={headers}
+                                                        isClient={isClient}
+                                                    />
+                                                ) : (
+                                                    msg.content
+                                                )}
                                             </div>
                                         </div>
                                     );
