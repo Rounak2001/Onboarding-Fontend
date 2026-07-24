@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3 } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3, Upload } from 'lucide-react';
 import { useAdminTheme } from './adminTheme';
 
 const CLIENT_STATUS_OPTIONS = [
@@ -39,6 +39,10 @@ const AdminClientDetail = () => {
     const [expandedTicketId, setExpandedTicketId] = useState(null);
     const [vaultTab, setVaultTab] = useState('documents');
     const [selectedFolderId, setSelectedFolderId] = useState('all');
+    const [showUploadDoc, setShowUploadDoc] = useState(false);
+    const [uploadDocForm, setUploadDocForm] = useState({ title: '', document_type: 'OTHER', folder_name: '', file: null });
+    const [uploadingDoc, setUploadingDoc] = useState(false);
+    const [fulfillingDocId, setFulfillingDocId] = useState(null);
     const [replyTexts, setReplyTexts] = useState({});
     const [replyFiles, setReplyFiles] = useState({});
     const [sendingReply, setSendingReply] = useState({});
@@ -140,6 +144,58 @@ const AdminClientDetail = () => {
             if (res.ok) setVaultData(await res.json());
         } finally {
             setRefreshing(prev => ({ ...prev, vault: false }));
+        }
+    };
+
+    const handleUploadDocument = async () => {
+        if (!uploadDocForm.file) { alert('Choose a file to upload.'); return; }
+        setUploadingDoc(true);
+        try {
+            const form = new FormData();
+            form.append('file', uploadDocForm.file);
+            form.append('title', uploadDocForm.title || uploadDocForm.file.name);
+            form.append('document_type', uploadDocForm.document_type);
+            if (uploadDocForm.folder_name) form.append('folder_name', uploadDocForm.folder_name);
+
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/upload/`), {
+                method: 'POST', headers, body: form,
+            });
+            if (res.ok) {
+                await fetchVault();
+                setShowUploadDoc(false);
+                setUploadDocForm({ title: '', document_type: 'OTHER', folder_name: '', file: null });
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to upload document');
+            }
+        } catch (err) {
+            console.error('Failed to upload document', err);
+            alert('Failed to upload document');
+        } finally {
+            setUploadingDoc(false);
+        }
+    };
+
+    const handleFulfillDocument = async (docId, file) => {
+        if (!file) return;
+        setFulfillingDocId(docId);
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/documents/${docId}/fulfill/`), {
+                method: 'POST', headers, body: form,
+            });
+            if (res.ok) {
+                await fetchVault();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || data.file?.[0] || 'Failed to upload document');
+            }
+        } catch (err) {
+            console.error('Failed to fulfill document request', err);
+            alert('Failed to upload document');
+        } finally {
+            setFulfillingDocId(null);
         }
     };
 
@@ -1816,11 +1872,48 @@ const AdminClientDetail = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--admin-text-strong)' }}>Vault Explorer</h4>
                             <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => setShowUploadDoc(v => !v)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#3b82f6', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Upload size={14} /> Upload Document
+                                </button>
                                 <button onClick={fetchVault} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-soft)', color: 'var(--admin-text-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <RefreshCw size={14} className={refreshing.vault ? 'spin' : ''} /> Refresh
                                 </button>
                             </div>
                         </div>
+
+                        {showUploadDoc && (
+                            <div style={{ padding: 16, borderRadius: 14, border: '1px solid var(--admin-border-soft)', marginBottom: 20, background: 'var(--admin-row-alt)' }}>
+                                <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                                    Uploaded here as "Verified/Uploaded" — visible immediately in this client's own
+                                    portal and to their currently-assigned consultant, same as any document they'd upload themselves.
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                                    <input placeholder="Title (optional, defaults to filename)" value={uploadDocForm.title}
+                                        onChange={e => setUploadDocForm(f => ({ ...f, title: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                    <input placeholder="Folder (optional, e.g. ITR 2025-26)" value={uploadDocForm.folder_name}
+                                        onChange={e => setUploadDocForm(f => ({ ...f, folder_name: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }} />
+                                    <select value={uploadDocForm.document_type} onChange={e => setUploadDocForm(f => ({ ...f, document_type: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }}>
+                                        <option value="OTHER">Other Document</option>
+                                        <option value="TIS">Taxpayer Information Summary</option>
+                                    </select>
+                                    <input type="file" onChange={e => setUploadDocForm(f => ({ ...f, file: e.target.files[0] || null }))}
+                                        style={{ fontSize: 12, color: 'var(--admin-text-primary)' }} />
+                                </div>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={handleUploadDocument} disabled={uploadingDoc}
+                                        style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: uploadingDoc ? 'not-allowed' : 'pointer', opacity: uploadingDoc ? 0.6 : 1, background: '#3b82f6', color: '#fff' }}>
+                                        {uploadingDoc ? 'Uploading…' : 'Upload'}
+                                    </button>
+                                    <button onClick={() => { setShowUploadDoc(false); setUploadDocForm({ title: '', document_type: 'OTHER', folder_name: '', file: null }); }}
+                                        style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Vault Tabs */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 20, background: 'var(--admin-row-alt)', padding: 4, borderRadius: 12 }}>
@@ -1860,11 +1953,21 @@ const AdminClientDetail = () => {
                                     <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={20} /></div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>{doc.folder || 'General'} • {doc.status}</div>
+                                        <div style={{ fontSize: 11, color: doc.status === 'PENDING' ? '#f59e0b' : doc.status === 'REJECTED' ? '#f87171' : 'var(--admin-text-muted)' }}>{doc.folder || 'General'} • {doc.status}</div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <button onClick={() => window.open(doc.file, '_blank')} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Preview"><Eye size={14} /></button>
-                                        <button onClick={() => downloadVaultFile(doc.file, doc.title)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Download"><Download size={14} /></button>
+                                        {(doc.status === 'PENDING' || doc.status === 'REJECTED') ? (
+                                            <label style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f59e0b', color: 'white', cursor: fulfillingDocId === doc.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, opacity: fulfillingDocId === doc.id ? 0.6 : 1 }}>
+                                                <Upload size={13} /> {fulfillingDocId === doc.id ? 'Uploading…' : 'Upload for Client'}
+                                                <input type="file" disabled={fulfillingDocId === doc.id} style={{ display: 'none' }}
+                                                    onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleFulfillDocument(doc.id, f); }} />
+                                            </label>
+                                        ) : (
+                                            <>
+                                                <button onClick={() => window.open(doc.file, '_blank')} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Preview"><Eye size={14} /></button>
+                                                <button onClick={() => downloadVaultFile(doc.file, doc.title)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Download"><Download size={14} /></button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             ))}
