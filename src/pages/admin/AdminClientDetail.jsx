@@ -2127,19 +2127,31 @@ const AdminClientDetail = () => {
                                 </div>
                             ))}
                             
-                            {vaultTab === 'reports' && vaultData.reports.map((rep, idx) => (
+                            {vaultTab === 'reports' && vaultData.reports.map((rep, idx) => {
+                                const isAck = String(rep.id).startsWith('ack-');
+                                return (
                                 <div key={`rep-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, background: 'var(--admin-row-alt)', cursor: 'pointer' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shield size={20} /></div>
+                                    <div style={{ width: 40, height: 40, borderRadius: 12, background: isAck ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)', color: isAck ? '#3b82f6' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shield size={20} /></div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rep.title}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>Report • {rep.consultant}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {isAck ? 'Acknowledgment' : 'Report'} • {rep.consultant}
+                                            {rep.status_display && (
+                                                <span style={{
+                                                    padding: '2px 7px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+                                                    background: rep.status === 'approved' ? 'rgba(16,185,129,0.1)' : rep.status === 'rejected' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                                                    color: rep.status === 'approved' ? '#10b981' : rep.status === 'rejected' ? '#ef4444' : '#f59e0b',
+                                                }}>{rep.status_display}</span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <button onClick={() => window.open(rep.file, '_blank')} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Preview"><Eye size={14} /></button>
-                                        <button onClick={() => downloadVaultFile(rep.file, rep.title)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Download"><Download size={14} /></button>
+                                        <button onClick={() => rep.file && window.open(rep.file, '_blank')} disabled={!rep.file} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', cursor: rep.file ? 'pointer' : 'not-allowed', opacity: rep.file ? 1 : 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Preview"><Eye size={14} /></button>
+                                        <button onClick={() => rep.file && downloadVaultFile(rep.file, rep.title)} disabled={!rep.file} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: isAck ? '#3b82f6' : '#10b981', color: 'white', cursor: rep.file ? 'pointer' : 'not-allowed', opacity: rep.file ? 1 : 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Download"><Download size={14} /></button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
 
                             {vaultTab === 'notices' && vaultData.notices?.map((notice, idx) => (
                                 <div key={`notice-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, background: 'var(--admin-row-alt)', cursor: 'pointer' }}>
