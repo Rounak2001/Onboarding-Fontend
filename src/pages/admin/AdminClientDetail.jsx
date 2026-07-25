@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3, Upload } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3, Upload, Users, XCircle } from 'lucide-react';
 import { useAdminTheme } from './adminTheme';
 
 // Status badge colours for the client profile header. Mirrors the same map in
@@ -116,6 +116,10 @@ const AdminClientDetail = () => {
     const [uploadDocForm, setUploadDocForm] = useState({ title: '', document_type: 'OTHER', folder_name: '', file: null });
     const [uploadingDoc, setUploadingDoc] = useState(false);
     const [fulfillingDocId, setFulfillingDocId] = useState(null);
+    const [accessDocId, setAccessDocId] = useState(null);
+    const [accessList, setAccessList] = useState([]);
+    const [loadingAccess, setLoadingAccess] = useState(false);
+    const [savingAccess, setSavingAccess] = useState(false);
     const [replyTexts, setReplyTexts] = useState({});
     const [replyFiles, setReplyFiles] = useState({});
     const [sendingReply, setSendingReply] = useState({});
@@ -134,6 +138,7 @@ const AdminClientDetail = () => {
     const [availableConsultants, setAvailableConsultants] = useState([]);
     const [loadingAvailableConsultants, setLoadingAvailableConsultants] = useState(false);
     const [reassignSubmitting, setReassignSubmitting] = useState(false);
+    const [closingRequestId, setClosingRequestId] = useState(null);
     const [activityFeed, setActivityFeed] = useState([]);
     const [callLogs, setCallLogs] = useState([]);
     const [recordingBlobUrls, setRecordingBlobUrls] = useState({});
@@ -269,6 +274,54 @@ const AdminClientDetail = () => {
             alert('Failed to upload document');
         } finally {
             setFulfillingDocId(null);
+        }
+    };
+
+    const openAccessManager = async (docId) => {
+        setAccessDocId(docId);
+        setLoadingAccess(true);
+        setAccessList([]);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/documents/${docId}/access/`), { headers });
+            if (res.ok) {
+                setAccessList(await res.json());
+            } else {
+                alert('Failed to load consultant access list');
+                setAccessDocId(null);
+            }
+        } catch (err) {
+            console.error('Failed to load document access', err);
+            alert('Failed to load consultant access list');
+            setAccessDocId(null);
+        } finally {
+            setLoadingAccess(false);
+        }
+    };
+
+    const toggleAccessConsultant = (consultantId) => {
+        setAccessList(prev => prev.map(c => c.consultant_id === consultantId ? { ...c, has_access: !c.has_access } : c));
+    };
+
+    const saveAccessGrants = async () => {
+        setSavingAccess(true);
+        try {
+            const consultant_ids = accessList.filter(c => c.has_access).map(c => c.consultant_id);
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/documents/${accessDocId}/access/grant/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ consultant_ids }),
+            });
+            if (res.ok) {
+                setAccessDocId(null);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to update access');
+            }
+        } catch (err) {
+            console.error('Failed to save document access', err);
+            alert('Failed to update access');
+        } finally {
+            setSavingAccess(false);
         }
     };
 
@@ -560,6 +613,24 @@ const AdminClientDetail = () => {
             alert(err.message || 'Failed to reassign consultant');
         } finally {
             setReassignSubmitting(false);
+        }
+    };
+
+    const handleCloseService = async (req) => {
+        if (!window.confirm(`Close "${req.service?.title || 'this service'}" on the client's behalf? This marks it completed immediately, bypassing the client's own acknowledgment.`)) return;
+        setClosingRequestId(req.id);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/service-requests/${req.id}/close/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to close service');
+            await fetchServiceRequests();
+        } catch (err) {
+            alert(err.message || 'Failed to close service');
+        } finally {
+            setClosingRequestId(null);
         }
     };
 
@@ -1157,6 +1228,16 @@ const AdminClientDetail = () => {
                                                 </td>
                                                 <td style={{ padding: '16px 24px' }}>
                                                     <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: req.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', color: req.status === 'completed' ? '#10b981' : '#3b82f6' }}>{req.status}</span>
+                                                    {req.status !== 'completed' && (
+                                                        <button
+                                                            onClick={() => handleCloseService(req)}
+                                                            disabled={closingRequestId === req.id}
+                                                            style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: closingRequestId === req.id ? 'var(--admin-text-muted)' : '#f59e0b', fontSize: 11, fontWeight: 700, cursor: closingRequestId === req.id ? 'not-allowed' : 'pointer', padding: 0 }}
+                                                            title="Mark this service completed on the client's behalf"
+                                                        >
+                                                            <XCircle size={12} /> {closingRequestId === req.id ? 'Closing…' : 'Close Service'}
+                                                        </button>
+                                                    )}
                                                 </td>
                                                 <td style={{ padding: '16px 24px', fontSize: 13 }}>
                                                     {req.assigned_consultant ? (
@@ -2028,7 +2109,7 @@ const AdminClientDetail = () => {
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
                                         <div style={{ fontSize: 11, color: doc.status === 'PENDING' ? '#f59e0b' : doc.status === 'REJECTED' ? '#f87171' : 'var(--admin-text-muted)' }}>{doc.folder || 'General'} • {doc.status}</div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
                                         {(doc.status === 'PENDING' || doc.status === 'REJECTED') ? (
                                             <label style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f59e0b', color: 'white', cursor: fulfillingDocId === doc.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, opacity: fulfillingDocId === doc.id ? 0.6 : 1 }}>
                                                 <Upload size={13} /> {fulfillingDocId === doc.id ? 'Uploading…' : 'Upload for Client'}
@@ -2041,6 +2122,7 @@ const AdminClientDetail = () => {
                                                 <button onClick={() => downloadVaultFile(doc.file, doc.title)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Download"><Download size={14} /></button>
                                             </>
                                         )}
+                                        <button onClick={() => openAccessManager(doc.id)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Manage Consultant Access"><Users size={14} /></button>
                                     </div>
                                 </div>
                             ))}
@@ -2272,6 +2354,69 @@ const AdminClientDetail = () => {
                                 Create Ticket
                             </button>
                         </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+            {/* Document Access Manager Modal */}
+            {accessDocId && createPortal(
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(4px)'
+                }} onClick={() => setAccessDocId(null)}>
+                    <div style={{
+                        width: '90%', maxWidth: 440, background: 'var(--admin-surface)',
+                        borderRadius: 24, padding: 28, boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
+                        border: '1px solid var(--admin-border-soft)'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Users size={18} color="#8b5cf6" /> Consultant Access
+                            </h3>
+                            <button onClick={() => setAccessDocId(null)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer' }}>
+                                <X size={22} />
+                            </button>
+                        </div>
+
+                        {loadingAccess ? (
+                            <div style={{ padding: 30, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 13 }}>Loading…</div>
+                        ) : accessList.length === 0 ? (
+                            <div style={{ padding: 30, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 13 }}>
+                                No consultants are currently assigned to this client.
+                            </div>
+                        ) : (
+                            <>
+                                <p style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 0, marginBottom: 16 }}>
+                                    Select which of this client's assigned consultants can see this document.
+                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+                                    {accessList.map(c => (
+                                        <label key={c.consultant_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'var(--admin-row-alt)', cursor: 'pointer' }}>
+                                            <input type="checkbox" checked={c.has_access} onChange={() => toggleAccessConsultant(c.consultant_id)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>{c.name}</div>
+                                                {c.service_title && <div style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>{c.service_title}</div>}
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={saveAccessGrants}
+                                    disabled={savingAccess}
+                                    style={{
+                                        marginTop: 18, width: '100%', padding: '12px', borderRadius: 12,
+                                        background: '#8b5cf6', color: 'white', border: 'none',
+                                        fontSize: 14, fontWeight: 800, cursor: savingAccess ? 'not-allowed' : 'pointer',
+                                        opacity: savingAccess ? 0.6 : 1,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                                    }}
+                                >
+                                    {savingAccess ? <RefreshCw size={16} className="spin" /> : <CheckCircle2 size={16} />}
+                                    {savingAccess ? 'Saving…' : 'Save Access'}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>,
                 document.body

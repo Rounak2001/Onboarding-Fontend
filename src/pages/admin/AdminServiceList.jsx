@@ -8,7 +8,7 @@ const AdminServiceList = ({ isLight, viewportWidth, token, themeVars }) => {
     const isMobile = viewportWidth <= 768;
 
     const [services, setServices] = useState([]);
-    const [stats, setStats] = useState({ total: 0, active: 0, pending: 0, completed: 0 });
+    const [stats, setStats] = useState({ total: 0, active: 0, pending: 0, completed: 0, cancelled: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('all'); // all, active, pending, completed
@@ -32,11 +32,11 @@ const AdminServiceList = ({ isLight, viewportWidth, token, themeVars }) => {
             if (res.ok) {
                 const data = await res.json();
                 setServices(data.services || []);
-                setStats(data.stats || { total: 0, active: 0, pending: 0, completed: 0 });
+                setStats(data.stats || { total: 0, active: 0, pending: 0, completed: 0, cancelled: 0 });
             } else {
                 // Fallback empty state
                 setServices([]);
-                setStats({ total: 0, active: 0, pending: 0, completed: 0 });
+                setStats({ total: 0, active: 0, pending: 0, completed: 0, cancelled: 0 });
             }
         } catch {
             setError('Failed to load services');
@@ -55,6 +55,7 @@ const AdminServiceList = ({ isLight, viewportWidth, token, themeVars }) => {
         { key: 'active', label: 'Active', value: stats.active, color: '#3b82f6' },
         { key: 'pending', label: 'Pending', value: stats.pending, color: '#f59e0b' },
         { key: 'completed', label: 'Completed', value: stats.completed, color: '#10b981' },
+        { key: 'cancelled', label: 'Cancelled', value: stats.cancelled, color: '#ef4444' },
     ];
 
     return (
@@ -126,11 +127,16 @@ const AdminServiceList = ({ isLight, viewportWidth, token, themeVars }) => {
                                             ) : '-'}
                                         </td>
                                         <td style={{ padding: '14px 16px' }}>
-                                            <span style={{ 
+                                            <span style={{
                                                 padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                                                background: s.status === 'completed' ? 'rgba(16,185,129,0.1)' : s.status === 'pending' ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)',
-                                                color: s.status === 'completed' ? '#10b981' : s.status === 'pending' ? '#f59e0b' : '#3b82f6'
+                                                background: s.status === 'completed' ? 'rgba(16,185,129,0.1)' : s.status === 'pending' ? 'rgba(245,158,11,0.1)' : s.status === 'cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+                                                color: s.status === 'completed' ? '#10b981' : s.status === 'pending' ? '#f59e0b' : s.status === 'cancelled' ? '#ef4444' : '#3b82f6'
                                             }}>{s.status}</span>
+                                            {s.status === 'cancelled' && (
+                                                <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 4, maxWidth: 220 }} title={s.cancellation_reason || ''}>
+                                                    {s.cancellation_reason ? `Reason: ${s.cancellation_reason}` : 'No reason recorded'}
+                                                </div>
+                                            )}
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--admin-text-muted)' }}>{s.updated_at ? new Date(s.updated_at).toLocaleDateString() : '-'}</td>
                                     </tr>

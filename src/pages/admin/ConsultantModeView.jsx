@@ -111,6 +111,7 @@ const ConsultantModeView = ({ performanceData, isMobile, isLight }) => {
     const [replyTexts, setReplyTexts] = useState({});
     const [replyFiles, setReplyFiles] = useState({});
     const [sendingReply, setSendingReply] = useState({});
+    const [requestActionState, setRequestActionState] = useState({});
 
     React.useEffect(() => {
         setLocalTickets(performanceData.support_tickets || []);
@@ -180,6 +181,44 @@ const ConsultantModeView = ({ performanceData, isMobile, isLight }) => {
         }
     };
 
+
+    const handleRejectRequest = async (req) => {
+        const notes = prompt('Reason for rejecting (sent back to consultant as revision notes):');
+        if (notes === null) return;
+        setRequestActionState(prev => ({ ...prev, [req.id]: { loading: true } }));
+        try {
+            const token = localStorage.getItem('admin_token');
+            const res = await fetch(apiUrl(`/admin-panel/clients/${req.client_id}/service-requests/${req.id}/reject/`), {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to reject');
+            setRequestActionState(prev => ({ ...prev, [req.id]: { loading: false, status: data.status, status_display: 'Revision Requested' } }));
+        } catch (err) {
+            alert(err.message || 'Failed to reject request');
+            setRequestActionState(prev => ({ ...prev, [req.id]: { loading: false } }));
+        }
+    };
+
+    const handleApproveComplete = async (req) => {
+        if (!window.confirm(`Mark "${req.service_title}" completed on the client's behalf? This bypasses the client's own review/acknowledgment.`)) return;
+        setRequestActionState(prev => ({ ...prev, [req.id]: { loading: true } }));
+        try {
+            const token = localStorage.getItem('admin_token');
+            const res = await fetch(apiUrl(`/admin-panel/clients/${req.client_id}/service-requests/${req.id}/close/`), {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to complete');
+            setRequestActionState(prev => ({ ...prev, [req.id]: { loading: false, status: 'completed', status_display: 'Completed' } }));
+        } catch (err) {
+            alert(err.message || 'Failed to complete request');
+            setRequestActionState(prev => ({ ...prev, [req.id]: { loading: false } }));
+        }
+    };
 
     if (!performanceData) return null;
 
@@ -592,6 +631,11 @@ const ConsultantModeView = ({ performanceData, isMobile, isLight }) => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                             {activeRequests.length > 0 ? activeRequests.slice(0, 5).map((req, i) => {
                                 const scope = getScopeText(req);
+                                const actionState = requestActionState[req.id] || {};
+                                const effectiveStatus = actionState.status || req.status;
+                                const effectiveStatusDisplay = actionState.status_display || req.status_display;
+                                const isBusy = !!actionState.loading;
+                                const isCompleted = effectiveStatus === 'completed';
                                 return (
                                     <div key={i} style={{
                                         padding: 20, borderRadius: 14, border: '1px solid var(--admin-border-soft)',
@@ -619,12 +663,36 @@ const ConsultantModeView = ({ performanceData, isMobile, isLight }) => {
                                                 <span style={{
                                                     padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
                                                     background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)'
-                                                }}>{req.status_display}</span>
-                                                <button style={{
-                                                    padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)',
-                                                    background: 'rgba(239,68,68,0.05)', color: '#ef4444', fontSize: 11, fontWeight: 700,
-                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
-                                                }}>REJECT</button>
+                                                }}>{effectiveStatusDisplay}</span>
+                                                {!isCompleted && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleApproveComplete(req)}
+                                                            disabled={isBusy}
+                                                            title="Admin override: mark completed on the client's behalf (client not responding)"
+                                                            style={{
+                                                                padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.2)',
+                                                                background: 'rgba(16,185,129,0.05)', color: '#10b981', fontSize: 11, fontWeight: 700,
+                                                                cursor: isBusy ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                                                opacity: isBusy ? 0.6 : 1,
+                                                            }}
+                                                        >
+                                                            {isBusy ? '…' : 'APPROVE & COMPLETE'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRejectRequest(req)}
+                                                            disabled={isBusy}
+                                                            style={{
+                                                                padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)',
+                                                                background: 'rgba(239,68,68,0.05)', color: '#ef4444', fontSize: 11, fontWeight: 700,
+                                                                cursor: isBusy ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                                                opacity: isBusy ? 0.6 : 1,
+                                                            }}
+                                                        >
+                                                            {isBusy ? '…' : 'REJECT'}
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
 
@@ -634,7 +702,7 @@ const ConsultantModeView = ({ performanceData, isMobile, isLight }) => {
                                                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--admin-text-strong)' }}>Workflow Progress</span>
                                                 <ChevronRight size={14} color="var(--admin-text-muted)" />
                                             </div>
-                                            <StatusProgressBar currentStatus={req.status} />
+                                            <StatusProgressBar currentStatus={effectiveStatus} />
                                         </div>
                                     </div>
                                 );
