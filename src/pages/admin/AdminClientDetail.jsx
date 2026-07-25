@@ -117,6 +117,12 @@ const AdminClientDetail = () => {
     const [uploadingDoc, setUploadingDoc] = useState(false);
     const [fulfillingDocId, setFulfillingDocId] = useState(null);
     const [accessDocId, setAccessDocId] = useState(null);
+    const [resolvingReqDocId, setResolvingReqDocId] = useState(null);
+    const [showAddService, setShowAddService] = useState(false);
+    const [serviceCatalog, setServiceCatalog] = useState([]);
+    const [loadingServiceCatalog, setLoadingServiceCatalog] = useState(false);
+    const [addServiceForm, setAddServiceForm] = useState({ serviceId: '', parentRequestId: '', notes: '' });
+    const [submittingAddService, setSubmittingAddService] = useState(false);
     const [accessList, setAccessList] = useState([]);
     const [loadingAccess, setLoadingAccess] = useState(false);
     const [savingAccess, setSavingAccess] = useState(false);
@@ -184,6 +190,17 @@ const AdminClientDetail = () => {
     }, []);
 
     const headers = { Authorization: `Bearer ${token}` };
+
+    useEffect(() => {
+        if (!showAddService || serviceCatalog.length > 0 || loadingServiceCatalog) return;
+        setLoadingServiceCatalog(true);
+        fetch(apiUrl('/admin-panel/service-catalog-options/'), { headers })
+            .then(res => res.ok ? res.json() : { results: [] })
+            .then(data => setServiceCatalog(data.results || []))
+            .catch(() => setServiceCatalog([]))
+            .finally(() => setLoadingServiceCatalog(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showAddService]);
 
     const fetchServiceRequests = async () => {
         setRefreshing(prev => ({ ...prev, service_requests: true }));
@@ -322,6 +339,58 @@ const AdminClientDetail = () => {
             alert('Failed to update access');
         } finally {
             setSavingAccess(false);
+        }
+    };
+
+    const handleResolveRequirement = async (doc, action) => {
+        let reason = '';
+        if (action !== 'reopen') {
+            reason = prompt(`Reason for ${action.replace(/_/g, ' ')} (required, shown in audit log):`) || '';
+            if (!reason.trim()) return;
+        }
+        setResolvingReqDocId(doc.id);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/documents/${doc.id}/requirement-resolution/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, reason }),
+            });
+            if (res.ok) {
+                await fetchVault();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to update requirement');
+            }
+        } catch (err) {
+            console.error('Failed to resolve requirement', err);
+            alert('Failed to update requirement');
+        } finally {
+            setResolvingReqDocId(null);
+        }
+    };
+
+    const handleAddService = async () => {
+        if (!addServiceForm.serviceId) return;
+        setSubmittingAddService(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/service-requests/add/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    service_id: addServiceForm.serviceId,
+                    parent_request_id: addServiceForm.parentRequestId || undefined,
+                    notes: addServiceForm.notes,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to add service');
+            setAddServiceForm({ serviceId: '', parentRequestId: '', notes: '' });
+            setShowAddService(false);
+            await fetchServiceRequests();
+        } catch (err) {
+            alert(err.message || 'Failed to add service');
+        } finally {
+            setSubmittingAddService(false);
         }
     };
 
@@ -1201,6 +1270,64 @@ const AdminClientDetail = () => {
                         <SectionHeader id="service_requests" label="Service Requests" icon={Briefcase} color="#10b981" onRefresh={fetchServiceRequests} />
                         {openSections.includes('service_requests') && (
                             <div style={{ padding: 0 }}>
+                                <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--admin-border-soft)', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => setShowAddService(v => !v)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: 'none', background: '#10b981', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        <Plus size={14} /> Add Service
+                                    </button>
+                                </div>
+                                {showAddService && (
+                                    <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--admin-border-soft)', background: 'var(--admin-row-alt)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                            <select
+                                                value={addServiceForm.serviceId}
+                                                onChange={e => setAddServiceForm(f => ({ ...f, serviceId: e.target.value }))}
+                                                style={{ flex: '1 1 220px', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }}
+                                            >
+                                                <option value="">
+                                                    {loadingServiceCatalog ? 'Loading services…' : 'Select a service…'}
+                                                </option>
+                                                {serviceCatalog.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.category ? `${s.category} — ${s.title}` : s.title}</option>
+                                                ))}
+                                            </select>
+                                            <select
+                                                value={addServiceForm.parentRequestId}
+                                                onChange={e => setAddServiceForm(f => ({ ...f, parentRequestId: e.target.value }))}
+                                                style={{ flex: '1 1 220px', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13 }}
+                                            >
+                                                <option value="">Standalone service (not an add-on)</option>
+                                                {serviceRequests.filter(r => r.status !== 'cancelled').map(r => (
+                                                    <option key={r.id} value={r.id}>Add-on under: {r.service?.title || 'Unknown'}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            value={addServiceForm.notes}
+                                            onChange={e => setAddServiceForm(f => ({ ...f, notes: e.target.value }))}
+                                            placeholder="Notes (optional) — e.g. why this was added, agreed on call with client…"
+                                            style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13, resize: 'none' }}
+                                        />
+                                        <div style={{ display: 'flex', gap: 8 }}>
+                                            <button
+                                                onClick={handleAddService}
+                                                disabled={!addServiceForm.serviceId || submittingAddService}
+                                                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: !addServiceForm.serviceId || submittingAddService ? 'var(--admin-border-soft)' : '#10b981', color: !addServiceForm.serviceId || submittingAddService ? 'var(--admin-text-muted)' : 'white', fontSize: 12, fontWeight: 700, cursor: !addServiceForm.serviceId || submittingAddService ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                {submittingAddService ? 'Adding…' : 'Confirm Add'}
+                                            </button>
+                                            <button
+                                                onClick={() => setShowAddService(false)}
+                                                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead style={{ background: 'var(--admin-row-alt)' }}>
                                         <tr>
@@ -1219,16 +1346,27 @@ const AdminClientDetail = () => {
                                                     {req.addons?.length > 0 && (
                                                         <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                                             {req.addons.map((addon) => (
-                                                                <span key={addon.id} style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-muted)' }}>
-                                                                    + {addon.service_title}
+                                                                <span key={addon.id} title={addon.status === 'cancelled' ? (addon.cancellation_reason || 'No reason recorded') : undefined} style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: addon.status === 'cancelled' ? 'rgba(239,68,68,0.08)' : 'var(--admin-row-alt)', border: `1px solid ${addon.status === 'cancelled' ? 'rgba(239,68,68,0.25)' : 'var(--admin-border-soft)'}`, color: addon.status === 'cancelled' ? '#ef4444' : 'var(--admin-text-muted)', textDecoration: addon.status === 'cancelled' ? 'line-through' : 'none' }}>
+                                                                    + {addon.service_title}{addon.status === 'cancelled' ? ' (Cancelled)' : ''}
                                                                 </span>
                                                             ))}
                                                         </div>
                                                     )}
                                                 </td>
                                                 <td style={{ padding: '16px 24px' }}>
-                                                    <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: req.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', color: req.status === 'completed' ? '#10b981' : '#3b82f6' }}>{req.status}</span>
-                                                    {req.status !== 'completed' && (
+                                                    <span style={{
+                                                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                                        background: req.status === 'completed' ? 'rgba(16,185,129,0.1)' : req.status === 'cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+                                                        color: req.status === 'completed' ? '#10b981' : req.status === 'cancelled' ? '#ef4444' : '#3b82f6'
+                                                    }}>
+                                                        {req.status === 'cancelled' ? 'Service Cancelled' : (req.status_display || req.status)}
+                                                    </span>
+                                                    {req.status === 'cancelled' && (
+                                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 4, maxWidth: 220 }}>
+                                                            {req.cancellation_reason ? `Reason: ${req.cancellation_reason}` : 'No reason recorded'}
+                                                        </div>
+                                                    )}
+                                                    {req.status !== 'completed' && req.status !== 'cancelled' && (
                                                         <button
                                                             onClick={() => handleCloseService(req)}
                                                             disabled={closingRequestId === req.id}
@@ -2107,9 +2245,42 @@ const AdminClientDetail = () => {
                                     <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={20} /></div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
-                                        <div style={{ fontSize: 11, color: doc.status === 'PENDING' ? '#f59e0b' : doc.status === 'REJECTED' ? '#f87171' : 'var(--admin-text-muted)' }}>{doc.folder || 'General'} • {doc.status}</div>
+                                        <div style={{ fontSize: 11, color: doc.status === 'PENDING' ? '#f59e0b' : doc.status === 'REJECTED' ? '#f87171' : 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                            {doc.folder || 'General'} • {doc.status}
+                                            {doc.requirement_id && (
+                                                <span title={doc.requirement_label || ''} style={{
+                                                    padding: '2px 7px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+                                                    background: ['waived', 'not_applicable', 'satisfied_by_alternate', 'client_declared_unavailable'].includes(doc.requirement_status) ? 'rgba(139,92,246,0.1)' : doc.requirement_status === 'verified' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)',
+                                                    color: ['waived', 'not_applicable', 'satisfied_by_alternate', 'client_declared_unavailable'].includes(doc.requirement_status) ? '#8b5cf6' : doc.requirement_status === 'verified' ? '#10b981' : '#f59e0b',
+                                                }}>
+                                                    Required Doc: {doc.requirement_status}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+                                        {doc.requirement_id && ['pending', 'uploaded', 'rejected'].includes(doc.requirement_status) && (
+                                            <select
+                                                disabled={resolvingReqDocId === doc.id}
+                                                value=""
+                                                onChange={e => { const action = e.target.value; e.target.value = ''; if (action) handleResolveRequirement(doc, action); }}
+                                                style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 11, fontWeight: 700, cursor: resolvingReqDocId === doc.id ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                <option value="">{resolvingReqDocId === doc.id ? 'Updating…' : 'Resolve…'}</option>
+                                                <option value="waive">Waive requirement</option>
+                                                <option value="mark_not_applicable">Mark not applicable</option>
+                                                <option value="record_client_declaration">Client declared unavailable</option>
+                                            </select>
+                                        )}
+                                        {doc.requirement_id && !['pending', 'uploaded'].includes(doc.requirement_status) && (
+                                            <button
+                                                onClick={() => handleResolveRequirement(doc, 'reopen')}
+                                                disabled={resolvingReqDocId === doc.id}
+                                                style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-secondary)', fontSize: 11, fontWeight: 700, cursor: resolvingReqDocId === doc.id ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                Reopen
+                                            </button>
+                                        )}
                                         {(doc.status === 'PENDING' || doc.status === 'REJECTED') ? (
                                             <label style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f59e0b', color: 'white', cursor: fulfillingDocId === doc.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, opacity: fulfillingDocId === doc.id ? 0.6 : 1 }}>
                                                 <Upload size={13} /> {fulfillingDocId === doc.id ? 'Uploading…' : 'Upload for Client'}
