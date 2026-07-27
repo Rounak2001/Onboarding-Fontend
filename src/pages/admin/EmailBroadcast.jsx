@@ -102,10 +102,27 @@ const card2Style = (C) => ({ background: C.card2, border: `1px solid ${C.border}
 
 const SOURCE_LABELS = {
   manual: 'Manual list / paste',
-  clients: 'All Clients (consented)',
+  clients: 'All Clients',
+  clients_paid: 'Paid Clients',
+  clients_unpaid: 'Clients — Never Paid',
+  clients_open_service: 'Clients — Open Service (per request)',
   consultants: 'All Consultants',
+  consultants_assigned: 'Consultants With Services',
+  consultants_idle: 'Consultants Without Services',
+  consultants_open_service: 'Consultants — Open Service (per request)',
   contacts: 'Contact Form Submissions',
   excel: 'Excel Upload (.xlsx)',
+};
+
+// Shown under the recipient picker so the segment's exact meaning is visible at
+// send time rather than buried in the resolver.
+const SOURCE_HINTS = {
+  clients_paid: 'Every client who paid for a service order or a consultation booking.',
+  clients_unpaid: 'Registered clients who have never completed a payment.',
+  clients_open_service: 'One email per open service request — not one per client. A client with 2 open requests gets 2 emails, each naming that specific service.',
+  consultants_assigned: 'Consultants who have been assigned at least one client service request.',
+  consultants_idle: 'Consultants who have never been assigned a service request.',
+  consultants_open_service: 'One email per open service request — not one per consultant. A consultant with 3 open requests gets 3 emails, each naming that specific client.',
 };
 
 // ── Small presentational pieces ────────────────────────────────────────────
@@ -263,8 +280,10 @@ const VariableGuide = ({ C, availableTags, onInsert }) => {
           <div style={{ fontSize: '12px', color: C.muted, marginBottom: '8px', lineHeight: 1.5 }}>
             Click a tag to insert it into the email body. Every <code>{'{{tag}}'}</code> is replaced
             with that recipient's value when the campaign sends. <code>{'{{name}}'}</code> and{' '}
-            <code>{'{{email}}'}</code> are always available; upload an Excel sheet to unlock custom
-            tags (e.g. a "City" column becomes <code>{'{{City}}'}</code>).
+            <code>{'{{email}}'}</code> are always available. Each recipient segment adds its own tags
+            (Paid Clients offers <code>{'{{last_service}}'}</code>, and so on), and an Excel upload
+            turns every extra column into one — a "City" column becomes <code>{'{{City}}'}</code>.
+            A tag with no value for a recipient is left visible in the email, so check the preview.
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {tags.map(t => (
@@ -314,6 +333,7 @@ export default function EmailBroadcast() {
   const [manualEmails, setManualEmails] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
   const [segments, setSegments] = useState({});
+  const [segmentVars, setSegmentVars] = useState({});
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
@@ -348,7 +368,12 @@ export default function EmailBroadcast() {
   const fetchSegments = useCallback(async () => {
     const r = await fetch(`${API_BASE}/segments/`, { credentials: 'include', headers: authHeaders });
     if (r.status === 401 || r.status === 403) return resetSession();
-    if (r.ok) setSegments(await r.json());
+    if (!r.ok) return;
+    const data = await r.json();
+    // `counts`/`variables` is the current shape; an older backend returns the
+    // bare count map, so fall back to it rather than blanking the counts.
+    setSegments(data.counts || data);
+    setSegmentVars(data.variables || {});
   }, [authHeaders, resetSession]);
 
   const fetchTemplates = useCallback(async () => {
@@ -576,7 +601,11 @@ export default function EmailBroadcast() {
       ? (excelData ? `${excelData.total} recipient(s) loaded from sheet` : 'No sheet uploaded yet')
       : `${fmt(segments[source] ?? '…')} recipient(s) in this segment`;
 
-  const availableTags = source === 'excel' && excelData ? excelData.variable_columns : [];
+  // Excel tags come from the uploaded sheet's columns; every DB-backed segment
+  // declares its own on the server.
+  const availableTags = source === 'excel'
+    ? (excelData ? excelData.variable_columns : [])
+    : (segmentVars[source] || []);
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex' }}>
@@ -654,6 +683,12 @@ export default function EmailBroadcast() {
             <select style={{ ...inputStyle(C), cursor: 'pointer', marginBottom: '10px' }} value={source} onChange={e => setSource(e.target.value)}>
               {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
+
+            {SOURCE_HINTS[source] && (
+              <div style={{ fontSize: '11px', color: C.muted, lineHeight: 1.5, marginBottom: '10px' }}>
+                {SOURCE_HINTS[source]}
+              </div>
+            )}
 
             {source === 'manual' && (
               <textarea style={{ ...inputStyle(C), minHeight: '140px', resize: 'vertical', fontFamily: 'monospace' }}
