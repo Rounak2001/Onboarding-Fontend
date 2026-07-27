@@ -554,7 +554,14 @@ export default function EmailBroadcast() {
     flash('Testing SES connection…');
     const r = await fetch(`${API_BASE}/test-connection/`, { method: 'POST', credentials: 'include', headers: authHeaders });
     const data = await r.json();
-    flash(r.ok ? data.message : (data.error || 'SES connection failed.'), r.ok ? 'ok' : 'err');
+    if (!r.ok) return flash(data.error || 'SES connection failed.', 'err');
+    // The send loop has no per-recipient throttle, so this rate is the real
+    // ceiling on how fast a campaign can go out before SES starts throttling.
+    const q = data.quota || {};
+    const rate = q.MaxSendRate != null ? `${q.MaxSendRate}/sec` : '—';
+    const used = q.SentLast24Hours != null ? Math.round(q.SentLast24Hours) : '—';
+    const cap = q.Max24HourSend != null ? Math.round(q.Max24HourSend) : '—';
+    flash(`${data.message} Max send rate: ${rate} · Sent last 24h: ${used}/${cap}`, 'ok');
   };
 
   // ── Templates tab state ──
