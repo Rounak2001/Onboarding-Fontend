@@ -125,6 +125,30 @@ const SOURCE_HINTS = {
   consultants_open_service: 'One email per open service request — not one per consultant. A consultant with 3 open requests gets 3 emails, each naming that specific client.',
 };
 
+// Preview-only stand-in values, one per merge tag any segment can declare.
+// The Preview modal renders in the browser before a campaign is created, so it
+// has no real recipient to pull from — without this, every tag beyond name/email
+// showed up literally as "{{tag}}" in Preview even though the real send (which
+// substitutes from each recipient's actual resolved data) works correctly.
+const PREVIEW_SAMPLE_VALUES = {
+  name: 'John Doe',
+  first_name: 'John',
+  email: 'john@example.com',
+  client_name: 'John Doe',
+  consultant_name: 'Priya Sharma',
+  service_type: 'ITR Salary Filing',
+  status: 'Documents Pending',
+  assigned_date: '20 Jul 2026',
+  active_count: '2',
+  completed_count: '5',
+  last_service: 'ITR Salary Filing',
+  last_order_amount: '4,999',
+  last_order_date: '10 Jun 2026',
+  inquiry_type: 'Sales',
+  turnover: '₹25,00,000',
+  income_source: 'Salary',
+};
+
 // ── Small presentational pieces ────────────────────────────────────────────
 const StatusBadge = ({ C, s }) => <span style={badge(C, C.STATUS[s] || C.slateText)}>{s}</span>;
 
@@ -1000,7 +1024,9 @@ export default function EmailBroadcast() {
     </div>
     {previewOpen && (
       <PreviewModal C={C} subject={subject} fromEmail="" bodyHtml={bodyHtml}
-        sampleVars={{ name: 'John Doe', email: 'john@example.com', ...Object.fromEntries((excelData?.variable_columns || []).map(v => [v, `Sample ${v}`])) }}
+        sampleVars={Object.fromEntries(
+          ['name', 'email', ...availableTags].map(t => [t, PREVIEW_SAMPLE_VALUES[t] || `Sample ${t}`])
+        )}
         onClose={() => setPreviewOpen(false)} />
     )}
     </div>
