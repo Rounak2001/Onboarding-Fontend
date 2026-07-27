@@ -145,6 +145,7 @@ const AdminClientDetail = () => {
     const [loadingAvailableConsultants, setLoadingAvailableConsultants] = useState(false);
     const [reassignSubmitting, setReassignSubmitting] = useState(false);
     const [closingRequestId, setClosingRequestId] = useState(null);
+    const [cancellingRequestId, setCancellingRequestId] = useState(null);
     const [activityFeed, setActivityFeed] = useState([]);
     const [callLogs, setCallLogs] = useState([]);
     const [recordingBlobUrls, setRecordingBlobUrls] = useState({});
@@ -700,6 +701,27 @@ const AdminClientDetail = () => {
             alert(err.message || 'Failed to close service');
         } finally {
             setClosingRequestId(null);
+        }
+    };
+
+    const handleCancelService = async (req) => {
+        const reason = prompt(`Reason for cancelling "${req.service?.title || 'this service'}" (required, shown to the consultant and kept in the audit log):`);
+        if (reason === null) return;
+        if (!reason.trim()) { alert('A cancellation reason is required.'); return; }
+        setCancellingRequestId(req.id);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/service-requests/${req.id}/cancel/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to cancel service');
+            await fetchServiceRequests();
+        } catch (err) {
+            alert(err.message || 'Failed to cancel service');
+        } finally {
+            setCancellingRequestId(null);
         }
     };
 
@@ -1374,6 +1396,16 @@ const AdminClientDetail = () => {
                                                             title="Mark this service completed on the client's behalf"
                                                         >
                                                             <XCircle size={12} /> {closingRequestId === req.id ? 'Closing…' : 'Close Service'}
+                                                        </button>
+                                                    )}
+                                                    {req.status !== 'completed' && req.status !== 'cancelled' && (
+                                                        <button
+                                                            onClick={() => handleCancelService(req)}
+                                                            disabled={cancellingRequestId === req.id}
+                                                            style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: cancellingRequestId === req.id ? 'var(--admin-text-muted)' : '#ef4444', fontSize: 11, fontWeight: 700, cursor: cancellingRequestId === req.id ? 'not-allowed' : 'pointer', padding: 0 }}
+                                                            title="Cancel this service request on the client's behalf (no automatic refund)"
+                                                        >
+                                                            <XCircle size={12} /> {cancellingRequestId === req.id ? 'Cancelling…' : 'Cancel Service'}
                                                         </button>
                                                     )}
                                                 </td>
