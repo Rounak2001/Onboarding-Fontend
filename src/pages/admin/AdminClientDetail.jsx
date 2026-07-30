@@ -1364,7 +1364,7 @@ const AdminClientDetail = () => {
                                             <Fragment key={req.id}>
                                             <tr style={{ borderBottom: reassigningRequestId === req.id ? 'none' : '1px solid var(--admin-border-soft)' }}>
                                                 <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>
-                                                    {req.service?.title || 'Unknown'}
+                                                    {req.service?.is_other_service ? 'Other service — ' : ''}{req.service?.title || 'Unknown'}
                                                     {req.addons?.length > 0 && (
                                                         <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                                             {req.addons.map((addon) => (
