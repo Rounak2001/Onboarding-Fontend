@@ -18,10 +18,11 @@ import CallLogs from './CallLogs';
 import SoftwareSurveyDashboard from './SoftwareSurveyDashboard';
 import AdminAmbassadors from './AdminAmbassadors';
 import AdminAmbassadorPayouts from './AdminAmbassadorPayouts';
+import AdminTaxModule from './AdminTaxModule';
 import AdminDateRangePicker from './AdminDateRangePicker';
 import AdminEmployees from './employees/AdminEmployees';
 import { getAdminRole } from '../../utils/adminSession';
-import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown, Send } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, Phone, ChevronLeft, ChevronRight, Menu, TrendingUp, PieChart as PieChartIcon, Shield, Activity, LifeBuoy, Briefcase, Receipt, ShoppingCart, CheckCircle2, Inbox, Bot, UserCog, Megaphone, Wallet, ChevronUp, ChevronDown, Send, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
 import IndiaMap from './IndiaMap';
 import { normalizeAssessmentDomainLabel } from '../assessment/domainLabels';
@@ -197,6 +198,7 @@ const AdminDashboard = () => {
         if (p.includes('ambassadors')) return 'ambassadors';
         if (p.includes('analytics') || p.includes('dashboard')) return 'dashboard';
         if (p.includes('call-log')) return 'call-logs';
+        if (p.includes('/tax')) return 'tax';
         if (p.includes('consultant')) return 'consultant';
         if (p.includes('client')) return 'client';
         if (p.includes('support')) return 'support';
@@ -845,6 +847,7 @@ const AdminDashboard = () => {
                             title: 'Operations',
                             items: [
                                 { id: 'transactions', icon: Receipt, label: 'Transactions' },
+                                { id: 'tax', icon: FileText, label: 'Tax' },
                                 { id: 'carts', icon: ShoppingCart, label: 'Carts' },
                                 { id: 'call-logs', icon: Phone, label: 'Call Logs' },
                                 { id: 'software-survey', icon: CheckCircle2, label: 'Software Survey' },
@@ -914,6 +917,7 @@ const AdminDashboard = () => {
                                                         'contact': 'contact',
                                                         'services': 'services',
                                                         'transactions': 'transactions',
+                                                        'tax': 'tax',
                                                         'carts': 'carts',
                                                         'call-logs': 'call-logs',
                                                         'software-survey': 'software-survey',
@@ -982,7 +986,8 @@ const AdminDashboard = () => {
                                         : activeTab === 'contact' ? 'Contact Inbox'
                                             : activeTab === 'services' ? 'Services'
                                                 : activeTab === 'transactions' ? 'Transactions'
-                                                    : activeTab === 'carts' ? 'Carts'
+                                                    : activeTab === 'tax' ? 'Tax'
+                                                        : activeTab === 'carts' ? 'Carts'
                                                         : activeTab === 'call-logs' ? 'Call Logs'
                                                             : activeTab === 'ambassadors' ? 'Ambassadors'
                                                                 : activeTab === 'ambassador-payouts' ? 'Ambassador Payouts'
@@ -1714,6 +1719,9 @@ const AdminDashboard = () => {
                         )}
                         {activeTab === 'transactions' && (
                             <AdminTransactionList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} initialFilter={transactionFilter} />
+                        )}
+                        {activeTab === 'tax' && (
+                            <AdminTaxModule isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />
                         )}
                         {activeTab === 'carts' && (
                             <AdminCartList isLight={isLight} viewportWidth={viewportWidth} token={token} themeVars={themeVars} />

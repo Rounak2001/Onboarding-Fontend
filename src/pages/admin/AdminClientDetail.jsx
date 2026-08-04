@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3, Upload, Users, XCircle } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, Shield, Briefcase, CreditCard, FileText, Activity, Phone, Mail, ExternalLink, Trash2, Eye, EyeOff, Download, MessageSquare, Clock, Send, X, CheckCircle2, TrendingUp, Search, LifeBuoy, AlertCircle, RefreshCw, ShoppingCart, Plus, BarChart3, Upload, Users, XCircle, Edit3, Star, Lock } from 'lucide-react';
 import { useAdminTheme } from './adminTheme';
 
 // Status badge colours for the client profile header. Mirrors the same map in
@@ -113,10 +113,23 @@ const AdminClientDetail = () => {
     const [vaultTab, setVaultTab] = useState('documents');
     const [selectedFolderId, setSelectedFolderId] = useState('all');
     const [showUploadDoc, setShowUploadDoc] = useState(false);
-    const [uploadDocForm, setUploadDocForm] = useState({ title: '', document_type: 'OTHER', folder_name: '', file: null });
+    const [uploadDocForm, setUploadDocForm] = useState({ title: '', document_type: 'OTHER', folder_name: '', files: [], hasPassword: false, password: '' });
     const [uploadingDoc, setUploadingDoc] = useState(false);
+    const [showUploadReport, setShowUploadReport] = useState(false);
+    const [uploadReportForm, setUploadReportForm] = useState({ title: '', report_type: 'OTHER', file: null });
+    const [uploadingReport, setUploadingReport] = useState(false);
+    const [showUploadNotice, setShowUploadNotice] = useState(false);
+    const [uploadNoticeForm, setUploadNoticeForm] = useState({ title: '', notice_type: 'NOTICE', priority: 'MEDIUM', source: 'OTHER', file: null });
+    const [uploadingNotice, setUploadingNotice] = useState(false);
+    const [editingPasswordDocId, setEditingPasswordDocId] = useState(null);
+    const [passwordDraft, setPasswordDraft] = useState('');
+    const [savingDocPassword, setSavingDocPassword] = useState(false);
     const [fulfillingDocId, setFulfillingDocId] = useState(null);
     const [accessDocId, setAccessDocId] = useState(null);
+    const [accessDocIds, setAccessDocIds] = useState(null); // set when bulk-managing access for multiple selected documents
+    const [selectedDocIds, setSelectedDocIds] = useState([]);
+    const [bulkActionLoading, setBulkActionLoading] = useState(false);
+    const [revealedDocPasswords, setRevealedDocPasswords] = useState({}); // { [docId]: true }
     const [resolvingReqDocId, setResolvingReqDocId] = useState(null);
     const [showAddService, setShowAddService] = useState(false);
     const [serviceCatalog, setServiceCatalog] = useState([]);
@@ -130,6 +143,9 @@ const AdminClientDetail = () => {
     const [replyFiles, setReplyFiles] = useState({});
     const [sendingReply, setSendingReply] = useState({});
     const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null);
+    const [gstStates, setGstStates] = useState([]);
+    const [updatingOrderStateId, setUpdatingOrderStateId] = useState(null);
+    const [orderStateNotice, setOrderStateNotice] = useState(null);
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [conversationMessages, setConversationMessages] = useState([]);
     const [loadingMessages, setLoadingMessages] = useState(false);
@@ -156,6 +172,11 @@ const AdminClientDetail = () => {
     const [submittingComm, setSubmittingComm] = useState(false);
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
+    const [editingProfileFields, setEditingProfileFields] = useState(false);
+    const [profileFieldsForm, setProfileFieldsForm] = useState({ billing_state_code: '', billing_address: '', country: '' });
+    const [profileFieldsNotice, setProfileFieldsNotice] = useState(null);
+    const [savingProfileFields, setSavingProfileFields] = useState(false);
+    const [feedback, setFeedback] = useState([]);
     const [credentials, setCredentials] = useState([]);
     const [revealedCredentials, setRevealedCredentials] = useState({}); // { [id]: { login_id, password, notes, otp_destination } }
     const [revealingId, setRevealingId] = useState(null);
@@ -233,6 +254,59 @@ const AdminClientDetail = () => {
         }
     };
 
+    useEffect(() => {
+        if (gstStates.length > 0) return;
+        fetch(apiUrl('/admin-panel/gst-states/'), { headers })
+            .then(res => res.ok ? res.json() : { states: [] })
+            .then(data => setGstStates(data.states || []))
+            .catch(() => setGstStates([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleUpdateOrderBuyerState = async (order, buyerStateCode) => {
+        if (!buyerStateCode || buyerStateCode === order.buyer_state_code) return;
+        setUpdatingOrderStateId(order.id);
+        setOrderStateNotice(null);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/orders/${order.id}/buyer-state/`), {
+                method: 'PATCH',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ buyer_state_code: buyerStateCode }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to update state');
+
+            setOrders(prev => prev.map(o => (
+                o.id === order.id
+                    ? {
+                        ...o,
+                        buyer_state_code: data.buyer_state_code,
+                        place_of_supply: data.place_of_supply,
+                        gst_rate: data.gst_rate,
+                        igst_amount: data.igst_amount,
+                        cgst_amount: data.cgst_amount,
+                        sgst_amount: data.sgst_amount,
+                    }
+                    : o
+            )));
+
+            const taxNote = Number(data.igst_amount || 0) > 0
+                ? `IGST ₹${Number(data.igst_amount).toLocaleString()}`
+                : `CGST ₹${Number(data.cgst_amount || 0).toLocaleString()} + SGST ₹${Number(data.sgst_amount || 0).toLocaleString()}`;
+            setOrderStateNotice({
+                orderId: order.id,
+                type: 'success',
+                message: data.invoice_number
+                    ? `Invoice ${data.invoice_number} regenerated: ${taxNote}`
+                    : 'Buyer state updated (no invoice issued yet for this order).',
+            });
+        } catch (err) {
+            setOrderStateNotice({ orderId: order.id, type: 'error', message: err.message || 'Failed to update state' });
+        } finally {
+            setUpdatingOrderStateId(null);
+        }
+    };
+
     const fetchVault = async () => {
         setRefreshing(prev => ({ ...prev, vault: true }));
         try {
@@ -244,14 +318,19 @@ const AdminClientDetail = () => {
     };
 
     const handleUploadDocument = async () => {
-        if (!uploadDocForm.file) { alert('Choose a file to upload.'); return; }
+        if (!uploadDocForm.files || uploadDocForm.files.length === 0) { alert('Choose at least one file to upload.'); return; }
+        if (uploadDocForm.hasPassword && !uploadDocForm.password.trim()) { alert('Enter a password, or uncheck "Password protected".'); return; }
         setUploadingDoc(true);
         try {
             const form = new FormData();
-            form.append('file', uploadDocForm.file);
-            form.append('title', uploadDocForm.title || uploadDocForm.file.name);
+            uploadDocForm.files.forEach(f => form.append('files', f));
+            // Title only applies cleanly when uploading a single file — with
+            // multiple files each document is titled after its own filename
+            // on the backend (see client_vault_upload).
+            if (uploadDocForm.title) form.append('title', uploadDocForm.title);
             form.append('document_type', uploadDocForm.document_type);
             if (uploadDocForm.folder_name) form.append('folder_name', uploadDocForm.folder_name);
+            if (uploadDocForm.hasPassword && uploadDocForm.password.trim()) form.append('file_password', uploadDocForm.password.trim());
 
             const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/upload/`), {
                 method: 'POST', headers, body: form,
@@ -259,7 +338,7 @@ const AdminClientDetail = () => {
             if (res.ok) {
                 await fetchVault();
                 setShowUploadDoc(false);
-                setUploadDocForm({ title: '', document_type: 'OTHER', folder_name: '', file: null });
+                setUploadDocForm({ title: '', document_type: 'OTHER', folder_name: '', files: [], hasPassword: false, password: '' });
             } else {
                 const data = await res.json().catch(() => ({}));
                 alert(data.error || 'Failed to upload document');
@@ -269,6 +348,180 @@ const AdminClientDetail = () => {
             alert('Failed to upload document');
         } finally {
             setUploadingDoc(false);
+        }
+    };
+
+    const handleUploadReport = async () => {
+        if (!uploadReportForm.file) { alert('Choose a file to upload.'); return; }
+        if (!uploadReportForm.title.trim()) { alert('Enter a title.'); return; }
+        setUploadingReport(true);
+        try {
+            const form = new FormData();
+            form.append('file', uploadReportForm.file);
+            form.append('title', uploadReportForm.title.trim());
+            form.append('report_type', uploadReportForm.report_type);
+
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/reports/upload/`), {
+                method: 'POST', headers, body: form,
+            });
+            if (res.ok) {
+                await fetchVault();
+                setShowUploadReport(false);
+                setUploadReportForm({ title: '', report_type: 'OTHER', file: null });
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to upload report');
+            }
+        } catch (err) {
+            console.error('Failed to upload report', err);
+            alert('Failed to upload report');
+        } finally {
+            setUploadingReport(false);
+        }
+    };
+
+    const handleUploadNotice = async () => {
+        if (!uploadNoticeForm.file) { alert('Choose a file to upload.'); return; }
+        if (!uploadNoticeForm.title.trim()) { alert('Enter a title.'); return; }
+        setUploadingNotice(true);
+        try {
+            const form = new FormData();
+            form.append('file', uploadNoticeForm.file);
+            form.append('title', uploadNoticeForm.title.trim());
+            form.append('notice_type', uploadNoticeForm.notice_type);
+            form.append('priority', uploadNoticeForm.priority);
+            form.append('source', uploadNoticeForm.source);
+
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/notices/upload/`), {
+                method: 'POST', headers, body: form,
+            });
+            if (res.ok) {
+                await fetchVault();
+                setShowUploadNotice(false);
+                setUploadNoticeForm({ title: '', notice_type: 'NOTICE', priority: 'MEDIUM', source: 'OTHER', file: null });
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to upload notice');
+            }
+        } catch (err) {
+            console.error('Failed to upload notice', err);
+            alert('Failed to upload notice');
+        } finally {
+            setUploadingNotice(false);
+        }
+    };
+
+    const handleSaveDocumentPassword = async (docId) => {
+        setSavingDocPassword(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/documents/${docId}/`), {
+                method: 'PATCH',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_password: passwordDraft.trim() }),
+            });
+            if (res.ok) {
+                await fetchVault();
+                if (passwordDraft.trim()) await fetchCredentials();
+                setEditingPasswordDocId(null);
+                setPasswordDraft('');
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to update password');
+            }
+        } catch (err) {
+            console.error('Failed to update document password', err);
+            alert('Failed to update password');
+        } finally {
+            setSavingDocPassword(false);
+        }
+    };
+
+    const toggleDocSelection = (docId) => {
+        setSelectedDocIds(prev => prev.includes(docId) ? prev.filter(x => x !== docId) : [...prev, docId]);
+    };
+
+    const toggleSelectAllDocs = (docs) => {
+        const visibleIds = docs.map(d => d.id);
+        const allSelected = visibleIds.length > 0 && visibleIds.every(docId => selectedDocIds.includes(docId));
+        setSelectedDocIds(allSelected ? [] : visibleIds);
+    };
+
+    const openBulkAccessManager = async () => {
+        if (selectedDocIds.length === 0) return;
+        setAccessDocIds(selectedDocIds);
+        setLoadingAccess(true);
+        setAccessList([]);
+        try {
+            // Access rosters are per-client (assigned consultants), not per-document,
+            // so any one selected document's access-roster call gives us the same
+            // consultant list; we just don't pre-check has_access since it can differ
+            // per document in a bulk selection.
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/documents/${selectedDocIds[0]}/access/`), { headers });
+            if (res.ok) {
+                const data = await res.json();
+                setAccessList(data.map(c => ({ ...c, has_access: false })));
+            } else {
+                alert('Failed to load consultant access list');
+                setAccessDocIds(null);
+            }
+        } catch (err) {
+            console.error('Failed to load document access', err);
+            alert('Failed to load consultant access list');
+            setAccessDocIds(null);
+        } finally {
+            setLoadingAccess(false);
+        }
+    };
+
+    const saveBulkAccessGrants = async (mode) => {
+        // mode: 'grant' | 'revoke'
+        const consultant_ids = accessList.filter(c => c.has_access).map(c => c.consultant_id);
+        if (consultant_ids.length === 0) { alert('Select at least one consultant.'); return; }
+        setSavingAccess(true);
+        try {
+            const endpoint = mode === 'grant' ? 'bulk-grant-access' : 'bulk-revoke-access';
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/${endpoint}/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ document_ids: accessDocIds, consultant_ids }),
+            });
+            if (res.ok) {
+                setAccessDocIds(null);
+                setSelectedDocIds([]);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to update access');
+            }
+        } catch (err) {
+            console.error('Failed to save bulk document access', err);
+            alert('Failed to update access');
+        } finally {
+            setSavingAccess(false);
+        }
+    };
+
+    const handleBulkDeleteDocuments = async () => {
+        if (selectedDocIds.length === 0) return;
+        if (!window.confirm(`Delete ${selectedDocIds.length} document${selectedDocIds.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
+        setBulkActionLoading(true);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/vault/bulk-delete/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ document_ids: selectedDocIds }),
+            });
+            if (res.ok) {
+                await fetchVault();
+                setSelectedDocIds([]);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to delete documents');
+            }
+        } catch (err) {
+            console.error('Failed to bulk delete documents', err);
+            alert('Failed to delete documents');
+        } finally {
+            setBulkActionLoading(false);
         }
     };
 
@@ -520,6 +773,54 @@ const AdminClientDetail = () => {
             alert('Failed to update status');
         } finally {
             setUpdatingStatus(false);
+        }
+    };
+
+    const handleSaveProfileFields = async () => {
+        setSavingProfileFields(true);
+        setProfileFieldsNotice(null);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/profile/`), {
+                method: 'PATCH',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify(profileFieldsForm),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setClient(prev => ({ ...prev, client_profile: { ...prev.client_profile, ...data } }));
+                setEditingProfileFields(false);
+
+                const regen = data.regenerated_invoices || [];
+                if (regen.length > 0) {
+                    const summary = regen.map(r => {
+                        const taxNote = Number(r.igst_amount || 0) > 0
+                            ? `IGST ₹${Number(r.igst_amount).toLocaleString()}`
+                            : `CGST ₹${Number(r.cgst_amount || 0).toLocaleString()} + SGST ₹${Number(r.sgst_amount || 0).toLocaleString()}`;
+                        return `${r.invoice_number} now ${taxNote}`;
+                    }).join(', ');
+                    setProfileFieldsNotice({ type: 'success', message: `${regen.length} invoice${regen.length > 1 ? 's' : ''} regenerated: ${summary}` });
+                } else {
+                    setProfileFieldsNotice({ type: 'success', message: 'Profile updated. No invoices needed updating.' });
+                }
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to update profile fields');
+            }
+        } catch (err) {
+            console.error('Failed to update profile fields', err);
+            alert('Failed to update profile fields');
+        } finally {
+            setSavingProfileFields(false);
+        }
+    };
+
+    const fetchFeedback = async () => {
+        setRefreshing(prev => ({ ...prev, feedback: true }));
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/feedback/`), { headers });
+            if (res.ok) setFeedback(await res.json());
+        } finally {
+            setRefreshing(prev => ({ ...prev, feedback: false }));
         }
     };
 
@@ -832,6 +1133,7 @@ const AdminClientDetail = () => {
                 fetchCallLogs(),
                 fetchCommunicationLogs(),
                 fetchCredentials(),
+                fetchFeedback(),
             ]);
         } catch (err) {
             console.error('Failed to fetch client detail', err);
@@ -866,6 +1168,17 @@ const AdminClientDetail = () => {
         if (!token) navigate(adminUrl());
         else fetchDetail();
     }, [fetchDetail, navigate, token, id]);
+
+    useEffect(() => {
+        if (editingProfileFields) return;
+        const p = client?.client_profile || {};
+        setProfileFieldsForm({
+            billing_state_code: p.billing_state_code || '',
+            billing_address: p.billing_address || '',
+            country: p.country || 'India',
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [client?.client_profile?.billing_state_code, client?.client_profile?.billing_address, client?.client_profile?.country]);
 
     const toggleSection = (sectionId) => {
         setOpenSections(prev => 
@@ -1136,6 +1449,95 @@ const AdminClientDetail = () => {
                                         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{field.value}</div>
                                     </div>
                                 ))}
+
+                                <div style={{ gridColumn: '1 / -1', marginTop: 4, paddingTop: 16, borderTop: '1px solid var(--admin-border-soft)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Billing Address</div>
+                                        {!editingProfileFields ? (
+                                            <button
+                                                onClick={() => setEditingProfileFields(true)}
+                                                style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                            >
+                                                <Edit3 size={13} /> Edit
+                                            </button>
+                                        ) : (
+                                            <div style={{ display: 'flex', gap: 10 }}>
+                                                <button
+                                                    onClick={handleSaveProfileFields}
+                                                    disabled={savingProfileFields}
+                                                    style={{ background: 'none', border: 'none', color: '#10b981', cursor: savingProfileFields ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, opacity: savingProfileFields ? 0.6 : 1 }}
+                                                >
+                                                    {savingProfileFields ? 'Saving...' : 'Save'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingProfileFields(false)}
+                                                    disabled={savingProfileFields}
+                                                    style={{ background: 'none', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>State Code</div>
+                                        {editingProfileFields ? (
+                                            <select
+                                                value={profileFieldsForm.billing_state_code}
+                                                onChange={(e) => setProfileFieldsForm(prev => ({ ...prev, billing_state_code: e.target.value }))}
+                                                disabled={gstStates.length === 0}
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 14, fontWeight: 600 }}
+                                            >
+                                                <option value="" disabled>{gstStates.length === 0 ? 'Loading states…' : 'Select state…'}</option>
+                                                {gstStates.map(s => (
+                                                    <option key={s.code} value={s.code}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{profileData.billing_state_code || '-'}</div>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Country</div>
+                                        {editingProfileFields ? (
+                                            <input
+                                                type="text"
+                                                value={profileFieldsForm.country}
+                                                onChange={(e) => setProfileFieldsForm(prev => ({ ...prev, country: e.target.value }))}
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 14, fontWeight: 600 }}
+                                            />
+                                        ) : (
+                                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{profileData.country || 'India'}</div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ gridColumn: '1 / -1' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Address</div>
+                                        {editingProfileFields ? (
+                                            <input
+                                                type="text"
+                                                value={profileFieldsForm.billing_address}
+                                                onChange={(e) => setProfileFieldsForm(prev => ({ ...prev, billing_address: e.target.value }))}
+                                                placeholder="Street, city, PIN"
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 14, fontWeight: 600 }}
+                                            />
+                                        ) : (
+                                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text-primary)' }}>{profileData.billing_address || '-'}</div>
+                                        )}
+                                    </div>
+
+                                    {profileFieldsNotice && (
+                                        <div style={{
+                                            gridColumn: '1 / -1', fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 8,
+                                            background: profileFieldsNotice.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+                                            color: profileFieldsNotice.type === 'error' ? '#ef4444' : '#10b981',
+                                        }}>
+                                            {profileFieldsNotice.message}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1474,6 +1876,43 @@ const AdminClientDetail = () => {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Feedback Section — client-submitted service ratings/reviews
+                        (consultants.ConsultantReview). No client submission UI exists
+                        yet, so this is typically empty; admin-view only. */}
+                    <div style={{ background: 'var(--admin-surface)', borderRadius: 20, border: '1px solid var(--admin-border-soft)', overflow: 'hidden' }}>
+                        <SectionHeader id="feedback" label="Feedback" icon={Star} color="#eab308" onRefresh={fetchFeedback} />
+                        {openSections.includes('feedback') && (
+                            <div style={{ padding: 24 }}>
+                                {feedback.length === 0 ? (
+                                    <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', fontStyle: 'italic' }}>No feedback submitted yet.</div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        {feedback.map(f => (
+                                            <div key={f.id} style={{ padding: 16, borderRadius: 14, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-row-alt)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                    <div style={{ display: 'flex', gap: 2 }}>
+                                                        {[1, 2, 3, 4, 5].map(n => (
+                                                            <Star key={n} size={14} fill={n <= f.rating ? '#eab308' : 'none'} color="#eab308" />
+                                                        ))}
+                                                    </div>
+                                                    <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>{formatDateTime(f.created_at)}</span>
+                                                </div>
+                                                {f.service_title && (
+                                                    <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 4 }}>
+                                                        {f.service_title}{f.consultant_name ? ` · ${f.consultant_name}` : ''}
+                                                    </div>
+                                                )}
+                                                {f.comment && (
+                                                    <div style={{ fontSize: 14, color: 'var(--admin-text-primary)', lineHeight: 1.6 }}>{f.comment}</div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -2024,7 +2463,26 @@ const AdminClientDetail = () => {
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', gap: 8 }}>
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                {order.status === 'paid' && order.invoice_number && (
+                                                    <select
+                                                        value={order.buyer_state_code || ''}
+                                                        onChange={(e) => handleUpdateOrderBuyerState(order, e.target.value)}
+                                                        disabled={updatingOrderStateId === order.id || gstStates.length === 0}
+                                                        title="Correct buyer GST state and regenerate the invoice"
+                                                        style={{
+                                                            padding: '6px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)',
+                                                            background: 'var(--admin-surface)', color: 'var(--admin-text-primary)',
+                                                            fontSize: 11, fontWeight: 700,
+                                                            cursor: updatingOrderStateId === order.id ? 'not-allowed' : 'pointer',
+                                                        }}
+                                                    >
+                                                        <option value="" disabled>{updatingOrderStateId === order.id ? 'Updating…' : 'State…'}</option>
+                                                        {gstStates.map(s => (
+                                                            <option key={s.code} value={s.code}>{s.name}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
                                                 {order.status === 'paid' && (
                                                     <>
                                                         <button
@@ -2055,6 +2513,15 @@ const AdminClientDetail = () => {
                                                 )}
                                             </div>
                                         </div>
+                                        {orderStateNotice && orderStateNotice.orderId === order.id && (
+                                            <div style={{
+                                                fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 8,
+                                                background: orderStateNotice.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+                                                color: orderStateNotice.type === 'error' ? '#ef4444' : '#10b981',
+                                            }}>
+                                                {orderStateNotice.message}
+                                            </div>
+                                        )}
                                         {order.items?.length > 0 && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--admin-border-soft)' }}>
                                                 {order.items.map((item) => (
@@ -2196,9 +2663,21 @@ const AdminClientDetail = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--admin-text-strong)' }}>Vault Explorer</h4>
                             <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={() => setShowUploadDoc(v => !v)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#3b82f6', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Upload size={14} /> Upload Document
-                                </button>
+                                {vaultTab === 'documents' && (
+                                    <button onClick={() => setShowUploadDoc(v => !v)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#3b82f6', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Upload size={14} /> Upload Document
+                                    </button>
+                                )}
+                                {vaultTab === 'reports' && (
+                                    <button onClick={() => setShowUploadReport(v => !v)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#10b981', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Upload size={14} /> Upload Report
+                                    </button>
+                                )}
+                                {vaultTab === 'notices' && (
+                                    <button onClick={() => setShowUploadNotice(v => !v)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f43f5e', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Upload size={14} /> Upload Notice
+                                    </button>
+                                )}
                                 <button onClick={fetchVault} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface-soft)', color: 'var(--admin-text-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <RefreshCw size={14} className={refreshing.vault ? 'spin' : ''} /> Refresh
                                 </button>
@@ -2223,15 +2702,110 @@ const AdminClientDetail = () => {
                                         <option value="OTHER">Other Document</option>
                                         <option value="TIS">Taxpayer Information Summary</option>
                                     </select>
-                                    <input type="file" onChange={e => setUploadDocForm(f => ({ ...f, file: e.target.files[0] || null }))}
+                                    <input type="file" multiple onChange={e => setUploadDocForm(f => ({ ...f, files: Array.from(e.target.files || []) }))}
                                         style={{ fontSize: 12, color: 'var(--admin-text-primary)' }} />
+                                </div>
+                                {uploadDocForm.files.length > 0 && (
+                                    <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginBottom: 12 }}>
+                                        {uploadDocForm.files.length} file{uploadDocForm.files.length > 1 ? 's' : ''} selected: {uploadDocForm.files.map(f => f.name).join(', ')}
+                                    </div>
+                                )}
+                                <div style={{ marginBottom: 12 }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--admin-text-primary)', cursor: 'pointer', marginBottom: uploadDocForm.hasPassword ? 8 : 0 }}>
+                                        <input type="checkbox" checked={uploadDocForm.hasPassword}
+                                            onChange={e => setUploadDocForm(f => ({ ...f, hasPassword: e.target.checked, password: e.target.checked ? f.password : '' }))} />
+                                        This document is password protected
+                                    </label>
+                                    {uploadDocForm.hasPassword && (
+                                        <input type="text" placeholder="Password (applies to all files in this upload)" value={uploadDocForm.password}
+                                            onChange={e => setUploadDocForm(f => ({ ...f, password: e.target.value }))}
+                                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 13, boxSizing: 'border-box' }} />
+                                    )}
                                 </div>
                                 <div style={{ display: 'flex', gap: 10 }}>
                                     <button onClick={handleUploadDocument} disabled={uploadingDoc}
                                         style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: uploadingDoc ? 'not-allowed' : 'pointer', opacity: uploadingDoc ? 0.6 : 1, background: '#3b82f6', color: '#fff' }}>
-                                        {uploadingDoc ? 'Uploading…' : 'Upload'}
+                                        {uploadingDoc ? 'Uploading…' : `Upload${uploadDocForm.files.length > 1 ? ` (${uploadDocForm.files.length})` : ''}`}
                                     </button>
-                                    <button onClick={() => { setShowUploadDoc(false); setUploadDocForm({ title: '', document_type: 'OTHER', folder_name: '', file: null }); }}
+                                    <button onClick={() => { setShowUploadDoc(false); setUploadDocForm({ title: '', document_type: 'OTHER', folder_name: '', files: [], hasPassword: false, password: '' }); }}
+                                        style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {showUploadReport && (
+                            <div style={{ padding: 16, borderRadius: 14, border: '1px solid var(--admin-border-soft)', marginBottom: 20, background: 'var(--admin-row-alt)' }}>
+                                <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                                    Uploaded directly by admin — appears in this client's Reports tab with no consultant attributed.
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                                    <input placeholder="Title" value={uploadReportForm.title}
+                                        onChange={e => setUploadReportForm(f => ({ ...f, title: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12 }} />
+                                    <select value={uploadReportForm.report_type} onChange={e => setUploadReportForm(f => ({ ...f, report_type: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12 }}>
+                                        <option value="OTHER">Other Document</option>
+                                        <option value="CMA">CMA Report</option>
+                                        <option value="GST">GST Report</option>
+                                        <option value="TAX">Tax Report</option>
+                                        <option value="AUDIT">Audit Report</option>
+                                    </select>
+                                </div>
+                                <input type="file" onChange={e => setUploadReportForm(f => ({ ...f, file: e.target.files[0] || null }))}
+                                    style={{ fontSize: 12, color: 'var(--admin-text-primary)', marginBottom: 12 }} />
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={handleUploadReport} disabled={uploadingReport}
+                                        style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: uploadingReport ? 'not-allowed' : 'pointer', opacity: uploadingReport ? 0.6 : 1, background: '#10b981', color: '#fff' }}>
+                                        {uploadingReport ? 'Uploading…' : 'Upload'}
+                                    </button>
+                                    <button onClick={() => { setShowUploadReport(false); setUploadReportForm({ title: '', report_type: 'OTHER', file: null }); }}
+                                        style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {showUploadNotice && (
+                            <div style={{ padding: 16, borderRadius: 14, border: '1px solid var(--admin-border-soft)', marginBottom: 20, background: 'var(--admin-row-alt)' }}>
+                                <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                                    Uploaded directly by admin — appears in this client's Notices tab with no consultant attributed.
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                                    <input placeholder="Title" value={uploadNoticeForm.title}
+                                        onChange={e => setUploadNoticeForm(f => ({ ...f, title: e.target.value }))}
+                                        style={{ gridColumn: '1 / -1', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12 }} />
+                                    <select value={uploadNoticeForm.notice_type} onChange={e => setUploadNoticeForm(f => ({ ...f, notice_type: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12 }}>
+                                        <option value="NOTICE">Notice</option>
+                                        <option value="ORDER">Order</option>
+                                        <option value="COMMUNICATION">General Communication</option>
+                                    </select>
+                                    <select value={uploadNoticeForm.priority} onChange={e => setUploadNoticeForm(f => ({ ...f, priority: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12 }}>
+                                        <option value="URGENT">Urgent</option>
+                                        <option value="HIGH">High</option>
+                                        <option value="MEDIUM">Medium</option>
+                                        <option value="LOW">Low</option>
+                                    </select>
+                                    <select value={uploadNoticeForm.source} onChange={e => setUploadNoticeForm(f => ({ ...f, source: e.target.value }))}
+                                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 12 }}>
+                                        <option value="INCOME_TAX">Income Tax Dept</option>
+                                        <option value="GST">GST Department</option>
+                                        <option value="MCA">Ministry of Corporate Affairs</option>
+                                        <option value="OTHER">Other Authority</option>
+                                    </select>
+                                </div>
+                                <input type="file" onChange={e => setUploadNoticeForm(f => ({ ...f, file: e.target.files[0] || null }))}
+                                    style={{ fontSize: 12, color: 'var(--admin-text-primary)', marginBottom: 12 }} />
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={handleUploadNotice} disabled={uploadingNotice}
+                                        style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: uploadingNotice ? 'not-allowed' : 'pointer', opacity: uploadingNotice ? 0.6 : 1, background: '#f43f5e', color: '#fff' }}>
+                                        {uploadingNotice ? 'Uploading…' : 'Upload'}
+                                    </button>
+                                    <button onClick={() => { setShowUploadNotice(false); setUploadNoticeForm({ title: '', notice_type: 'NOTICE', priority: 'MEDIUM', source: 'OTHER', file: null }); }}
                                         style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
                                         Cancel
                                     </button>
@@ -2271,14 +2845,52 @@ const AdminClientDetail = () => {
                             </div>
                         )}
 
+                        {vaultTab === 'documents' && (() => {
+                            const visibleDocs = vaultData.documents.filter(d => selectedFolderId === 'all' || d.folder === selectedFolderId);
+                            const allVisibleSelected = visibleDocs.length > 0 && visibleDocs.every(d => selectedDocIds.includes(d.id));
+                            return (
+                                <>
+                                    {visibleDocs.length > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: 'var(--admin-text-muted)', cursor: 'pointer' }}>
+                                                <input type="checkbox" checked={allVisibleSelected} onChange={() => toggleSelectAllDocs(visibleDocs)} />
+                                                Select all
+                                            </label>
+                                        </div>
+                                    )}
+                                    {selectedDocIds.length > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'rgba(59,130,246,0.1)', marginBottom: 12, flexWrap: 'wrap' }}>
+                                            <span style={{ fontSize: 12, fontWeight: 800, color: '#3b82f6' }}>{selectedDocIds.length} selected</span>
+                                            <button onClick={openBulkAccessManager} disabled={bulkActionLoading} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#8b5cf6', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <Users size={12} /> Assign / Unassign
+                                            </button>
+                                            <button onClick={handleBulkDeleteDocuments} disabled={bulkActionLoading} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ef4444', color: 'white', fontSize: 11, fontWeight: 700, cursor: bulkActionLoading ? 'not-allowed' : 'pointer', opacity: bulkActionLoading ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <Trash2 size={12} /> {bulkActionLoading ? 'Deleting…' : 'Delete'}
+                                            </button>
+                                            <button onClick={() => setSelectedDocIds([])} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                                Clear
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 500, overflowY: 'auto' }}>
                             {vaultTab === 'documents' && vaultData.documents.filter(d => selectedFolderId === 'all' || d.folder === selectedFolderId).map((doc, idx) => (
-                                <div key={`doc-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, background: 'var(--admin-row-alt)', cursor: 'pointer', border: '1px solid transparent' }}>
+                                <div key={`doc-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, background: selectedDocIds.includes(doc.id) ? 'rgba(59,130,246,0.08)' : 'var(--admin-row-alt)', cursor: 'pointer', border: selectedDocIds.includes(doc.id) ? '1px solid #3b82f6' : '1px solid transparent' }}>
+                                    <input type="checkbox" checked={selectedDocIds.includes(doc.id)} onChange={() => toggleDocSelection(doc.id)} onClick={e => e.stopPropagation()} style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }} />
                                     <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={20} /></div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {doc.title}
+                                            {doc.has_password && <Lock size={11} color="#f59e0b" title="Password protected" />}
+                                        </div>
                                         <div style={{ fontSize: 11, color: doc.status === 'PENDING' ? '#f59e0b' : doc.status === 'REJECTED' ? '#f87171' : 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                             {doc.folder || 'General'} • {doc.status}
+                                            {(doc.uploaded_at || doc.created_at) && (
+                                                <span>• {new Date(doc.uploaded_at || doc.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                            )}
                                             {doc.requirement_id && (
                                                 <span title={doc.requirement_label || ''} style={{
                                                     padding: '2px 7px', borderRadius: 10, fontSize: 10, fontWeight: 700,
@@ -2289,8 +2901,40 @@ const AdminClientDetail = () => {
                                                 </span>
                                             )}
                                         </div>
+                                        {doc.has_password && (
+                                            <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                                <span style={{ fontFamily: 'monospace' }}>
+                                                    Password: {revealedDocPasswords[doc.id] ? (doc.file_password || '—') : '••••••••'}
+                                                </span>
+                                                <button onClick={e => { e.stopPropagation(); setRevealedDocPasswords(prev => ({ ...prev, [doc.id]: !prev[doc.id] })); }}
+                                                    style={{ background: 'none', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                                                    title={revealedDocPasswords[doc.id] ? 'Hide password' : 'Show password'}>
+                                                    {revealedDocPasswords[doc.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {editingPasswordDocId === doc.id && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }} onClick={e => e.stopPropagation()}>
+                                                <input type="text" autoFocus placeholder="Set password" value={passwordDraft}
+                                                    onChange={e => setPasswordDraft(e.target.value)}
+                                                    style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 11, width: 160 }} />
+                                                <button onClick={() => handleSaveDocumentPassword(doc.id)} disabled={savingDocPassword}
+                                                    style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#10b981', color: 'white', fontSize: 11, fontWeight: 700, cursor: savingDocPassword ? 'not-allowed' : 'pointer' }}>
+                                                    {savingDocPassword ? 'Saving…' : 'Save'}
+                                                </button>
+                                                <button onClick={() => { setEditingPasswordDocId(null); setPasswordDraft(''); }}
+                                                    style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--admin-border-soft)', background: 'none', color: 'var(--admin-text-secondary)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+                                        <button onClick={() => { setEditingPasswordDocId(doc.id); setPasswordDraft(doc.file_password || ''); }}
+                                            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: doc.has_password ? '#f59e0b' : 'var(--admin-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            title={doc.has_password ? 'Edit password' : 'Add password'}>
+                                            <Lock size={14} />
+                                        </button>
                                         {doc.requirement_id && ['pending', 'uploaded', 'rejected'].includes(doc.requirement_status) && (
                                             <select
                                                 disabled={resolvingReqDocId === doc.id}
@@ -2339,6 +2983,9 @@ const AdminClientDetail = () => {
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rep.title}</div>
                                         <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                                             {isAck ? 'Acknowledgment' : 'Report'} • {rep.consultant}
+                                            {rep.created_at && (
+                                                <span>• {new Date(rep.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                            )}
                                             {rep.status_display && (
                                                 <span style={{
                                                     padding: '2px 7px', borderRadius: 10, fontSize: 10, fontWeight: 700,
@@ -2361,7 +3008,10 @@ const AdminClientDetail = () => {
                                     <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(244,63,94,0.1)', color: '#f43f5e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Activity size={20} /></div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notice.title}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>Notice • {notice.priority}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>
+                                            Notice • {notice.priority}
+                                            {notice.created_at && ` • ${new Date(notice.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                                        </div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <button onClick={() => window.open(notice.file, '_blank')} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Preview"><Eye size={14} /></button>
@@ -2422,7 +3072,7 @@ const AdminClientDetail = () => {
                                         <div key={msg.id} style={{ alignSelf: isClient ? 'flex-start' : 'flex-end', maxWidth: '80%', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', padding: '0 8px', textAlign: isClient ? 'left' : 'right', display: 'flex', alignItems: 'center', justifyContent: isClient ? 'flex-start' : 'flex-end', gap: 8 }}>
                                                 {isClient ? <><User size={10} /> {msg.sender_name}</> : <>{msg.sender_name} <Shield size={10} /></>}
-                                                <span style={{ fontWeight: 500, opacity: 0.7 }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <span style={{ fontWeight: 500, opacity: 0.7 }}>{new Date(msg.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
                                             <div style={{ 
                                                 padding: '14px 20px', 
@@ -2574,12 +3224,12 @@ const AdminClientDetail = () => {
                 document.body
             )}
             {/* Document Access Manager Modal */}
-            {accessDocId && createPortal(
+            {(accessDocId || accessDocIds) && createPortal(
                 <div style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
                     background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(4px)'
-                }} onClick={() => setAccessDocId(null)}>
+                }} onClick={() => { setAccessDocId(null); setAccessDocIds(null); }}>
                     <div style={{
                         width: '90%', maxWidth: 440, background: 'var(--admin-surface)',
                         borderRadius: 24, padding: 28, boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
@@ -2587,9 +3237,9 @@ const AdminClientDetail = () => {
                     }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <Users size={18} color="#8b5cf6" /> Consultant Access
+                                <Users size={18} color="#8b5cf6" /> Consultant Access{accessDocIds ? ` (${accessDocIds.length} documents)` : ''}
                             </h3>
-                            <button onClick={() => setAccessDocId(null)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer' }}>
+                            <button onClick={() => { setAccessDocId(null); setAccessDocIds(null); }} style={{ background: 'none', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer' }}>
                                 <X size={22} />
                             </button>
                         </div>
@@ -2603,7 +3253,9 @@ const AdminClientDetail = () => {
                         ) : (
                             <>
                                 <p style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginTop: 0, marginBottom: 16 }}>
-                                    Select which of this client's assigned consultants can see this document.
+                                    {accessDocIds
+                                        ? "Check consultants, then Grant or Revoke access to all selected documents at once."
+                                        : "Select which of this client's assigned consultants can see this document."}
                                 </p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
                                     {accessList.map(c => (
@@ -2616,20 +3268,51 @@ const AdminClientDetail = () => {
                                         </label>
                                     ))}
                                 </div>
-                                <button
-                                    onClick={saveAccessGrants}
-                                    disabled={savingAccess}
-                                    style={{
-                                        marginTop: 18, width: '100%', padding: '12px', borderRadius: 12,
-                                        background: '#8b5cf6', color: 'white', border: 'none',
-                                        fontSize: 14, fontWeight: 800, cursor: savingAccess ? 'not-allowed' : 'pointer',
-                                        opacity: savingAccess ? 0.6 : 1,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                                    }}
-                                >
-                                    {savingAccess ? <RefreshCw size={16} className="spin" /> : <CheckCircle2 size={16} />}
-                                    {savingAccess ? 'Saving…' : 'Save Access'}
-                                </button>
+                                {accessDocIds ? (
+                                    <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+                                        <button
+                                            onClick={() => saveBulkAccessGrants('grant')}
+                                            disabled={savingAccess}
+                                            style={{
+                                                flex: 1, padding: '12px', borderRadius: 12,
+                                                background: '#8b5cf6', color: 'white', border: 'none',
+                                                fontSize: 13, fontWeight: 800, cursor: savingAccess ? 'not-allowed' : 'pointer',
+                                                opacity: savingAccess ? 0.6 : 1,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                                            }}
+                                        >
+                                            {savingAccess ? <RefreshCw size={14} className="spin" /> : <CheckCircle2 size={14} />} Grant
+                                        </button>
+                                        <button
+                                            onClick={() => saveBulkAccessGrants('revoke')}
+                                            disabled={savingAccess}
+                                            style={{
+                                                flex: 1, padding: '12px', borderRadius: 12,
+                                                background: 'none', color: '#ef4444', border: '1px solid #ef4444',
+                                                fontSize: 13, fontWeight: 800, cursor: savingAccess ? 'not-allowed' : 'pointer',
+                                                opacity: savingAccess ? 0.6 : 1,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                                            }}
+                                        >
+                                            Revoke
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={saveAccessGrants}
+                                        disabled={savingAccess}
+                                        style={{
+                                            marginTop: 18, width: '100%', padding: '12px', borderRadius: 12,
+                                            background: '#8b5cf6', color: 'white', border: 'none',
+                                            fontSize: 14, fontWeight: 800, cursor: savingAccess ? 'not-allowed' : 'pointer',
+                                            opacity: savingAccess ? 0.6 : 1,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                                        }}
+                                    >
+                                        {savingAccess ? <RefreshCw size={16} className="spin" /> : <CheckCircle2 size={16} />}
+                                        {savingAccess ? 'Saving…' : 'Save Access'}
+                                    </button>
+                                )}
                             </>
                         )}
                     </div>
