@@ -2,17 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUrl } from '../../utils/adminPath';
 import { apiUrl } from '../../utils/apiBase';
-import { LifeBuoy, MessageSquare, Clock, CheckCircle2, AlertCircle, ChevronDown, Send, FileText, RefreshCw, Activity } from 'lucide-react';
+import { LifeBuoy, MessageSquare, Clock, CheckCircle2, AlertCircle, ChevronDown, Send, FileText, RefreshCw, Activity, User, Briefcase } from 'lucide-react';
 
 const AdminSupportList = ({ isLight, viewportWidth, token, themeVars }) => {
     const navigate = useNavigate();
     const isMobile = viewportWidth <= 768;
 
     const [tickets, setTickets] = useState([]);
-    const [stats, setStats] = useState({ total: 0, open: 0, in_progress: 0, resolved: 0 });
+    const [stats, setStats] = useState({ total: 0, open: 0, in_progress: 0, resolved: 0, client_tickets: 0, consultant_tickets: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('all'); // all, open, in_progress, resolved
+    const [ticketType, setTicketType] = useState('all'); // all, client, consultant
     const [expandedTicketId, setExpandedTicketId] = useState(null);
     const [replyTexts, setReplyTexts] = useState({});
     const [sendingReply, setSendingReply] = useState({});
@@ -24,30 +25,31 @@ const AdminSupportList = ({ isLight, viewportWidth, token, themeVars }) => {
         try {
             const params = new URLSearchParams();
             if (filter !== 'all') params.set('status', filter);
+            if (ticketType !== 'all') params.set('ticket_type', ticketType);
 
             const res = await fetch(apiUrl(`/admin-panel/global-tickets/?${params}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
-            
+
             if (res.status === 401 || res.status === 403) {
                 navigate(adminUrl());
                 return;
             }
-            
+
             if (res.ok) {
                 const data = await res.json();
                 setTickets(data.tickets || []);
-                setStats(data.stats || { total: 0, open: 0, in_progress: 0, resolved: 0 });
+                setStats(data.stats || { total: 0, open: 0, in_progress: 0, resolved: 0, client_tickets: 0, consultant_tickets: 0 });
             } else {
                 setTickets([]);
-                setStats({ total: 0, open: 0, in_progress: 0, resolved: 0 });
+                setStats({ total: 0, open: 0, in_progress: 0, resolved: 0, client_tickets: 0, consultant_tickets: 0 });
             }
         } catch {
             setError('Failed to load tickets');
         } finally {
             setLoading(false);
         }
-    }, [filter, token, navigate]);
+    }, [filter, ticketType, token, navigate]);
 
     useEffect(() => {
         if (!token) return;
@@ -146,6 +148,37 @@ const AdminSupportList = ({ isLight, viewportWidth, token, themeVars }) => {
                 ))}
             </div>
 
+            {/* Client vs Consultant ticket bifurcation */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, background: 'var(--admin-row-alt)', padding: 6, borderRadius: 14, width: 'fit-content' }}>
+                {[
+                    { id: 'all', label: 'All Tickets', icon: LifeBuoy, count: stats.total },
+                    { id: 'client', label: 'Client Tickets', icon: User, count: stats.client_tickets },
+                    { id: 'consultant', label: 'Consultant Tickets', icon: Briefcase, count: stats.consultant_tickets },
+                ].map((opt) => (
+                    <button
+                        key={opt.id}
+                        onClick={() => setTicketType(opt.id)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '10px 18px', borderRadius: 10, border: 'none',
+                            background: ticketType === opt.id ? (isLight ? '#ffffff' : 'rgba(59,130,246,0.18)') : 'transparent',
+                            color: ticketType === opt.id ? '#3b82f6' : 'var(--admin-text-secondary)',
+                            fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                            boxShadow: ticketType === opt.id ? 'var(--admin-shadow-md)' : 'none',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        <opt.icon size={16} />
+                        {opt.label}
+                        <span style={{
+                            padding: '1px 8px', borderRadius: 20, fontSize: 11, fontWeight: 800,
+                            background: ticketType === opt.id ? 'rgba(59,130,246,0.15)' : 'var(--admin-surface)',
+                            color: ticketType === opt.id ? '#3b82f6' : 'var(--admin-text-muted)',
+                        }}>{opt.count ?? 0}</span>
+                    </button>
+                ))}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {loading ? (
                     <div style={{ padding: 80, textAlign: 'center', color: 'var(--admin-text-muted)', background: 'var(--admin-surface)', borderRadius: 24 }}>
@@ -177,11 +210,30 @@ const AdminSupportList = ({ isLight, viewportWidth, token, themeVars }) => {
                                             textTransform: 'uppercase', border: '1px solid currentColor'
                                         }}>{t.status}</span>
                                         <span style={{ padding: '4px 10px', borderRadius: 8, background: 'var(--admin-row-alt)', color: 'var(--admin-text-secondary)', fontSize: 10, fontWeight: 800 }}>{t.category.replace('_', ' ').toUpperCase()}</span>
+                                        <span style={{
+                                            padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+                                            background: t.ticket_type === 'consultant' ? '#8b5cf615' : '#3b82f615',
+                                            color: t.ticket_type === 'consultant' ? '#8b5cf6' : '#3b82f6',
+                                        }}>{t.ticket_type === 'consultant' ? 'Consultant Ticket' : 'Client Ticket'}</span>
                                     </div>
                                     <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--admin-text-primary)' }}>{t.subject}</h3>
                                 </div>
                                 <div style={{ textAlign: 'right', minWidth: 150 }}>
-                                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--admin-text-primary)', marginBottom: 4 }}>{t.client_name}</div>
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!t.raiser_profile_id) return;
+                                            const path = t.ticket_type === 'consultant' ? `/Consultants/${t.raiser_profile_id}` : `/Clients/${t.raiser_profile_id}`;
+                                            window.open(path, '_blank');
+                                        }}
+                                        title={t.raiser_profile_id ? 'Open profile' : undefined}
+                                        style={{
+                                            fontSize: 14, fontWeight: 800, marginBottom: 4,
+                                            color: t.raiser_profile_id ? (t.ticket_type === 'consultant' ? '#8b5cf6' : '#3b82f6') : 'var(--admin-text-primary)',
+                                            cursor: t.raiser_profile_id ? 'pointer' : 'default',
+                                            textDecoration: t.raiser_profile_id ? 'underline' : 'none',
+                                        }}
+                                    >{t.raiser_name || t.client_name}</div>
                                     <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>{new Date(t.created_at).toLocaleDateString()}</div>
                                 </div>
                                 <div style={{ transform: expandedTicketId === t.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s', color: 'var(--admin-text-muted)' }}>
@@ -281,12 +333,19 @@ const AdminSupportList = ({ isLight, viewportWidth, token, themeVars }) => {
                                                 )}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                                        <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 700 }}>Client Profile</span>
-                                                        <button onClick={() => window.open(`/Clients/${t.client_id}`, '_blank')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>View Details</button>
+                                                        <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 700 }}>{t.ticket_type === 'consultant' ? 'Raised By (Consultant)' : 'Raised By (Client)'}</span>
+                                                        {t.raiser_profile_id ? (
+                                                            <button
+                                                                onClick={() => window.open(t.ticket_type === 'consultant' ? `/Consultants/${t.raiser_profile_id}` : `/Clients/${t.raiser_profile_id}`, '_blank')}
+                                                                style={{ background: 'none', border: 'none', color: t.ticket_type === 'consultant' ? '#8b5cf6' : '#3b82f6', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+                                                            >View Details</button>
+                                                        ) : (
+                                                            <span style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>Profile unavailable</span>
+                                                        )}
                                                     </div>
-                                                    {t.consultant_id && (
+                                                    {t.consultant_id && t.ticket_type !== 'consultant' && (
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--admin-border-soft)' }}>
-                                                            <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 700 }}>Consultant</span>
+                                                            <span style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 700 }}>Assigned Consultant</span>
                                                             <button onClick={() => window.open(`/Consultants/${t.consultant_id}`, '_blank')} style={{ background: 'none', border: 'none', color: '#10b981', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>View Details</button>
                                                         </div>
                                                     )}

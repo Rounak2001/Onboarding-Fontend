@@ -1928,6 +1928,7 @@ const AdminClientDetail = () => {
                                     <thead style={{ background: 'var(--admin-row-alt)' }}>
                                         <tr>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Consultant</th>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Initiated By</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Status</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Duration</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Recording</th>
@@ -1940,6 +1941,14 @@ const AdminClientDetail = () => {
                                                 <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>
                                                     {log.consultant_name}
                                                     {log.outcome && <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', fontWeight: 500 }}>{log.outcome}</div>}
+                                                </td>
+                                                <td style={{ padding: '16px 24px', fontSize: 13 }}>
+                                                    <span style={{
+                                                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                                        background: log.initiated_by_role === 'CLIENT' ? 'rgba(59,130,246,0.1)' : log.initiated_by_role === 'CONSULTANT' ? 'rgba(16,185,129,0.1)' : 'rgba(148,163,184,0.15)',
+                                                        color: log.initiated_by_role === 'CLIENT' ? '#3b82f6' : log.initiated_by_role === 'CONSULTANT' ? '#10b981' : 'var(--admin-text-muted)',
+                                                    }}>{log.initiated_by_role_label || '—'}</span>
+                                                    <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', marginTop: 4 }}>{log.initiated_by_name}</div>
                                                 </td>
                                                 <td style={{ padding: '16px 24px' }}>
                                                     <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: log.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(148,163,184,0.15)', color: log.status === 'completed' ? '#10b981' : 'var(--admin-text-muted)' }}>{log.status}</span>
@@ -1966,7 +1975,7 @@ const AdminClientDetail = () => {
                                             </tr>
                                         ))}
                                         {callLogs.length === 0 && (
-                                            <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No calls logged</td></tr>
+                                            <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No calls logged</td></tr>
                                         )}
                                     </tbody>
                                 </table>

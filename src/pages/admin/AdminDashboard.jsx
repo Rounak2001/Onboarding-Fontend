@@ -159,6 +159,12 @@ const AdminDashboard = () => {
     const [transactionStats, setTransactionStats] = useState({ total_revenue: 0, total_paid_to_consultants: 0, pending_amount: 0 });
     const [cartStats, setCartStats] = useState({ total_carts: 0, active_carts: 0, abandoned_value: 0 });
     const [serviceStats, setServiceStats] = useState({ total: 0, active: 0, pending: 0, completed: 0, active_consultants: 0, active_clients: 0 });
+    const [netProfitStats, setNetProfitStats] = useState({
+        total_collected: 0, gst_amount: 0, total_eligible_payout: 0, pending_payout: 0, payout_claimed: 0,
+        tds_amount: 0, paid_consultant_tds: 0, pending_consultant_tds: 0,
+        payout_amount: 0, net_profit: 0,
+    });
+    const [payoutDrilldown, setPayoutDrilldown] = useState({ open: false, filter: 'pending', loading: false, error: '', consultants: [] });
 
     const [consultants, setConsultants] = useState([]);
     const [stats, setStats] = useState({ total: 0, status_counts: {} });
@@ -242,8 +248,20 @@ const AdminDashboard = () => {
 
     const revenueValue = Number(stats?.total_revenue || transactionStats?.total_revenue || 0);
     const payoutsValue = Number(stats?.total_payouts || transactionStats?.total_paid_to_consultants || 0);
-    const settlementsValue = Number(transactionStats?.pending_amount || 0);
     const ticketValue = Number(stats?.open_tickets || 0);
+
+    // Net Profit = Total Collected − (Pending Payout + Payout Claimed + TDS) − GST Amount.
+    // Sourced from /admin-panel/net-profit/ — see admin_global.global_net_profit for the
+    // exact real-figure breakdown (no estimates).
+    const netProfitCollectedValue = Number(netProfitStats?.total_collected || 0);
+    const netProfitGstValue = Number(netProfitStats?.gst_amount || 0);
+    const netProfitTotalEligiblePayoutValue = Number(netProfitStats?.total_eligible_payout || 0);
+    const netProfitPendingPayoutValue = Number(netProfitStats?.pending_payout || 0);
+    const netProfitClaimedPayoutValue = Number(netProfitStats?.payout_claimed || 0);
+    const netProfitTdsValue = Number(netProfitStats?.tds_amount || 0);
+    const netProfitPendingConsultantTdsValue = Number(netProfitStats?.pending_consultant_tds || 0);
+    const netProfitPayoutAmountValue = Number(netProfitStats?.payout_amount || 0);
+    const netProfitValue = Number(netProfitStats?.net_profit || 0);
 
     const activeConsultantCount = Number(serviceStats?.active_consultants || 0);
     const activeClientCount = Number(serviceStats?.active_clients || 0);
@@ -398,8 +416,38 @@ const AdminDashboard = () => {
             safeStatsFetch('/admin-panel/global-transactions/', setTransactionStats);
             safeStatsFetch('/admin-panel/global-carts/', setCartStats);
             safeStatsFetch('/admin-panel/global-services/', setServiceStats);
+
+            (async () => {
+                try {
+                    const res = await fetch(apiUrl('/admin-panel/net-profit/'), { headers: authHeaders });
+                    if (!res.ok) return;
+                    const text = await res.text();
+                    if (!text) return;
+                    const data = JSON.parse(text);
+                    if (data && !data.error) setNetProfitStats(data);
+                } catch { /* swallow — net profit card falls back to zero */ }
+            })();
         }
     }, [activeTab, statusFilters, assessmentSubstatusFilter, joinedDateFilter, cardFilter, stateFilter, serviceFilter, ageFilter, hasServicesFilter, token, authHeaders, fetchConsultants]);
+
+    // Pending Payout / Payout Claimed tiles open this — lists consultants who
+    // have (or haven't) claimed their earned payouts, backed by
+    // /admin-panel/net-profit/consultants/.
+    const openPayoutDrilldown = useCallback(async (filterType) => {
+        setPayoutDrilldown({ open: true, filter: filterType, loading: true, error: '', consultants: [] });
+        try {
+            const params = new URLSearchParams({ filter: filterType });
+            const res = await fetch(apiUrl(`/admin-panel/net-profit/consultants/?${params}`), { headers: authHeaders });
+            if (!res.ok) {
+                setPayoutDrilldown(prev => ({ ...prev, loading: false, error: 'Failed to load consultants' }));
+                return;
+            }
+            const data = await res.json();
+            setPayoutDrilldown(prev => ({ ...prev, loading: false, consultants: data.consultants || [] }));
+        } catch {
+            setPayoutDrilldown(prev => ({ ...prev, loading: false, error: 'Failed to load consultants' }));
+        }
+    }, [authHeaders]);
 
     useEffect(() => {
         if (!showAssessmentSubstatus && assessmentSubstatusFilter !== 'all') {
@@ -1165,6 +1213,92 @@ const AdminDashboard = () => {
                         </div>
                     ), document.body)}
 
+                    {payoutDrilldown.open && typeof document !== 'undefined' && createPortal((
+                        <div
+                            role="presentation"
+                            onMouseDown={(event) => {
+                                if (event.target === event.currentTarget) setPayoutDrilldown(prev => ({ ...prev, open: false }));
+                            }}
+                            style={{
+                                ...themeVars,
+                                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                                width: '100vw', height: '100dvh',
+                                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                zIndex: 1000, padding: isMobile ? 12 : 24,
+                            }}
+                        >
+                            <div style={{
+                                width: '100%', maxWidth: 780, maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+                                background: isLight ? '#ffffff' : '#0f172a', borderRadius: 24, border: '1px solid var(--admin-border-soft)',
+                                boxShadow: '0 25px 60px rgba(0,0,0,0.3)', overflow: 'hidden',
+                            }}>
+                                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--admin-border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: 'var(--admin-text-primary)' }}>
+                                            {payoutDrilldown.filter === 'pending' ? 'Consultants — Pending Payout' : 'Consultants — Payout Claimed'}
+                                        </h3>
+                                        <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600, marginTop: 4 }}>
+                                            {payoutDrilldown.filter === 'pending'
+                                                ? 'Have earned from completed services but not yet withdrawn'
+                                                : 'Have withdrawn at least one payout'}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <button
+                                            onClick={() => openPayoutDrilldown(payoutDrilldown.filter === 'pending' ? 'claimed' : 'pending')}
+                                            style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-row-alt)', color: 'var(--admin-text-secondary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            Switch to {payoutDrilldown.filter === 'pending' ? 'Claimed' : 'Pending'}
+                                        </button>
+                                        <button onClick={() => setPayoutDrilldown(prev => ({ ...prev, open: false }))} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: 'var(--admin-row-alt)', color: 'var(--admin-text-secondary)', cursor: 'pointer', fontSize: 16, fontWeight: 700 }}>✕</button>
+                                    </div>
+                                </div>
+                                <div style={{ overflowY: 'auto', flex: 1 }}>
+                                    {payoutDrilldown.loading ? (
+                                        <div style={{ padding: 60, textAlign: 'center', color: 'var(--admin-text-muted)' }}>Loading…</div>
+                                    ) : payoutDrilldown.error ? (
+                                        <div style={{ padding: 60, textAlign: 'center', color: '#ef4444' }}>{payoutDrilldown.error}</div>
+                                    ) : payoutDrilldown.consultants.length === 0 ? (
+                                        <div style={{ padding: 60, textAlign: 'center', color: 'var(--admin-text-muted)' }}>No consultants found.</div>
+                                    ) : (
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <thead style={{ background: 'var(--admin-row-alt)', position: 'sticky', top: 0 }}>
+                                                <tr>
+                                                    <th style={{ textAlign: 'left', padding: '10px 20px', fontSize: 10, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Consultant</th>
+                                                    <th style={{ textAlign: 'right', padding: '10px 20px', fontSize: 10, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Eligible</th>
+                                                    <th style={{ textAlign: 'right', padding: '10px 20px', fontSize: 10, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>{payoutDrilldown.filter === 'pending' ? 'Unclaimed' : 'Claimed (net)'}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {payoutDrilldown.consultants.map((c) => (
+                                                    <tr key={c.consultant_profile_id} style={{ borderBottom: '1px solid var(--admin-border-soft)' }}>
+                                                        <td style={{ padding: '14px 20px' }}>
+                                                            <div
+                                                                onClick={() => c.consultant_app_id && window.open(`/Consultants/${c.consultant_app_id}`, '_blank')}
+                                                                style={{
+                                                                    fontSize: 13, fontWeight: 800,
+                                                                    color: c.consultant_app_id ? '#3b82f6' : 'var(--admin-text-primary)',
+                                                                    cursor: c.consultant_app_id ? 'pointer' : 'default',
+                                                                    textDecoration: c.consultant_app_id ? 'underline' : 'none',
+                                                                }}
+                                                            >{c.name}</div>
+                                                            <div style={{ fontSize: 11, color: 'var(--admin-text-muted)' }}>{c.email}</div>
+                                                        </td>
+                                                        <td style={{ padding: '14px 20px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: 'var(--admin-text-primary)' }}>₹{c.total_eligible.toLocaleString()}</td>
+                                                        <td style={{ padding: '14px 20px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: payoutDrilldown.filter === 'pending' ? '#f59e0b' : '#3b82f6' }}>
+                                                            ₹{(payoutDrilldown.filter === 'pending' ? c.pending_payout : c.payout_claimed).toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ), document.body)}
+
                     <div style={{ maxWidth: 1500, margin: '0 auto', padding: isMobile ? '16px' : '32px' }}>
                         {activeTab === 'dashboard' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -1221,7 +1355,6 @@ const AdminDashboard = () => {
                                         {[
                                             { label: 'Revenue (MTD)', value: `₹${revenueValue.toLocaleString()}`, sub: 'Completed payments', icon: TrendingUp, color: '#10b981', filter: 'revenue' },
                                             { label: 'Total Payouts', value: `₹${payoutsValue.toLocaleString()}`, sub: 'Consultant earnings', icon: Users, color: '#3b82f6', filter: 'payouts' },
-                                            { label: 'Settlements', value: `₹${settlementsValue.toLocaleString()}`, sub: 'Awaiting clearance', icon: Receipt, color: '#f59e0b', filter: 'settlements' },
                                         ].map((card, idx) => (
                                             <div
                                                 key={idx}
@@ -1243,6 +1376,59 @@ const AdminDashboard = () => {
                                                 <div style={{ fontSize: 11, color: 'var(--admin-text-muted)', fontWeight: 700 }}>{card.sub}</div>
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+
+                                {/* Net Profit Breakdown */}
+                                <div style={{
+                                    padding: 32, borderRadius: 28, border: `1px solid ${netProfitValue >= 0 ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                                    background: isLight
+                                        ? `linear-gradient(180deg, rgba(255,255,255,0.99) 0%, ${netProfitValue >= 0 ? 'rgba(236,253,245,0.98)' : 'rgba(254,242,242,0.98)'} 100%)`
+                                        : `linear-gradient(180deg, rgba(15,23,42,0.95) 0%, ${netProfitValue >= 0 ? 'rgba(12,44,42,0.92)' : 'rgba(54,16,16,0.92)'} 100%)`,
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20, marginBottom: 24 }}>
+                                        <div>
+                                            <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 900, color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                <Wallet size={22} color={netProfitValue >= 0 ? '#10b981' : '#ef4444'} /> Net Profit
+                                            </h3>
+                                            <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>
+                                                Total Collected − (Pending Payout + Payout Claimed + TDS) − GST Amount
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: 40, fontWeight: 900, color: netProfitValue >= 0 ? '#10b981' : '#ef4444', lineHeight: 1 }}>
+                                            ₹{netProfitValue.toLocaleString()}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                                        {[
+                                            { label: 'Total Collected', value: netProfitCollectedValue, color: '#10b981', sign: '' },
+                                            { label: 'Pending Payout', value: netProfitPendingPayoutValue, color: '#f59e0b', sign: '−', sub: `Eligible ₹${netProfitTotalEligiblePayoutValue.toLocaleString()} − Claimed ₹${netProfitClaimedPayoutValue.toLocaleString()}`, clickFilter: 'pending' },
+                                            { label: 'Payout Claimed', value: netProfitClaimedPayoutValue, color: '#3b82f6', sign: '−', sub: 'Net of TDS withheld', clickFilter: 'claimed' },
+                                            { label: 'TDS', value: netProfitTdsValue, color: '#ef4444', sign: '−', sub: netProfitPendingConsultantTdsValue > 0 ? `incl. ₹${netProfitPendingConsultantTdsValue.toLocaleString()} on pending withdrawals` : null },
+                                            { label: 'GST Amount', value: netProfitGstValue, color: '#8b5cf6', sign: '−' },
+                                        ].map((row) => (
+                                            <div
+                                                key={row.label}
+                                                onClick={row.clickFilter ? () => openPayoutDrilldown(row.clickFilter) : undefined}
+                                                style={{
+                                                    padding: '16px 18px', borderRadius: 18, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)',
+                                                    cursor: row.clickFilter ? 'pointer' : 'default', transition: 'all 0.2s',
+                                                }}
+                                                onMouseOver={row.clickFilter ? (e) => e.currentTarget.style.transform = 'scale(1.02)' : undefined}
+                                                onMouseOut={row.clickFilter ? (e) => e.currentTarget.style.transform = 'scale(1)' : undefined}
+                                            >
+                                                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--admin-text-muted)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    {row.label}
+                                                    {row.clickFilter && <span style={{ fontSize: 9, color: row.color, fontWeight: 900 }}>VIEW LIST →</span>}
+                                                </div>
+                                                <div style={{ fontSize: 20, fontWeight: 900, color: row.color }}>{row.sign}₹{row.value.toLocaleString()}</div>
+                                                {row.sub && <div style={{ fontSize: 10, color: 'var(--admin-text-muted)', fontWeight: 600, marginTop: 4 }}>{row.sub}</div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ marginTop: 16, fontSize: 11, color: 'var(--admin-text-muted)', fontWeight: 600 }}>
+                                        Payout Amount (Pending Payout + Payout Claimed + TDS): ₹{netProfitPayoutAmountValue.toLocaleString()}
                                     </div>
                                 </div>
 
