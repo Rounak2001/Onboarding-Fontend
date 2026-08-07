@@ -102,6 +102,13 @@ const AdminClientDetail = () => {
     const [serviceRequests, setServiceRequests] = useState([]);
     const [orders, setOrders] = useState([]);
     const [consultations, setConsultations] = useState([]);
+    const [consultationModal, setConsultationModal] = useState({
+        open: false, mode: 'reschedule', booking: null,
+        consultants: [], loadingConsultants: false,
+        form: { consultant_id: '', booking_date: '', start_time: '', end_time: '' },
+        saving: false, error: '',
+    });
+    const [consultationActionLoading, setConsultationActionLoading] = useState(null); // `${id}-close` | `${id}-cancel`
     const [tickets, setTickets] = useState([]);
     const [conversations, setConversations] = useState([]);
     const [cartItems, setCartItems] = useState([]);
@@ -678,6 +685,102 @@ const AdminClientDetail = () => {
         }
     };
 
+    const openConsultationModal = async (booking, mode) => {
+        setConsultationModal({
+            open: true, mode, booking,
+            consultants: [], loadingConsultants: mode === 'reassign',
+            form: {
+                consultant_id: booking.consultant_id || '',
+                booking_date: booking.booking_date || '',
+                start_time: booking.start_time || '',
+                end_time: booking.end_time || '',
+            },
+            saving: false, error: '',
+        });
+        if (mode === 'reassign') {
+            try {
+                const res = await fetch(apiUrl(`/admin-panel/consultations/${booking.id}/available-consultants/`), { headers });
+                const data = res.ok ? await res.json() : { consultants: [] };
+                setConsultationModal(prev => ({ ...prev, loadingConsultants: false, consultants: data.consultants || [] }));
+            } catch {
+                setConsultationModal(prev => ({ ...prev, loadingConsultants: false, error: 'Failed to load consultants' }));
+            }
+        }
+    };
+
+    const closeConsultationModal = () => setConsultationModal(prev => ({ ...prev, open: false }));
+
+    const submitConsultationModal = async () => {
+        const { mode, booking, form } = consultationModal;
+        setConsultationModal(prev => ({ ...prev, saving: true, error: '' }));
+        try {
+            const path = mode === 'reassign'
+                ? `/admin-panel/consultations/${booking.id}/reassign-consultant/`
+                : `/admin-panel/consultations/${booking.id}/reschedule/`;
+            const body = mode === 'reassign'
+                ? { consultant_id: form.consultant_id }
+                : { booking_date: form.booking_date, start_time: form.start_time, end_time: form.end_time };
+            const res = await fetch(apiUrl(path), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setConsultationModal(prev => ({ ...prev, saving: false, error: data.error || 'Action failed' }));
+                return;
+            }
+            await fetchConsultations();
+            setConsultationModal(prev => ({ ...prev, open: false, saving: false }));
+        } catch {
+            setConsultationModal(prev => ({ ...prev, saving: false, error: 'Action failed' }));
+        }
+    };
+
+    const handleCloseConsultation = async (booking) => {
+        if (!window.confirm('Mark this consultation as completed?')) return;
+        setConsultationActionLoading(`${booking.id}-close`);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultations/${booking.id}/close/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(data.error || 'Failed to close consultation');
+                return;
+            }
+            await fetchConsultations();
+        } catch {
+            alert('Failed to close consultation');
+        } finally {
+            setConsultationActionLoading(null);
+        }
+    };
+
+    const handleCancelConsultation = async (booking) => {
+        const reason = window.prompt('Reason for cancelling this consultation (optional):');
+        if (reason === null) return; // user hit Cancel on the prompt itself
+        setConsultationActionLoading(`${booking.id}-cancel`);
+        try {
+            const res = await fetch(apiUrl(`/admin-panel/consultations/${booking.id}/cancel/`), {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(data.error || 'Failed to cancel consultation');
+                return;
+            }
+            await fetchConsultations();
+        } catch {
+            alert('Failed to cancel consultation');
+        } finally {
+            setConsultationActionLoading(null);
+        }
+    };
+
     const loadRecording = async (log) => {
         if (recordingBlobUrls[log.id] || loadingRecordingId === log.id) return;
         // Exotel recording URLs require HTTP Basic Auth to Exotel directly —
@@ -1186,6 +1289,13 @@ const AdminClientDetail = () => {
         );
     };
 
+    // ServiceOrder and consultation-booking "orders" live in the same
+    // Billing & Invoices list (see client_orders merging both) but are
+    // served by different admin invoice endpoints — route accordingly.
+    const invoicePdfPath = (order) => order.order_type === 'consultation'
+        ? `/admin-panel/clients/${id}/consultations/${order.id}/invoice/pdf/`
+        : `/admin-panel/clients/${id}/orders/${order.id}/invoice/pdf/`;
+
     const handleDownloadInvoice = async (order) => {
         setDownloadingInvoiceId(order.id);
         try {
@@ -1193,7 +1303,7 @@ const AdminClientDetail = () => {
             // that one only accepts a client's own session/applicant auth, so an
             // admin token was silently rejected regardless of order status —
             // this generates (if needed) and serves the invoice as the admin.
-            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/orders/${order.id}/invoice/pdf/`), {
+            const res = await fetch(apiUrl(invoicePdfPath(order)), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to download invoice');
@@ -1222,7 +1332,7 @@ const AdminClientDetail = () => {
         // Authorization headers, and we can't assume a session cookie exists.
         setPreviewingInvoiceId(order.id);
         try {
-            const res = await fetch(apiUrl(`/admin-panel/clients/${id}/orders/${order.id}/invoice/pdf/?inline=1`), {
+            const res = await fetch(apiUrl(`${invoicePdfPath(order)}?inline=1`), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to load invoice');
@@ -2448,13 +2558,17 @@ const AdminClientDetail = () => {
                                         }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
-                                                    <FileText size={20} />
+                                                <div style={{
+                                                    width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    background: order.order_type === 'consultation' ? 'rgba(14,165,233,0.1)' : 'rgba(245,158,11,0.1)',
+                                                    color: order.order_type === 'consultation' ? '#0ea5e9' : '#f59e0b',
+                                                }}>
+                                                    {order.order_type === 'consultation' ? <Phone size={20} /> : <FileText size={20} />}
                                                 </div>
                                                 <div>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                                         <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--admin-text-primary)' }}>
-                                                            Order #{order.id} {order.invoice_number && <span style={{ color: '#64748b', fontSize: 13, fontWeight: 600 }}>({order.invoice_number})</span>}
+                                                            {order.order_type === 'consultation' ? `Consultation #${order.id}` : `Order #${order.id}`} {order.invoice_number && <span style={{ color: '#64748b', fontSize: 13, fontWeight: 600 }}>({order.invoice_number})</span>}
                                                         </h4>
                                                         <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: order.status === 'paid' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', color: order.status === 'paid' ? '#10b981' : '#f59e0b' }}>{order.status.toUpperCase()}</span>
                                                         {order.coupon_code && (
@@ -2464,6 +2578,7 @@ const AdminClientDetail = () => {
                                                         )}
                                                     </div>
                                                     <div style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginTop: 4 }}>
+                                                        {order.order_type === 'consultation' && order.service_label && <span style={{ fontWeight: 600, color: 'var(--admin-text-primary)' }}>{order.service_label}{order.consultant_name ? ` · ${order.consultant_name}` : ''} · </span>}
                                                         {formatDateTime(order.created_at)} {order.paid_at && `• Paid ${formatDateTime(order.paid_at)}`} • ₹{Number(order.total_amount).toLocaleString()}
                                                         {order.discount_amount > 0 && (
                                                             <span style={{ color: '#8b5cf6' }}> • ₹{Number(order.discount_amount).toLocaleString()} off{order.original_amount ? ` (was ₹${Number(order.original_amount).toLocaleString()})` : ''}</span>
@@ -2473,7 +2588,7 @@ const AdminClientDetail = () => {
                                             </div>
 
                                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                                                {order.status === 'paid' && order.invoice_number && (
+                                                {order.order_type !== 'consultation' && order.status === 'paid' && order.invoice_number && (
                                                     <select
                                                         value={order.buyer_state_code || ''}
                                                         onChange={(e) => handleUpdateOrderBuyerState(order, e.target.value)}
@@ -2570,7 +2685,8 @@ const AdminClientDetail = () => {
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Topic</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Consultant</th>
                                             <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Status</th>
-                                            <th style={{ textAlign: 'right', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Scheduled Time</th>
+                                            <th style={{ textAlign: 'left', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Scheduled Time</th>
+                                            <th style={{ textAlign: 'right', padding: '14px 24px', fontSize: 11, color: 'var(--admin-text-muted)', textTransform: 'uppercase' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2579,7 +2695,7 @@ const AdminClientDetail = () => {
                                                 <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 700 }}>{c.topic_title}</td>
                                                 <td style={{ padding: '16px 24px', fontSize: 13 }}>
                                                     {c.consultant_app_id ? (
-                                                        <button 
+                                                        <button
                                                             onClick={() => window.open(`/Consultants/${c.consultant_app_id}`, '_blank')}
                                                             style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
                                                         >
@@ -2588,17 +2704,51 @@ const AdminClientDetail = () => {
                                                     ) : c.consultant_name}
                                                 </td>
                                                 <td style={{ padding: '16px 24px' }}>
-                                                    <span style={{ 
-                                                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, 
-                                                        background: c.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', 
-                                                        color: c.status === 'completed' ? '#10b981' : '#3b82f6' 
+                                                    <span style={{
+                                                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                                        background: c.status === 'completed' ? 'rgba(16,185,129,0.1)' : c.status === 'cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+                                                        color: c.status === 'completed' ? '#10b981' : c.status === 'cancelled' ? '#ef4444' : '#3b82f6'
                                                     }}>{c.status}</span>
                                                 </td>
-                                                <td style={{ padding: '16px 24px', textAlign: 'right', fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 700 }}>{formatDateTime(c.scheduled_at)}</td>
+                                                <td style={{ padding: '16px 24px', fontSize: 13, color: 'var(--admin-text-primary)', fontWeight: 700 }}>{formatDateTime(c.scheduled_at)}</td>
+                                                <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
+                                                        {c.meeting_link ? (
+                                                            <a
+                                                                href={c.meeting_link} target="_blank" rel="noreferrer"
+                                                                style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}
+                                                            >Join</a>
+                                                        ) : (
+                                                            <span style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, color: 'var(--admin-text-muted)' }}>No link</span>
+                                                        )}
+                                                        {c.status !== 'cancelled' && c.status !== 'completed' && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => openConsultationModal(c, 'reassign')}
+                                                                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                                                >Change Consultant</button>
+                                                                <button
+                                                                    onClick={() => openConsultationModal(c, 'reschedule')}
+                                                                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--admin-border-soft)', background: 'var(--admin-surface)', color: 'var(--admin-text-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                                                >Reschedule</button>
+                                                                <button
+                                                                    onClick={() => handleCloseConsultation(c)}
+                                                                    disabled={consultationActionLoading === `${c.id}-close`}
+                                                                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 11, fontWeight: 700, cursor: consultationActionLoading === `${c.id}-close` ? 'not-allowed' : 'pointer' }}
+                                                                >{consultationActionLoading === `${c.id}-close` ? 'Closing…' : 'Close Meeting'}</button>
+                                                                <button
+                                                                    onClick={() => handleCancelConsultation(c)}
+                                                                    disabled={consultationActionLoading === `${c.id}-cancel`}
+                                                                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 11, fontWeight: 700, cursor: consultationActionLoading === `${c.id}-cancel` ? 'not-allowed' : 'pointer' }}
+                                                                >{consultationActionLoading === `${c.id}-cancel` ? 'Cancelling…' : 'Cancel'}</button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                         {consultations.length === 0 && (
-                                            <tr><td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No consultations scheduled</td></tr>
+                                            <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 14 }}>No consultations scheduled</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -3124,6 +3274,103 @@ const AdminClientDetail = () => {
                 document.body
             )}
             {/* Ticket Creation Modal */}
+            {consultationModal.open && createPortal(
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(4px)'
+                }} onClick={closeConsultationModal}>
+                    <div style={{
+                        width: '90%', maxWidth: 480, background: 'var(--admin-surface)',
+                        borderRadius: 24, padding: 32, boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
+                        border: '1px solid var(--admin-border-soft)'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                                {consultationModal.mode === 'reassign' ? 'Change Consultant' : 'Reschedule Consultation'}
+                            </h3>
+                            <button onClick={closeConsultationModal} style={{ background: 'none', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer' }}>
+                                <X size={22} />
+                            </button>
+                        </div>
+
+                        {consultationModal.error && (
+                            <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                                {consultationModal.error}
+                            </div>
+                        )}
+
+                        {consultationModal.mode === 'reassign' ? (
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 8 }}>Consultant</label>
+                                {consultationModal.loadingConsultants ? (
+                                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--admin-text-muted)', fontSize: 13 }}>Loading consultants…</div>
+                                ) : (
+                                    <select
+                                        value={consultationModal.form.consultant_id}
+                                        onChange={(e) => setConsultationModal(prev => ({ ...prev, form: { ...prev.form, consultant_id: e.target.value } }))}
+                                        style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-primary)', fontSize: 14, outline: 'none' }}
+                                    >
+                                        <option value="">Select a consultant…</option>
+                                        {consultationModal.consultants.map((c) => (
+                                            <option key={c.id} value={c.id} disabled={c.is_current}>
+                                                {c.name}{c.is_current ? ' (current)' : ''}{c.has_conflict ? ' — has a conflicting booking' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 8 }}>Date</label>
+                                    <input
+                                        type="date"
+                                        value={consultationModal.form.booking_date}
+                                        onChange={(e) => setConsultationModal(prev => ({ ...prev, form: { ...prev.form, booking_date: e.target.value } }))}
+                                        style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-primary)', fontSize: 14, outline: 'none' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 8 }}>Start Time</label>
+                                        <input
+                                            type="time"
+                                            value={consultationModal.form.start_time}
+                                            onChange={(e) => setConsultationModal(prev => ({ ...prev, form: { ...prev.form, start_time: e.target.value } }))}
+                                            style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-primary)', fontSize: 14, outline: 'none' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--admin-text-muted)', marginBottom: 8 }}>End Time</label>
+                                        <input
+                                            type="time"
+                                            value={consultationModal.form.end_time}
+                                            onChange={(e) => setConsultationModal(prev => ({ ...prev, form: { ...prev.form, end_time: e.target.value } }))}
+                                            style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'var(--admin-row-alt)', border: '1px solid var(--admin-border-soft)', color: 'var(--admin-text-primary)', fontSize: 14, outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 28 }}>
+                            <button onClick={closeConsultationModal} style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid var(--admin-border-soft)', background: 'transparent', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                            <button
+                                onClick={submitConsultationModal}
+                                disabled={consultationModal.saving || (consultationModal.mode === 'reassign' && !consultationModal.form.consultant_id)}
+                                style={{
+                                    padding: '10px 18px', borderRadius: 10, border: 'none', background: '#0ea5e9', color: 'white',
+                                    fontWeight: 800, fontSize: 13, cursor: consultationModal.saving ? 'not-allowed' : 'pointer',
+                                    opacity: consultationModal.saving || (consultationModal.mode === 'reassign' && !consultationModal.form.consultant_id) ? 0.6 : 1,
+                                }}
+                            >{consultationModal.saving ? 'Saving…' : 'Save Changes'}</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body,
+            )}
+
             {isTicketModalOpen && createPortal(
                 <div style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
